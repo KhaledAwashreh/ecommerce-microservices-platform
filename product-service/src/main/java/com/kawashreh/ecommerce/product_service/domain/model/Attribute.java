@@ -1,6 +1,5 @@
 package com.kawashreh.ecommerce.product_service.domain.model;
 
-
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -18,15 +17,10 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-public class Category {
+public class Attribute {
 
     @Id
     @GeneratedValue
     private UUID id;
-
-    @GeneratedValue
-    private String name;
-
-
 
 }

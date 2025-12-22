@@ -1,9 +1,9 @@
-package com.kawashreh.ecommerce.product_service.domain.model;
-
+package com.kawashreh.ecommerce.product_service.infra.models;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.ManyToOne;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,15 +18,18 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-public class Category {
+public class Attachment {
 
     @Id
     @GeneratedValue
     private UUID id;
 
+    private String filename;
+    private String contentType;
+
+    @Id
     @GeneratedValue
-    private String name;
-
-
+    @ManyToOne
+    private UUID entityId;
 
 }

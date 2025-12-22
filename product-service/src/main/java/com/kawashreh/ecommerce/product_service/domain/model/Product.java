@@ -1,10 +1,7 @@
 package com.kawashreh.ecommerce.product_service.domain.model;
 
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,8 +9,9 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
+
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -28,24 +26,19 @@ public class Product {
     @GeneratedValue
     private UUID id;
 
-    @Column(nullable = false, unique = true, length = 50)
-    private String sku;
-
     @Column(nullable = false, length = 255)
     private String name;
 
     @Column
     private String description;
 
-    @Column(nullable = false)
-    private BigDecimal price;
+    @Column
+    @OneToMany
+    private List<Category> categories;
 
     @Column
-    @Builder.Default
-    private Integer stockQuantity = 0;
-
-    @Column
-    private boolean isActive;
+    @OneToMany
+    private List<ProductVariation> variations;
 
     @CreationTimestamp
     @Column
@@ -54,4 +47,8 @@ public class Product {
     @CreationTimestamp
     @Column
     private Instant updatedAt;
+
+    @Column
+    private String thumbnailUrl;
+
 }
