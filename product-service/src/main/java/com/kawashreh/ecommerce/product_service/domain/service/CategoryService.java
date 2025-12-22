@@ -12,6 +12,7 @@ public interface CategoryService {
     public Category find(UUID id);
 
     public void save(Category category);
+
     public void saveBatch(List<Category> categories);
 
     public void update(Category category);
