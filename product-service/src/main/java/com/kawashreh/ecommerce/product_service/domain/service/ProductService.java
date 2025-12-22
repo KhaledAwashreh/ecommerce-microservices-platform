@@ -12,11 +12,9 @@ public interface ProductService {
 
     public Product find(UUID id);
 
-    public Product save(Product product);
+    public void save(Product product);
 
-    public Product update(Product product);
+    public void update(Product product);
 
     public void delete(UUID id);
-
-    public void findByName(String name);
 }

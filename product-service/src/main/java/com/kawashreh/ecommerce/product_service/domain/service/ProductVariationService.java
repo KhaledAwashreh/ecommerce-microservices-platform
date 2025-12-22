@@ -18,7 +18,5 @@ public interface ProductVariationService {
 
     public void delete(UUID id);
 
-    public void findByName(String name);
-
     public ProductVariation findByProductId(UUID productId);
 }
