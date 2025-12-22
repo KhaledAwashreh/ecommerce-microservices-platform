@@ -14,5 +14,6 @@ public interface ProductReviewRepository extends JpaRepository<ProductReview, UU
 
     List<ProductReview> findByProductId(UUID productId);
     Page<ProductReview> findByProductId(UUID productId, Pageable pageable);
+    List<ProductReview> findByUserId(UUID userId);
     long countByProductId(UUID productId);
 }
