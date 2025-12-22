@@ -11,11 +11,12 @@ public interface CategoryService {
 
     public Category find(UUID id);
 
-    public Category save(Category category);
+    public void save(Category category);
+    public void saveBatch(List<Category> categories);
 
-    public Category update(Category category);
+    public void update(Category category);
 
     public void delete(UUID id);
 
-    public void findByName(String name);
+    public Category findByName(String name);
 }
