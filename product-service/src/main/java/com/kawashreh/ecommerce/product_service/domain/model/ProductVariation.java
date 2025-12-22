@@ -54,4 +54,14 @@ public class ProductVariation {
     @CollectionTable(name = "entity_attachments", joinColumns = @JoinColumn(name = "entity_id"))
     @Column(name = "attachment")
     private List<String> attachments;
+
+    @Column
+    @OneToMany
+    private List<Attribute> categories;
+
+    @Column
+    @JoinColumn(name = "product_id", nullable = false)
+    @ManyToOne
+    private Product product;
 }
+

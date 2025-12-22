@@ -14,7 +14,6 @@ import java.util.UUID;
 
 @Data
 @Builder
-@Component
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity

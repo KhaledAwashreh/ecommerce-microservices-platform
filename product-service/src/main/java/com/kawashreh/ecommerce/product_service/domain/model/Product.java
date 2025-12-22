@@ -7,7 +7,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
-import org.springframework.stereotype.Component;
 
 
 import java.time.Instant;
@@ -16,7 +15,6 @@ import java.util.UUID;
 
 @Data
 @Builder
-@Component
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
