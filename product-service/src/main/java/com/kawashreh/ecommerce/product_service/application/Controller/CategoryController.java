@@ -2,7 +2,6 @@ package com.kawashreh.ecommerce.product_service.application.Controller;
 
 import com.kawashreh.ecommerce.product_service.domain.model.Category;
 import com.kawashreh.ecommerce.product_service.domain.service.CategoryService;
-import org.apache.catalina.connector.Response;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,6 +12,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/categories")
 public class CategoryController {
+
     private final CategoryService service;
 
     public CategoryController(CategoryService service) {
