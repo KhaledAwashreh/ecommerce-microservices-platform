@@ -1,15 +1,17 @@
 package com.kawashreh.ecommerce.product_service.application.Controller;
 
-
 import com.kawashreh.ecommerce.product_service.domain.model.Category;
 import com.kawashreh.ecommerce.product_service.domain.service.CategoryService;
+import org.apache.catalina.connector.Response;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/categories")
+@RequestMapping("/api/v1/categories")
 public class CategoryController {
     private final CategoryService service;
 
@@ -17,25 +19,32 @@ public class CategoryController {
         this.service = service;
     }
 
-    @GetMapping()
-    public List<Category> getAll() {
-        return service.getAll();
+    @GetMapping
+    public ResponseEntity<List<Category>> findAll() {
+        return ResponseEntity.ok(service.getAll());
     }
+
     @GetMapping("/{categoryId}")
-    public Category find(@PathVariable UUID categoryId) {
-        return service.find(categoryId);
+    public ResponseEntity<Category> findById(@PathVariable UUID categoryId) {
+        Category category = service.find(categoryId);
+        return ResponseEntity.ok(category);
     }
+
     @GetMapping("/name/{categoryName}")
-    public Category findByName(@PathVariable String categoryName) {
-        return service.findByName(categoryName);
+    public ResponseEntity<Category> findByName(@PathVariable String categoryName) {
+        Category category = service.findByName(categoryName);
+        return ResponseEntity.ok(category);
     }
-    @PostMapping()
-    public void create(@RequestBody Category category) {
+
+    @PostMapping
+    public ResponseEntity<Category> create(@RequestBody Category category) {
         service.save(category);
+        return ResponseEntity.status(HttpStatus.CREATED).body(category);
     }
 
     @DeleteMapping("/{categoryId}")
-    public void delete(@PathVariable UUID categoryId) {
+    public ResponseEntity<Void> delete(@PathVariable UUID categoryId) {
         service.delete(categoryId);
+        return ResponseEntity.noContent().build();
     }
 }
