@@ -19,6 +19,6 @@ public interface ProductReviewService {
 
     List<ProductReview> findByUserId(UUID userId);
 
-    public ProductReview findByProductId(UUID productId);
+    public List<ProductReview> findByProductId(UUID productId);
 
 }

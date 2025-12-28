@@ -51,7 +51,7 @@ public class ProductReviewServiceImpl implements ProductReviewService {
     }
 
     @Override
-    public ProductReview findByProductId(UUID productId) {
-        return null;
+    public List<ProductReview> findByProductId(UUID productId) {
+        return repository.findByProductId(productId);
     }
 }
