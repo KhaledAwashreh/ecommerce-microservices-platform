@@ -1,7 +1,10 @@
 package com.kawashreh.ecommerce.product_service.application.Controller;
 
+import com.kawashreh.ecommerce.product_service.application.dto.ProductReviewDTO;
+import com.kawashreh.ecommerce.product_service.domain.model.Product;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductReview;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductReviewService;
+import com.kawashreh.ecommerce.product_service.domain.service.ProductService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,9 +18,11 @@ public class ProductReviewController {
 
 
     private final ProductReviewService service;
+    private final ProductService productService;
 
-    public ProductReviewController(ProductReviewService productReviewService) {
+    public ProductReviewController(ProductReviewService productReviewService, ProductService productService) {
         this.service = productReviewService;
+        this.productService = productService;
     }
 
     @GetMapping("{productId}")
@@ -34,8 +39,16 @@ public class ProductReviewController {
     }
 
     @PostMapping
-    public ResponseEntity<ProductReview> create(@RequestBody ProductReview review) {
+    public ResponseEntity<ProductReview> create(@RequestBody ProductReviewDTO dto) {
+        Product product = productService.find(dto.getProductId());
+        ProductReview review = ProductReview.builder()
+                .product(product)
+                .userId(dto.getUserId())
+                .review(dto.getReview())
+                .stars(dto.getStars())
+                .build();
         service.save(review);
+
         return ResponseEntity.status(HttpStatus.CREATED).body(review);
     }
 

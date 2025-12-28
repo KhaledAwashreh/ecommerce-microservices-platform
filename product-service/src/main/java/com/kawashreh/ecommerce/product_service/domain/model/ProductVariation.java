@@ -1,12 +1,12 @@
 package com.kawashreh.ecommerce.product_service.domain.model;
 
-import com.kawashreh.ecommerce.product_service.infra.models.Attachment;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -43,7 +43,7 @@ public class ProductVariation {
     @Column
     private Instant createdAt;
 
-    @CreationTimestamp
+    @UpdateTimestamp
     @Column
     private Instant updatedAt;
 
@@ -55,7 +55,7 @@ public class ProductVariation {
     @Column(name = "attachment")
     private List<String> attachments;
 
-    @Column
+    @JoinColumn(name = "category_id", nullable = false)
     @OneToMany
     private List<Attribute> categories;
 
