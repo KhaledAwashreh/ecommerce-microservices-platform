@@ -59,7 +59,6 @@ public class ProductVariation {
     @OneToMany
     private List<Attribute> categories;
 
-    @Column
     @JoinColumn(name = "product_id", nullable = false)
     @ManyToOne
     private Product product;

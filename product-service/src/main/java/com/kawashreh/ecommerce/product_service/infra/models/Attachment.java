@@ -8,8 +8,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.util.UUID;
 
 @Data
@@ -25,10 +23,5 @@ public class Attachment {
 
     private String filename;
     private String contentType;
-
-    @Id
-    @GeneratedValue
-    @ManyToOne
-    private UUID entityId;
 
 }

@@ -30,11 +30,11 @@ public class Product {
     @Column
     private String description;
 
-    @Column
+    @JoinColumn
     @OneToMany
     private List<Category> categories;
 
-    @Column
+    @JoinColumn
     @OneToMany
     private List<ProductVariation> variations;
 
