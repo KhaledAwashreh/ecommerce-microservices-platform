@@ -40,6 +40,7 @@ public class ProductReviewController {
 
     @PostMapping
     public ResponseEntity<ProductReview> create(@RequestBody ProductReviewDTO dto) {
+
         Product product = productService.find(dto.getProductId());
         ProductReview review = ProductReview.builder()
                 .product(product)
@@ -51,7 +52,6 @@ public class ProductReviewController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(review);
     }
-
 
     @DeleteMapping("/{reviewId}")
     public ResponseEntity<Void> delete(@PathVariable UUID reviewId) {

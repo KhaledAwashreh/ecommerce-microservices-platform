@@ -32,7 +32,7 @@ public class Product {
     private String description;
 
     @JoinColumn
-    @OneToMany
+    @ManyToMany
     private List<Category> categories;
 
     @JoinColumn

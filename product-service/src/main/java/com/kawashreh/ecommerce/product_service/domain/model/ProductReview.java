@@ -21,6 +21,8 @@ public class ProductReview {
     private UUID id;
 
     @Column
+    @JoinColumn(name = "name_id", nullable = false)
+
     private UUID userId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
