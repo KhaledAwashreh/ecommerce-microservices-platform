@@ -32,12 +32,8 @@ public class Product {
     private String description;
 
     @JoinColumn
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.EAGER)
     private List<Category> categories;
-
-    @JoinColumn
-    @OneToMany
-    private List<ProductVariation> variations;
 
     @CreationTimestamp
     @Column

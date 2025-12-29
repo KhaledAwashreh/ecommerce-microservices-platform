@@ -57,10 +57,10 @@ public class ProductVariation {
 
     @JoinColumn(name = "category_id", nullable = false)
     @OneToMany
-    private List<Attribute> categories;
+    private List<Attribute> attributes;
 
     @JoinColumn(name = "product_id", nullable = false)
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.EAGER)
     private Product product;
 }
 
