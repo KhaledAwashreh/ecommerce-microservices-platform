@@ -41,4 +41,12 @@ public class AddressController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(address);
     }
+
+    @DeleteMapping()
+    public ResponseEntity<Address> delete(@RequestParam UUID id) {
+        service.delete(id);
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(null);
+    }
 }
