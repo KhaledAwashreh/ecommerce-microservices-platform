@@ -1,9 +1,7 @@
 package com.kawashreh.ecommerce.user_service.domain.model;
 
-
 import com.kawashreh.ecommerce.user_service.domain.enums.AccountStatus;
 import com.kawashreh.ecommerce.user_service.domain.enums.AccountType;
-import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,8 +11,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
-import java.util.Date;
 import java.util.Locale;
+import java.util.TimeZone;
 import java.util.UUID;
 
 @Entity
@@ -22,26 +20,26 @@ import java.util.UUID;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class User {
+public class Account {
 
     @Id
     @GeneratedValue
     private UUID id;
 
-    @Column(nullable = false)
-    private String name;
+    @OneToOne
+    @JoinColumn(name = "user_id")
+    private User user;
 
-    @Column(nullable = false, unique = true)
-    private String email;
-
-    @Column(nullable = false)
-    private Date birthdate;
-
-    @Column(nullable = false)
-    private String phone;
+    @Column(unique = true, nullable = false)
+    private String username;
 
     @Column
-    private Gender gender;
+    @Builder.Default
+    private boolean archived = false;
+
+    @Column
+    @Builder.Default
+    private boolean activated = false;
 
     @Column
     @CreationTimestamp
@@ -51,6 +49,23 @@ public class User {
     @UpdateTimestamp
     private Instant updatedAt;
 
-    @OneToOne(mappedBy = "user")
-    private Account account;
+    @Column
+    private AccountStatus accountStatus;
+
+    @Column
+    private AccountType accountType;
+
+    @Column
+    private boolean emailVerified = false;
+
+    @Column
+    private boolean phoneVerified = false;
+
+    @Column
+    @Builder.Default
+    private Locale locale = Locale.ENGLISH;
+
+    @Column
+    @Builder.Default
+    private TimeZone timeZone = TimeZone.getDefault();
 }
