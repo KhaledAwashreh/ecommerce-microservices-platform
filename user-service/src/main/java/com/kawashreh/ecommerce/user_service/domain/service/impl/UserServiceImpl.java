@@ -23,12 +23,13 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void create(User user) {
+
+        Account account = new Account()
+                .setUser(user);
+
+        user.setAccount(account);
         repository.save(user);
-
-        Account account = new Account();
-        account.setUser(user);
         accountRepository.save(account);
-
     }
 
     @Override
