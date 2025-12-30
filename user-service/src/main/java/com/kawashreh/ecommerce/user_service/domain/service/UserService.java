@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface UserService {
-    void save(User user);
+    void create(User user);
 
     List<User> getAll();
 
@@ -17,4 +17,5 @@ public interface UserService {
     User findByUsername(String username);
 
     void delete(UUID id);
+
 }

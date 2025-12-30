@@ -23,15 +23,12 @@ import java.util.UUID;
 public class Account {
 
     @Id
-    @GeneratedValue
+    @GeneratedValue( strategy = GenerationType.UUID )
     private UUID id;
 
     @OneToOne
-    @JoinColumn(name = "user_id")
+    @JoinColumn()
     private User user;
-
-    @Column(unique = true, nullable = false)
-    private String username;
 
     @Column
     @Builder.Default

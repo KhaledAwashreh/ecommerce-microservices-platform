@@ -1,6 +1,8 @@
 package com.kawashreh.ecommerce.user_service.domain.service.impl;
 
+import com.kawashreh.ecommerce.user_service.dataAccess.AccountRepository;
 import com.kawashreh.ecommerce.user_service.dataAccess.UserRepository;
+import com.kawashreh.ecommerce.user_service.domain.model.Account;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
 import org.springframework.stereotype.Service;
@@ -12,14 +14,21 @@ import java.util.UUID;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository repository;
+    private final AccountRepository accountRepository;
 
-    public UserServiceImpl(UserRepository repository) {
+    public UserServiceImpl(UserRepository repository, AccountRepository accountRepository) {
         this.repository = repository;
+        this.accountRepository = accountRepository;
     }
 
     @Override
-    public void save(User user) {
+    public void create(User user) {
         repository.save(user);
+
+        Account account = new Account();
+        account.setUser(user);
+        accountRepository.save(account);
+
     }
 
     @Override

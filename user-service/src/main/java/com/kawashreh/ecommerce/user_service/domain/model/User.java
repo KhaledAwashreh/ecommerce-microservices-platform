@@ -1,8 +1,5 @@
 package com.kawashreh.ecommerce.user_service.domain.model;
 
-
-import com.kawashreh.ecommerce.user_service.domain.enums.AccountStatus;
-import com.kawashreh.ecommerce.user_service.domain.enums.AccountType;
 import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -14,7 +11,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 import java.util.Date;
-import java.util.Locale;
 import java.util.UUID;
 
 @Entity
@@ -22,14 +18,18 @@ import java.util.UUID;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
+@Table(name = "\"user\"")
 public class User {
 
     @Id
-    @GeneratedValue
+    @GeneratedValue( strategy = GenerationType.UUID )
     private UUID id;
 
     @Column(nullable = false)
     private String name;
+
+    @Column(unique = true, nullable = false)
+    private String username;
 
     @Column(nullable = false, unique = true)
     private String email;
