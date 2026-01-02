@@ -47,4 +47,17 @@ public class Account {
 
     @Builder.Default
     private TimeZone timeZone = TimeZone.getDefault();
+
+    public void activate() {
+        if (this.activated) {
+            throw new IllegalStateException("Account already activated");
+        }
+        this.activated = true;
+        this.accountStatus = AccountStatus.ACTIVE;
+    }
+
+    public boolean canLogin() {
+        return activated && !archived && emailVerified;
+    }
 }
+

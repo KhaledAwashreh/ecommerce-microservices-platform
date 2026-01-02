@@ -51,4 +51,31 @@ public class User {
     public List<Address> getAddresses() {
         return Collections.unmodifiableList(addresses);
     }
+
+    public void updateEmail(String newEmail) {
+        this.email = newEmail;
+        this.updatedAt = Instant.now();
+        if (this.account != null) {
+            this.account.setEmailVerified(false);
+        }
+    }
+
+    public Address getDefaultAddress() {
+        return addresses.stream()
+                .filter(Address::isDefaultAddress)
+                .findFirst()
+                .orElse(null);
+    }
+
+    public void setDefaultAddress(UUID addressId) {
+        // Clear current default
+        addresses.forEach(a -> a.setDefaultAddress(false));
+
+        // Set new default
+        addresses.stream()
+                .filter(a -> a.getId().equals(addressId))
+                .findFirst()
+                .ifPresent(a -> a.setDefaultAddress(true));
+    }
+
 }
