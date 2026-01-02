@@ -13,7 +13,6 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 
-@Entity
 @Data
 @Builder
 @AllArgsConstructor
@@ -21,36 +20,23 @@ import java.util.UUID;
 @Table(name = "\"user\"")
 public class User {
 
-    @Id
-    @GeneratedValue( strategy = GenerationType.UUID )
     private UUID id;
 
-    @Column(nullable = false)
     private String name;
 
-    @Column(unique = true, nullable = false)
     private String username;
 
-    @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = false)
     private Date birthdate;
 
-    @Column(nullable = false)
     private String phone;
 
-    @Column
     private Gender gender;
 
-    @Column
-    @CreationTimestamp
     private Instant createdAt;
 
-    @Column
-    @UpdateTimestamp
     private Instant updatedAt;
 
-    @OneToOne(mappedBy = "user")
     private Account account;
 }
