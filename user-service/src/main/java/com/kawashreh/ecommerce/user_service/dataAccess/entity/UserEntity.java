@@ -1,4 +1,4 @@
-package com.kawashreh.ecommerce.user_service.dataAccess.dto;
+package com.kawashreh.ecommerce.user_service.dataAccess.entity;
 
 import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
 import com.kawashreh.ecommerce.user_service.domain.model.Account;
@@ -20,7 +20,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "\"user\"")
-public class UserDto {
+public class UserEntity {
 
     @Id
     @GeneratedValue( strategy = GenerationType.UUID )
@@ -53,5 +53,5 @@ public class UserDto {
     private Instant updatedAt;
 
     @OneToOne(mappedBy = "user")
-    private Account account;
+    private AccountEntity account;
 }

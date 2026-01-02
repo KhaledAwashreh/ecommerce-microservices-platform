@@ -1,4 +1,4 @@
-package com.kawashreh.ecommerce.user_service.dataAccess.dto;
+package com.kawashreh.ecommerce.user_service.dataAccess.entity;
 
 import com.kawashreh.ecommerce.user_service.domain.enums.AccountStatus;
 import com.kawashreh.ecommerce.user_service.domain.enums.AccountType;
@@ -22,7 +22,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-public class AccountDto {
+public class AccountEntity {
 
     @Id
     @GeneratedValue( strategy = GenerationType.UUID )
@@ -30,7 +30,7 @@ public class AccountDto {
 
     @OneToOne
     @JoinColumn()
-    private UserDto user;
+    private UserEntity user;
 
     @Column
     @Builder.Default

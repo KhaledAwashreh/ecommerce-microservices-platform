@@ -6,18 +6,14 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
-import java.util.Date;
-import java.util.UUID;
+import java.util.*;
 
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "\"user\"")
 public class User {
 
     private UUID id;
@@ -39,4 +35,20 @@ public class User {
     private Instant updatedAt;
 
     private Account account;
+
+    private List<Address> addresses = new ArrayList<>();
+
+    // Add business method
+    public void addAddress(Address address) {
+        if (address == null) {
+            throw new IllegalArgumentException("Address cannot be null");
+        }
+        address.setUser(this);
+        this.addresses.add(address);
+        this.updatedAt = Instant.now();
+    }
+
+    public List<Address> getAddresses() {
+        return Collections.unmodifiableList(addresses);
+    }
 }

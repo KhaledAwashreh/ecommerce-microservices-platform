@@ -1,6 +1,5 @@
 package com.kawashreh.ecommerce.user_service.domain.model;
 
-import jakarta.persistence.*;
 import lombok.*;
 
 import java.util.UUID;

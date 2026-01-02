@@ -1,6 +1,5 @@
-package com.kawashreh.ecommerce.user_service.dataAccess.dto;
+package com.kawashreh.ecommerce.user_service.dataAccess.entity;
 
-import com.kawashreh.ecommerce.user_service.domain.model.User;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -12,7 +11,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AddressDto {
+public class AddressEntity {
 
     @Id
     @GeneratedValue
@@ -21,7 +20,7 @@ public class AddressDto {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn( nullable = false)
-    private User user;
+    private UserEntity user;
 
     @Column(nullable = false)
     private String street;

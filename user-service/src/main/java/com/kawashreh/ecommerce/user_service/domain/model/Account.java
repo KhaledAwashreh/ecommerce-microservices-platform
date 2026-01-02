@@ -2,15 +2,11 @@ package com.kawashreh.ecommerce.user_service.domain.model;
 
 import com.kawashreh.ecommerce.user_service.domain.enums.AccountStatus;
 import com.kawashreh.ecommerce.user_service.domain.enums.AccountType;
-import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
-import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.Locale;
@@ -22,7 +18,6 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-@Component
 public class Account {
 
     private UUID id;
@@ -35,10 +30,8 @@ public class Account {
     @Builder.Default
     private boolean activated = false;
 
-    @CreationTimestamp
     private Instant createdAt;
 
-    @UpdateTimestamp
     private Instant updatedAt;
 
     private AccountStatus accountStatus;
