@@ -1,4 +1,4 @@
-package com.kawashreh.ecommerce.user_service.dataAccess;
+package com.kawashreh.ecommerce.user_service.dataAccess.repository;
 
 import com.kawashreh.ecommerce.user_service.domain.model.Account;
 import org.springframework.data.jpa.repository.JpaRepository;

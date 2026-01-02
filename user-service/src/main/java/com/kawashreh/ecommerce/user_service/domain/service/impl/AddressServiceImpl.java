@@ -1,7 +1,7 @@
 package com.kawashreh.ecommerce.user_service.domain.service.impl;
 
 
-import com.kawashreh.ecommerce.user_service.dataAccess.AddressRepository;
+import com.kawashreh.ecommerce.user_service.dataAccess.repository.AddressRepository;
 import com.kawashreh.ecommerce.user_service.domain.model.Address;
 import com.kawashreh.ecommerce.user_service.domain.service.AddressService;
 import org.springframework.stereotype.Service;

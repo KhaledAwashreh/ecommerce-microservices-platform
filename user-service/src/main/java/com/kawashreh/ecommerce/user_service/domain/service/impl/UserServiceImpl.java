@@ -1,7 +1,7 @@
 package com.kawashreh.ecommerce.user_service.domain.service.impl;
 
-import com.kawashreh.ecommerce.user_service.dataAccess.AccountRepository;
-import com.kawashreh.ecommerce.user_service.dataAccess.UserRepository;
+import com.kawashreh.ecommerce.user_service.dataAccess.repository.AccountRepository;
+import com.kawashreh.ecommerce.user_service.dataAccess.repository.UserRepository;
 import com.kawashreh.ecommerce.user_service.domain.model.Account;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
