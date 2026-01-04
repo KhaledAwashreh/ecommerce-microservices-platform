@@ -6,6 +6,8 @@ import org.springframework.stereotype.Component;
 
 public final class AccountMapper {
     public static AccountEntity toEntity(Account d) {
+        if(d == null) return null;
+
         return AccountEntity.builder()
                 .id(d.getId())
                 .accountStatus(d.getAccountStatus())
@@ -17,10 +19,13 @@ public final class AccountMapper {
                 .timeZone(d.getTimeZone())
                 .createdAt(d.getCreatedAt())
                 .updatedAt(d.getUpdatedAt())
+                .user(UserMapper.toEntity(d.getUser()))
                 .build();
     }
 
     public static Account toDomain(AccountEntity e) {
+
+        if(e == null) return null;
 
         return Account.builder()
                 .id(e.getId())
@@ -33,6 +38,7 @@ public final class AccountMapper {
                 .timeZone(e.getTimeZone())
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
+                .user(UserMapper.toDomain(e.getUser()))
                 .build();
     }
 }
