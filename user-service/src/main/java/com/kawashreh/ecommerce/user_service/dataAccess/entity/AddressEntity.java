@@ -2,6 +2,7 @@ package com.kawashreh.ecommerce.user_service.dataAccess.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.Accessors;
 
 import java.util.UUID;
 
@@ -11,6 +12,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Accessors(chain = true)
 public class AddressEntity {
 
     @Id
@@ -39,7 +41,7 @@ public class AddressEntity {
 
     @Builder.Default
     @Column(name = "is_default", nullable = false)
-    private boolean defaultAddress = false;
+    private boolean DefaultAddress = false;
 
     @Column(name = "phone_number")
     private String phoneNumber;

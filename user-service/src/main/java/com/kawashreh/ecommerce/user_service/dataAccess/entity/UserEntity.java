@@ -1,6 +1,7 @@
 package com.kawashreh.ecommerce.user_service.dataAccess.entity;
 
 import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
+import com.kawashreh.ecommerce.user_service.domain.model.Address;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -10,7 +11,9 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -54,4 +57,8 @@ public class UserEntity {
 
     @OneToOne(mappedBy = "user", fetch = FetchType.LAZY)
     private AccountEntity account;
+
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
+    private List<AddressEntity> addresses = new ArrayList<>();
+
 }

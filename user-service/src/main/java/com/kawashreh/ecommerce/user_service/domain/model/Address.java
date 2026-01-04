@@ -1,6 +1,7 @@
 package com.kawashreh.ecommerce.user_service.domain.model;
 
 import lombok.*;
+import lombok.experimental.Accessors;
 
 import java.util.UUID;
 
@@ -9,6 +10,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Accessors(chain = true)
 public class Address {
 
     private UUID id;
