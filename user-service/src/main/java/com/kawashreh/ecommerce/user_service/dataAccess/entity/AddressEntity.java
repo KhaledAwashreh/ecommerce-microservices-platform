@@ -19,22 +19,22 @@ public class AddressEntity {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn( nullable = false)
+    @JoinColumn(name = "user_id" ,nullable = false)
     private UserEntity user;
 
-    @Column(nullable = false)
+    @Column(name = "street", nullable = false)
     private String street;
 
-    @Column(nullable = false)
+    @Column(name = "city", nullable = false)
     private String city;
 
-    @Column(nullable = false)
+    @Column(name = "state", nullable = false)
     private String state;
 
     @Column(name = "postal_code", nullable = false)
     private String postalCode;
 
-    @Column(nullable = false)
+    @Column(name="country", nullable = false)
     private String country;
 
     @Builder.Default
@@ -44,7 +44,7 @@ public class AddressEntity {
     @Column(name = "phone_number")
     private String phoneNumber;
 
-    @Column
+    @Column(name = "additional_information")
     private String additionalInformation;
 
 }

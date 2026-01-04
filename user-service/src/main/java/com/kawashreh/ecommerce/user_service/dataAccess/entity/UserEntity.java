@@ -1,7 +1,6 @@
 package com.kawashreh.ecommerce.user_service.dataAccess.entity;
 
 import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
-import com.kawashreh.ecommerce.user_service.domain.model.Account;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,35 +22,36 @@ import java.util.UUID;
 public class UserEntity {
 
     @Id
-    @GeneratedValue( strategy = GenerationType.UUID )
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "name", nullable = false)
     private String name;
 
-    @Column(unique = true, nullable = false)
+    @Column(name = "username", unique = true, nullable = false)
     private String username;
 
-    @Column(nullable = false, unique = true)
+    @Column(name = "email", unique = true, nullable = false)
     private String email;
 
-    @Column(nullable = false)
+    @Column(name = "birthdate", nullable = false)
     private Date birthdate;
 
-    @Column(nullable = false)
+    @Column(name = "phone", nullable = false)
     private String phone;
 
-    @Column
+    @Column(name = "gender")
     private Gender gender;
 
-    @Column
+    @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp
     private Instant createdAt;
 
-    @Column
+    @Column(name = "updated_at", nullable = false)
     @UpdateTimestamp
     private Instant updatedAt;
 
-    @OneToOne(mappedBy = "user")
+    @OneToOne(mappedBy = "user", fetch = FetchType.LAZY)
     private AccountEntity account;
 }
