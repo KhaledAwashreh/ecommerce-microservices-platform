@@ -2,10 +2,10 @@ package com.kawashreh.ecommerce.user_service.dataAccess.Mapper;
 
 import com.kawashreh.ecommerce.user_service.dataAccess.entity.AccountEntity;
 import com.kawashreh.ecommerce.user_service.domain.model.Account;
+import org.springframework.stereotype.Component;
 
-public class AccountMapper extends DomainEntityMapper<AccountEntity, Account> {
-    @Override
-    public AccountEntity toEntity(Account d) {
+public final class AccountMapper {
+    public static AccountEntity toEntity(Account d) {
         return AccountEntity.builder()
                 .id(d.getId())
                 .accountStatus(d.getAccountStatus())
@@ -20,8 +20,7 @@ public class AccountMapper extends DomainEntityMapper<AccountEntity, Account> {
                 .build();
     }
 
-    @Override
-    public Account toDomain(AccountEntity e) {
+    public static Account toDomain(AccountEntity e) {
 
         return Account.builder()
                 .id(e.getId())

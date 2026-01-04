@@ -2,11 +2,12 @@ package com.kawashreh.ecommerce.user_service.dataAccess.Mapper;
 
 import com.kawashreh.ecommerce.user_service.dataAccess.entity.AddressEntity;
 import com.kawashreh.ecommerce.user_service.domain.model.Address;
+import org.springframework.stereotype.Component;
 
-public final class AddressMapper extends DomainEntityMapper<AddressEntity, Address> {
+@Component
+public final class AddressMapper {
 
-    @Override
-    public AddressEntity toEntity(Address a) {
+    public static AddressEntity toEntity(Address a) {
         if(a == null) return null;
         return AddressEntity.builder()
                 .DefaultAddress(a.isDefaultAddress())
@@ -21,8 +22,7 @@ public final class AddressMapper extends DomainEntityMapper<AddressEntity, Addre
                 .build();
     }
 
-    @Override
-    public Address toDomain(AddressEntity e) {
+    public static Address toDomain(AddressEntity e) {
         if (e == null) return null;
 
         return new Address()

@@ -3,10 +3,9 @@ package com.kawashreh.ecommerce.user_service.dataAccess.Mapper;
 import com.kawashreh.ecommerce.user_service.dataAccess.entity.UserEntity;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 
-public final class UserMapper extends DomainEntityMapper<UserEntity, User> {
+public final class UserMapper {
 
-    @Override
-    public UserEntity toEntity(User d) {
+    public static UserEntity toEntity(User d) {
         return UserEntity
                 .builder()
                 .id(d.getId())
@@ -20,8 +19,7 @@ public final class UserMapper extends DomainEntityMapper<UserEntity, User> {
 
     }
 
-    @Override
-    public User toDomain(UserEntity e) {
+    public static User toDomain(UserEntity e) {
         return User
                 .builder()
                 .id(e.getId())

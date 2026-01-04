@@ -1,10 +1,13 @@
 package com.kawashreh.ecommerce.user_service.domain.service.impl;
 
+import com.kawashreh.ecommerce.user_service.dataAccess.Mapper.AccountMapper;
+import com.kawashreh.ecommerce.user_service.dataAccess.Mapper.UserMapper;
 import com.kawashreh.ecommerce.user_service.dataAccess.repository.AccountRepository;
 import com.kawashreh.ecommerce.user_service.dataAccess.repository.UserRepository;
 import com.kawashreh.ecommerce.user_service.domain.model.Account;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,9 +19,14 @@ public class UserServiceImpl implements UserService {
     private final UserRepository repository;
     private final AccountRepository accountRepository;
 
-    public UserServiceImpl(UserRepository repository, AccountRepository accountRepository) {
+    private final AccountMapper accountMapper;
+    private final UserMapper userMapper;
+
+
+    public UserServiceImpl(UserRepository repository, AccountRepository accountRepository, AccountMapper accountMapper) {
         this.repository = repository;
         this.accountRepository = accountRepository;
+        this.accountMapper = accountMapper;
     }
 
     @Override
@@ -27,6 +35,7 @@ public class UserServiceImpl implements UserService {
         Account account = new Account()
                 .setUser(user);
         user.setAccount(account);
+
 
         repository.save(user);
         accountRepository.save(account);
