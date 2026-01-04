@@ -1,13 +1,12 @@
 package com.kawashreh.ecommerce.user_service.domain.service.impl;
 
-import com.kawashreh.ecommerce.user_service.dataAccess.Mapper.AccountMapper;
 import com.kawashreh.ecommerce.user_service.dataAccess.Mapper.UserMapper;
+import com.kawashreh.ecommerce.user_service.dataAccess.entity.AccountEntity;
+import com.kawashreh.ecommerce.user_service.dataAccess.entity.UserEntity;
 import com.kawashreh.ecommerce.user_service.dataAccess.repository.AccountRepository;
 import com.kawashreh.ecommerce.user_service.dataAccess.repository.UserRepository;
-import com.kawashreh.ecommerce.user_service.domain.model.Account;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -19,53 +18,55 @@ public class UserServiceImpl implements UserService {
     private final UserRepository repository;
     private final AccountRepository accountRepository;
 
-    private final AccountMapper accountMapper;
-    private final UserMapper userMapper;
-
-
-    public UserServiceImpl(UserRepository repository, AccountRepository accountRepository, AccountMapper accountMapper) {
+    public UserServiceImpl(UserRepository repository,AccountRepository accountRepository) {
         this.repository = repository;
         this.accountRepository = accountRepository;
-        this.accountMapper = accountMapper;
     }
 
     @Override
     public void create(User user) {
 
-        Account account = new Account()
-                .setUser(user);
-        user.setAccount(account);
+        UserEntity ue = UserMapper.toEntity(user);
 
+        AccountEntity ae = new AccountEntity();
+        ae.setUser(ue);        // owning side
+        ue.setAccount(ae);     // inverse side
 
-        repository.save(user);
-        accountRepository.save(account);
+        repository.save(ue);
+        accountRepository.save(ae);
     }
 
     @Override
     public List<User> getAll() {
-        return repository.findAll();
+        return repository.findAll()
+                .stream()
+                .map(UserMapper::toDomain)
+                .toList();
     }
 
     @Override
     public User find(UUID id) {
         return repository.findById(id)
+                .map(UserMapper::toDomain)
                 .orElse(null);
     }
 
     @Override
     public User findByEmail(String email) {
         return repository.findByEmail(email)
+                .map(UserMapper::toDomain)
                 .orElse(null);
     }
 
     @Override
     public User findByUsername(String username) {
         return repository.findByUsername(username)
+                .map(UserMapper::toDomain)
                 .orElse(null);
     }
 
     @Override
     public void delete(UUID id) {
-         repository.deleteById(id);
+        repository.deleteById(id);
     }
 }
