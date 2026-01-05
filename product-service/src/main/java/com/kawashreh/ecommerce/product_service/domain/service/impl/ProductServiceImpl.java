@@ -1,6 +1,8 @@
 package com.kawashreh.ecommerce.product_service.domain.service.impl;
 
 import com.kawashreh.ecommerce.product_service.dataAccess.Dao.ProductRepository;
+import com.kawashreh.ecommerce.product_service.dataAccess.Mapper.ProductMapper;
+import com.kawashreh.ecommerce.product_service.dataAccess.entity.ProductEntity;
 import com.kawashreh.ecommerce.product_service.domain.model.Product;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductService;
 import org.springframework.stereotype.Service;
@@ -16,27 +18,26 @@ public class ProductServiceImpl implements ProductService {
     public ProductServiceImpl(ProductRepository repository) {
         this.repository = repository;
     }
+
     @Override
     public List<Product> getAll() {
-
-        return repository.findAll();
+        List<ProductEntity> entities = repository.findAll();
+        return ProductMapper.toDomainList(entities);
     }
 
     @Override
     public Product find(UUID id) {
-
-return repository.findById(id).orElse(null);    }
+        return repository.findById(id).map(ProductMapper::toDomain).orElse(null);
+    }
 
     @Override
     public void save(Product product) {
-
-        repository.save(product);
+        repository.save(ProductMapper.toEntity(product));
     }
 
     @Override
     public void update(Product product) {
-
-        repository.save(product);
+        repository.save(ProductMapper.toEntity(product));
     }
 
     @Override

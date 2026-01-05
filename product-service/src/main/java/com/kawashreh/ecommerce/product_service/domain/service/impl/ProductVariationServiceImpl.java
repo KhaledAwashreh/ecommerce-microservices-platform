@@ -1,6 +1,8 @@
 package com.kawashreh.ecommerce.product_service.domain.service.impl;
 
 import com.kawashreh.ecommerce.product_service.dataAccess.Dao.ProductVariationRepository;
+import com.kawashreh.ecommerce.product_service.dataAccess.Mapper.ProductVariationMapper;
+import com.kawashreh.ecommerce.product_service.dataAccess.entity.ProductVariationEntity;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductVariation;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductVariationService;
 import org.springframework.stereotype.Service;
@@ -16,25 +18,26 @@ public class ProductVariationServiceImpl implements ProductVariationService {
     public ProductVariationServiceImpl(ProductVariationRepository repository) {
         this.repository = repository;
     }
+
     @Override
     public List<ProductVariation> getAll() {
-            return repository.findAll();
+        List<ProductVariationEntity> entities = repository.findAll();
+        return ProductVariationMapper.toDomainList(entities);
     }
 
     @Override
     public ProductVariation find(UUID id) {
-        return repository.findById(id)
-                .orElse(null);
+        return repository.findById(id).map(ProductVariationMapper::toDomain).orElse(null);
     }
 
     @Override
     public void save(ProductVariation productVariation) {
-        repository.save(productVariation);
+        repository.save(ProductVariationMapper.toEntity(productVariation));
     }
 
     @Override
     public void update(ProductVariation productVariation) {
-        repository.save(productVariation);
+        repository.save(ProductVariationMapper.toEntity(productVariation));
     }
 
     @Override
@@ -44,6 +47,7 @@ public class ProductVariationServiceImpl implements ProductVariationService {
 
     @Override
     public List<ProductVariation> findByProductId(UUID productId) {
-        return repository.findByProductId(productId);
+        List<ProductVariationEntity> entities = repository.findByProductId(productId);
+        return ProductVariationMapper.toDomainList(entities);
     }
 }

@@ -1,6 +1,8 @@
 package com.kawashreh.ecommerce.product_service.domain.service.impl;
 
 import com.kawashreh.ecommerce.product_service.dataAccess.Dao.CategoryRepository;
+import com.kawashreh.ecommerce.product_service.dataAccess.Mapper.CategoryMapper;
+import com.kawashreh.ecommerce.product_service.dataAccess.entity.CategoryEntity;
 import com.kawashreh.ecommerce.product_service.domain.model.Category;
 import com.kawashreh.ecommerce.product_service.domain.service.CategoryService;
 import org.springframework.stereotype.Service;
@@ -19,30 +21,28 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public List<Category> getAll() {
-
-        return repository.findAll();
+        List<CategoryEntity> entities = repository.findAll();
+        return CategoryMapper.toDomainList(entities);
     }
 
     @Override
     public Category find(UUID id) {
-
-        return repository.findById(id)
-                .orElse(null);
+        return repository.findById(id).map(CategoryMapper::toDomain).orElse(null);
     }
 
     @Override
     public void save(Category category) {
-        repository.save(category);
+        repository.save(CategoryMapper.toEntity(category));
     }
 
     @Override
     public void saveBatch(List<Category> categories) {
-        repository.saveAll(categories);
+        repository.saveAll(CategoryMapper.toEntityList(categories));
     }
 
     @Override
     public void update(Category category) {
-        repository.save(category);
+        repository.save(CategoryMapper.toEntity(category));
     }
 
     @Override
@@ -52,7 +52,6 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public Category findByName(String name) {
-        return repository.findByName(name)
-                .orElse(null);
+        return repository.findByName(name).map(CategoryMapper::toDomain).orElse(null);
     }
 }

@@ -9,28 +9,28 @@ public final class ProductMapper {
 
     public static ProductEntity toEntity(Product d) {
         if (d == null) return null;
-        return ProductEntity.builder()
-                .id(d.getId())
-                .name(d.getName())
-                .description(d.getDescription())
-                .categories(CategoryMapper.toEntityList(d.getCategories()))
-                .createdAt(d.getCreatedAt())
-                .updatedAt(d.getUpdatedAt())
-                .thumbnailUrl(d.getThumbnailUrl())
-                .build();
+        ProductEntity e = new ProductEntity();
+        e.setId(d.getId());
+        e.setName(d.getName());
+        e.setDescription(d.getDescription());
+        e.setCategories(CategoryMapper.toEntityList(d.getCategories()));
+        e.setCreatedAt(d.getCreatedAt());
+        e.setUpdatedAt(d.getUpdatedAt());
+        e.setThumbnailUrl(d.getThumbnailUrl());
+        return e;
     }
 
     public static Product toDomain(ProductEntity e) {
         if (e == null) return null;
-        return Product.builder()
-                .id(e.getId())
-                .name(e.getName())
-                .description(e.getDescription())
-                .categories(CategoryMapper.toDomainList(e.getCategories()))
-                .createdAt(e.getCreatedAt())
-                .updatedAt(e.getUpdatedAt())
-                .thumbnailUrl(e.getThumbnailUrl())
-                .build();
+        Product d = new Product();
+        d.setId(e.getId());
+        d.setName(e.getName());
+        d.setDescription(e.getDescription());
+        d.setCategories(CategoryMapper.toDomainList(e.getCategories()));
+        d.setCreatedAt(e.getCreatedAt());
+        d.setUpdatedAt(e.getUpdatedAt());
+        d.setThumbnailUrl(e.getThumbnailUrl());
+        return d;
     }
 
     public static List<Product> toDomainList(List<ProductEntity> list) {

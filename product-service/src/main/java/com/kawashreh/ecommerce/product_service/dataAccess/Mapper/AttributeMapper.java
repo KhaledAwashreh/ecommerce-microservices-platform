@@ -9,20 +9,20 @@ public final class AttributeMapper {
 
     public static AttributeEntity toEntity(Attribute d) {
         if (d == null) return null;
-        return AttributeEntity.builder()
-                .id(d.getId())
-                .name(d.getName())
-                .value(d.getValue())
-                .build();
+        AttributeEntity e = new AttributeEntity();
+        e.setId(d.getId());
+        e.setName(d.getName());
+        e.setValue(d.getValue());
+        return e;
     }
 
     public static Attribute toDomain(AttributeEntity e) {
         if (e == null) return null;
-        return Attribute.builder()
-                .id(e.getId())
-                .name(e.getName())
-                .value(e.getValue())
-                .build();
+        Attribute d = new Attribute();
+        d.setId(e.getId());
+        d.setName(e.getName());
+        d.setValue(e.getValue());
+        return d;
     }
 
     public static List<Attribute> toDomainList(List<AttributeEntity> list) {

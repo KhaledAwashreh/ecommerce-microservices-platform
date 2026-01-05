@@ -9,20 +9,20 @@ public final class CategoryMapper {
 
     public static CategoryEntity toEntity(Category d) {
         if (d == null) return null;
-        return CategoryEntity.builder()
-                .id(d.getId())
-                .name(d.getName())
-                .description(d.getDescription())
-                .build();
+        CategoryEntity e = new CategoryEntity();
+        e.setId(d.getId());
+        e.setName(d.getName());
+        e.setDescription(d.getDescription());
+        return e;
     }
 
     public static Category toDomain(CategoryEntity e) {
         if (e == null) return null;
-        return Category.builder()
-                .id(e.getId())
-                .name(e.getName())
-                .description(e.getDescription())
-                .build();
+        Category d = new Category();
+        d.setId(e.getId());
+        d.setName(e.getName());
+        d.setDescription(e.getDescription());
+        return d;
     }
 
     public static List<Category> toDomainList(List<CategoryEntity> list) {

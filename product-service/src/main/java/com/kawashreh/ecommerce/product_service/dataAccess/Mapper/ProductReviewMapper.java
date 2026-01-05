@@ -9,24 +9,24 @@ public final class ProductReviewMapper {
 
     public static ProductReviewEntity toEntity(ProductReview d) {
         if (d == null) return null;
-        return ProductReviewEntity.builder()
-                .id(d.getId())
-                .userId(d.getUserId())
-                .product(ProductMapper.toEntity(d.getProduct()))
-                .review(d.getReview())
-                .stars(d.getStars())
-                .build();
+        ProductReviewEntity e = new ProductReviewEntity();
+        e.setId(d.getId());
+        e.setUserId(d.getUserId());
+        e.setProduct(ProductMapper.toEntity(d.getProduct()));
+        e.setReview(d.getReview());
+        e.setStars(d.getStars());
+        return e;
     }
 
     public static ProductReview toDomain(ProductReviewEntity e) {
         if (e == null) return null;
-        return ProductReview.builder()
-                .id(e.getId())
-                .userId(e.getUserId())
-                .product(ProductMapper.toDomain(e.getProduct()))
-                .review(e.getReview())
-                .stars(e.getStars())
-                .build();
+        ProductReview d = new ProductReview();
+        d.setId(e.getId());
+        d.setUserId(e.getUserId());
+        d.setProduct(ProductMapper.toDomain(e.getProduct()));
+        d.setReview(e.getReview());
+        d.setStars(e.getStars());
+        return d;
     }
 
     public static List<ProductReview> toDomainList(List<ProductReviewEntity> list) {
