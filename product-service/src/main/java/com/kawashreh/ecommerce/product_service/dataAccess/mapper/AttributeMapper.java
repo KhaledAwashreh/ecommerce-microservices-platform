@@ -1,4 +1,4 @@
-package com.kawashreh.ecommerce.product_service.dataAccess.Mapper;
+package com.kawashreh.ecommerce.product_service.dataAccess.mapper;
 
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.AttributeEntity;
 import com.kawashreh.ecommerce.product_service.domain.model.Attribute;
@@ -9,20 +9,20 @@ public final class AttributeMapper {
 
     public static AttributeEntity toEntity(Attribute d) {
         if (d == null) return null;
-        AttributeEntity e = new AttributeEntity();
-        e.setId(d.getId());
-        e.setName(d.getName());
-        e.setValue(d.getValue());
-        return e;
+        return AttributeEntity.builder()
+                .id(d.getId())
+                .name(d.getName())
+                .value(d.getValue())
+                .build();
     }
 
     public static Attribute toDomain(AttributeEntity e) {
         if (e == null) return null;
-        Attribute d = new Attribute();
-        d.setId(e.getId());
-        d.setName(e.getName());
-        d.setValue(e.getValue());
-        return d;
+        return Attribute.builder()
+                .id(e.getId())
+                .name(e.getName())
+                .value(e.getValue())
+                .build();
     }
 
     public static List<Attribute> toDomainList(List<AttributeEntity> list) {

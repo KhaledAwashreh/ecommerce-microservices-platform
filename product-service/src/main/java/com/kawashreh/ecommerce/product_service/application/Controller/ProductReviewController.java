@@ -42,11 +42,12 @@ public class ProductReviewController {
     public ResponseEntity<ProductReview> create(@RequestBody ProductReviewDTO dto) {
 
         Product product = productService.find(dto.getProductId());
-        ProductReview review = new ProductReview();
-        review.setProduct(product);
-        review.setUserId(dto.getUserId());
-        review.setReview(dto.getReview());
-        review.setStars(dto.getStars());
+        ProductReview review = ProductReview.builder()
+                .product(product)
+                .userId(dto.getUserId())
+                .review(dto.getReview())
+                .stars(dto.getStars())
+                .build();
         service.save(review);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(review);

@@ -1,4 +1,4 @@
-package com.kawashreh.ecommerce.product_service.dataAccess.Mapper;
+package com.kawashreh.ecommerce.product_service.dataAccess.mapper;
 
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.ProductReviewEntity;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductReview;
@@ -9,24 +9,24 @@ public final class ProductReviewMapper {
 
     public static ProductReviewEntity toEntity(ProductReview d) {
         if (d == null) return null;
-        ProductReviewEntity e = new ProductReviewEntity();
-        e.setId(d.getId());
-        e.setUserId(d.getUserId());
-        e.setProduct(ProductMapper.toEntity(d.getProduct()));
-        e.setReview(d.getReview());
-        e.setStars(d.getStars());
-        return e;
+        return ProductReviewEntity.builder()
+                .id(d.getId())
+                .userId(d.getUserId())
+                .product(ProductMapper.toEntity(d.getProduct()))
+                .review(d.getReview())
+                .stars(d.getStars())
+                .build();
     }
 
     public static ProductReview toDomain(ProductReviewEntity e) {
         if (e == null) return null;
-        ProductReview d = new ProductReview();
-        d.setId(e.getId());
-        d.setUserId(e.getUserId());
-        d.setProduct(ProductMapper.toDomain(e.getProduct()));
-        d.setReview(e.getReview());
-        d.setStars(e.getStars());
-        return d;
+        return ProductReview.builder()
+                .id(e.getId())
+                .userId(e.getUserId())
+                .product(ProductMapper.toDomain(e.getProduct()))
+                .review(e.getReview())
+                .stars(e.getStars())
+                .build();
     }
 
     public static List<ProductReview> toDomainList(List<ProductReviewEntity> list) {

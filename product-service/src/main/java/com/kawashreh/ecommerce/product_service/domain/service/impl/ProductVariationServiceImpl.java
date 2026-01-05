@@ -1,7 +1,7 @@
 package com.kawashreh.ecommerce.product_service.domain.service.impl;
 
 import com.kawashreh.ecommerce.product_service.dataAccess.Dao.ProductVariationRepository;
-import com.kawashreh.ecommerce.product_service.dataAccess.Mapper.ProductVariationMapper;
+import com.kawashreh.ecommerce.product_service.dataAccess.mapper.ProductVariationMapper;
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.ProductVariationEntity;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductVariation;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductVariationService;

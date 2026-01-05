@@ -1,7 +1,7 @@
 package com.kawashreh.ecommerce.product_service.domain.service.impl;
 
 import com.kawashreh.ecommerce.product_service.dataAccess.Dao.ProductRepository;
-import com.kawashreh.ecommerce.product_service.dataAccess.Mapper.ProductMapper;
+import com.kawashreh.ecommerce.product_service.dataAccess.mapper.ProductMapper;
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.ProductEntity;
 import com.kawashreh.ecommerce.product_service.domain.model.Product;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductService;

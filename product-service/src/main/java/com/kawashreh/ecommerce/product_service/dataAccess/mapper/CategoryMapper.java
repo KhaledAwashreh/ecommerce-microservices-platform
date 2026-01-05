@@ -1,4 +1,4 @@
-package com.kawashreh.ecommerce.product_service.dataAccess.Mapper;
+package com.kawashreh.ecommerce.product_service.dataAccess.mapper;
 
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.CategoryEntity;
 import com.kawashreh.ecommerce.product_service.domain.model.Category;
