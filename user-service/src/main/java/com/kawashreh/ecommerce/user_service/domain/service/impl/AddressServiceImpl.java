@@ -1,7 +1,7 @@
 package com.kawashreh.ecommerce.user_service.domain.service.impl;
 
 
-import com.kawashreh.ecommerce.user_service.dataAccess.Mapper.AddressMapper;
+import com.kawashreh.ecommerce.user_service.dataAccess.mapper.AddressMapper;
 import com.kawashreh.ecommerce.user_service.dataAccess.repository.AddressRepository;
 import com.kawashreh.ecommerce.user_service.domain.model.Address;
 import com.kawashreh.ecommerce.user_service.domain.service.AddressService;

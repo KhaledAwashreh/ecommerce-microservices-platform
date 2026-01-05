@@ -1,4 +1,4 @@
-package com.kawashreh.ecommerce.user_service.dataAccess.Mapper;
+package com.kawashreh.ecommerce.user_service.dataAccess.mapper;
 
 import com.kawashreh.ecommerce.user_service.dataAccess.entity.UserEntity;
 import com.kawashreh.ecommerce.user_service.domain.model.User;

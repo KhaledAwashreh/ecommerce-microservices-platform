@@ -1,6 +1,6 @@
 package com.kawashreh.ecommerce.user_service.domain.service.impl;
 
-import com.kawashreh.ecommerce.user_service.dataAccess.Mapper.UserMapper;
+import com.kawashreh.ecommerce.user_service.dataAccess.mapper.UserMapper;
 import com.kawashreh.ecommerce.user_service.dataAccess.entity.AccountEntity;
 import com.kawashreh.ecommerce.user_service.dataAccess.entity.UserEntity;
 import com.kawashreh.ecommerce.user_service.dataAccess.repository.AccountRepository;

@@ -1,8 +1,7 @@
-package com.kawashreh.ecommerce.user_service.dataAccess.Mapper;
+package com.kawashreh.ecommerce.user_service.dataAccess.mapper;
 
 import com.kawashreh.ecommerce.user_service.dataAccess.entity.AccountEntity;
 import com.kawashreh.ecommerce.user_service.domain.model.Account;
-import org.springframework.stereotype.Component;
 
 public final class AccountMapper {
     public static AccountEntity toEntity(Account d) {
