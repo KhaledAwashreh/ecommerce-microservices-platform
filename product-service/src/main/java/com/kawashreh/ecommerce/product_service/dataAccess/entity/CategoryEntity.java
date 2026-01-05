@@ -1,5 +1,6 @@
-package com.kawashreh.ecommerce.product_service.domain.model;
+package com.kawashreh.ecommerce.product_service.dataAccess.entity;
 
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -11,11 +12,16 @@ import java.util.UUID;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class Category {
+@Entity
+public class CategoryEntity {
 
+    @Id
+    @GeneratedValue
     private UUID id;
 
+    @Column
     private String name;
 
+    @Column
     private String description;
 }

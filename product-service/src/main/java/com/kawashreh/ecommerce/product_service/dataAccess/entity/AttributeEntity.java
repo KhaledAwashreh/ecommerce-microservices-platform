@@ -1,5 +1,6 @@
-package com.kawashreh.ecommerce.product_service.domain.model;
+package com.kawashreh.ecommerce.product_service.dataAccess.entity;
 
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -11,11 +12,16 @@ import java.util.UUID;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class Attribute {
+@Entity
+public class AttributeEntity {
 
+    @Id
+    @GeneratedValue
     private UUID id;
 
+    @Column(nullable = false)
     private String name;
 
+    @Column(nullable = false)
     private String value;
 }

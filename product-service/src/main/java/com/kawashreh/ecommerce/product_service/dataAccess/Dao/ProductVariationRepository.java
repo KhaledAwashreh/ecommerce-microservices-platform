@@ -1,6 +1,6 @@
 package com.kawashreh.ecommerce.product_service.dataAccess.Dao;
 
-import com.kawashreh.ecommerce.product_service.domain.model.ProductVariation;
+import com.kawashreh.ecommerce.product_service.dataAccess.entity.ProductVariationEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -10,9 +10,9 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-public interface ProductVariationRepository extends JpaRepository<ProductVariation, UUID> {
+public interface ProductVariationRepository extends JpaRepository<ProductVariationEntity, UUID> {
 
-    List<ProductVariation> findByProductId(UUID productId);
-    Page<ProductVariation> findByProductId(UUID productId, Pageable pageable);
+    List<ProductVariationEntity> findByProductId(UUID productId);
+    Page<ProductVariationEntity> findByProductId(UUID productId, Pageable pageable);
     long countByProductId(UUID productId);
 }

@@ -1,6 +1,6 @@
 package com.kawashreh.ecommerce.product_service.dataAccess.Dao;
 
-import com.kawashreh.ecommerce.product_service.domain.model.ProductReview;
+import com.kawashreh.ecommerce.product_service.dataAccess.entity.ProductReviewEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -10,10 +10,10 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-public interface ProductReviewRepository extends JpaRepository<ProductReview, UUID> {
+public interface ProductReviewRepository extends JpaRepository<ProductReviewEntity, UUID> {
 
-    List<ProductReview> findByProductId(UUID productId);
-    Page<ProductReview> findByProductId(UUID productId, Pageable pageable);
-    List<ProductReview> findByUserId(UUID userId);
+    List<ProductReviewEntity> findByProductId(UUID productId);
+    Page<ProductReviewEntity> findByProductId(UUID productId, Pageable pageable);
+    List<ProductReviewEntity> findByUserId(UUID userId);
     long countByProductId(UUID productId);
 }
