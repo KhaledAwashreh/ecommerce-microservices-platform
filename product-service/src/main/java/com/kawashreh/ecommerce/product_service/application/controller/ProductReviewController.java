@@ -1,6 +1,7 @@
-package com.kawashreh.ecommerce.product_service.application.Controller;
+package com.kawashreh.ecommerce.product_service.application.controller;
 
 import com.kawashreh.ecommerce.product_service.application.dto.ProductReviewDTO;
+import com.kawashreh.ecommerce.product_service.application.service.ReviewApplicationService;
 import com.kawashreh.ecommerce.product_service.domain.model.Product;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductReview;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductReviewService;
@@ -18,11 +19,11 @@ public class ProductReviewController {
 
 
     private final ProductReviewService service;
-    private final ProductService productService;
+    private final ReviewApplicationService reviewApplicationService;
 
-    public ProductReviewController(ProductReviewService productReviewService, ProductService productService) {
+    public ProductReviewController(ProductReviewService productReviewService, ReviewApplicationService reviewApplicationService) {
         this.service = productReviewService;
-        this.productService = productService;
+        this.reviewApplicationService = reviewApplicationService;
     }
 
     @GetMapping("{productId}")
@@ -41,14 +42,7 @@ public class ProductReviewController {
     @PostMapping
     public ResponseEntity<ProductReview> create(@RequestBody ProductReviewDTO dto) {
 
-        Product product = productService.find(dto.getProductId());
-        ProductReview review = ProductReview.builder()
-                .product(product)
-                .userId(dto.getUserId())
-                .review(dto.getReview())
-                .stars(dto.getStars())
-                .build();
-        service.save(review);
+        ProductReview review = reviewApplicationService.createReview(dto);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(review);
     }

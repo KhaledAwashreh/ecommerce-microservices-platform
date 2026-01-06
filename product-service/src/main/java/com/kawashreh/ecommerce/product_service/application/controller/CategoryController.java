@@ -1,4 +1,4 @@
-package com.kawashreh.ecommerce.product_service.application.Controller;
+package com.kawashreh.ecommerce.product_service.application.controller;
 
 import com.kawashreh.ecommerce.product_service.domain.model.Category;
 import com.kawashreh.ecommerce.product_service.domain.service.CategoryService;
