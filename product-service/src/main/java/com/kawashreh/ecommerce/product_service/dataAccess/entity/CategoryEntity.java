@@ -21,9 +21,9 @@ public class CategoryEntity {
     @GeneratedValue
     private UUID id;
 
-    @Column
+    @Column(name = "name")
     private String name;
 
-    @Column
+    @Column(name = "description")
     private String description;
 }

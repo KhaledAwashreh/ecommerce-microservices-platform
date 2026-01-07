@@ -1,11 +1,9 @@
 package com.kawashreh.ecommerce.product_service.application.controller;
 
-import com.kawashreh.ecommerce.product_service.application.dto.ProductReviewDTO;
+import com.kawashreh.ecommerce.product_service.application.dto.ProductReviewDto;
 import com.kawashreh.ecommerce.product_service.application.service.ReviewApplicationService;
-import com.kawashreh.ecommerce.product_service.domain.model.Product;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductReview;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductReviewService;
-import com.kawashreh.ecommerce.product_service.domain.service.ProductService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,7 +24,14 @@ public class ProductReviewController {
         this.reviewApplicationService = reviewApplicationService;
     }
 
-    @GetMapping("{productId}")
+    @GetMapping()
+    public ResponseEntity<List<ProductReview>> get() {
+        List<ProductReview> reviews = service.getAll();
+
+        return ResponseEntity.ok(reviews);
+    }
+
+    @GetMapping("/{productId}")
     public ResponseEntity<List<ProductReview>> getReviewsForProduct(@PathVariable UUID productId) {
         List<ProductReview> reviews = service.findByProductId(productId);
         return ResponseEntity.ok(reviews);
@@ -40,7 +45,7 @@ public class ProductReviewController {
     }
 
     @PostMapping
-    public ResponseEntity<ProductReview> create(@RequestBody ProductReviewDTO dto) {
+    public ResponseEntity<ProductReview> create(@RequestBody ProductReviewDto dto) {
 
         ProductReview review = reviewApplicationService.createReview(dto);
 

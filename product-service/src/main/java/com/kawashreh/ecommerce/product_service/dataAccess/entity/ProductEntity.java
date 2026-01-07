@@ -10,6 +10,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Data
@@ -23,25 +24,33 @@ public class ProductEntity {
     @GeneratedValue
     private UUID id;
 
-    @Column(nullable = false, length = 255)
+    @Column(name = "owner_id", nullable = false)
+    private UUID ownerIdd;
+
+
+    @Column(name = "name", nullable = false, length = 255)
     private String name;
 
-    @Column
+    @Column(name = "description")
     private String description;
 
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinColumn
+    @ManyToMany
+    @JoinTable(
+            name = "product_categories",
+            joinColumns = @JoinColumn(name = "product_id"),
+            inverseJoinColumns = @JoinColumn(name = "category_id")
+    )
     private List<CategoryEntity> categories;
 
     @CreationTimestamp
-    @Column
+    @Column(name = "created_at")
     private Instant createdAt;
 
     @UpdateTimestamp
-    @Column
+    @Column(name = "updated_At")
     private Instant updatedAt;
 
-    @Column
+    @Column(name="thumbnail_url")
     private String thumbnailUrl;
 
 }

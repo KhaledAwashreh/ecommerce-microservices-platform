@@ -1,7 +1,7 @@
 package com.kawashreh.ecommerce.product_service.application.service;
 
 
-import com.kawashreh.ecommerce.product_service.application.dto.ProductReviewDTO;
+import com.kawashreh.ecommerce.product_service.application.dto.ProductReviewDto;
 import com.kawashreh.ecommerce.product_service.domain.model.Product;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductReview;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductReviewService;
@@ -25,7 +25,7 @@ public class ReviewApplicationService {
         this.productService = productService;
     }
 
-    public ProductReview createReview(ProductReviewDTO dto) {
+    public ProductReview createReview(ProductReviewDto dto) {
 
         Product product = productService.find(dto.getProductId());
         UserDto user = userServiceClient.retrieveUser(dto.getUserId());
