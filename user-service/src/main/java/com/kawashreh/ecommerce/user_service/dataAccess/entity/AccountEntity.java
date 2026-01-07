@@ -21,6 +21,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
+@Table(name = "Account")
 public class AccountEntity {
 
     @Id

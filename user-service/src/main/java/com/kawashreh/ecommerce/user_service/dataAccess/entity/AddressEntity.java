@@ -13,6 +13,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Accessors(chain = true)
+@Table(name = "Address")
 public class AddressEntity {
 
     @Id

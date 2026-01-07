@@ -1,7 +1,6 @@
 package com.kawashreh.ecommerce.user_service.dataAccess.entity;
 
 import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
-import com.kawashreh.ecommerce.user_service.domain.model.Address;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
