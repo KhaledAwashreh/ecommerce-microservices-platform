@@ -18,7 +18,6 @@ public final class AccountMapper {
                 .timeZone(d.getTimeZone())
                 .createdAt(d.getCreatedAt())
                 .updatedAt(d.getUpdatedAt())
-                .user(UserMapper.toEntity(d.getUser()))
                 .build();
     }
 
@@ -37,7 +36,6 @@ public final class AccountMapper {
                 .timeZone(e.getTimeZone())
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
-                .user(UserMapper.toDomain(e.getUser()))
                 .build();
     }
 }

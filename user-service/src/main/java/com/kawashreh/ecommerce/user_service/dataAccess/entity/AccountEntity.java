@@ -3,10 +3,7 @@ package com.kawashreh.ecommerce.user_service.dataAccess.entity;
 import com.kawashreh.ecommerce.user_service.domain.enums.AccountStatus;
 import com.kawashreh.ecommerce.user_service.domain.enums.AccountType;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import lombok.experimental.Accessors;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -16,7 +13,8 @@ import java.util.Locale;
 import java.util.TimeZone;
 import java.util.UUID;
 @Entity
-@Data
+@Getter
+@Setter
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
@@ -29,6 +27,7 @@ public class AccountEntity {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
+    @ToString.Exclude
     @OneToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private UserEntity user;
@@ -49,11 +48,14 @@ public class AccountEntity {
     @UpdateTimestamp
     private Instant updatedAt;
 
+    @Builder.Default
     @Column(name = "account_status", nullable = false)
-    private AccountStatus accountStatus;
+    private AccountStatus accountStatus = AccountStatus.ACTIVE;
 
+    @Builder.Default
+    @ToString.Exclude
     @Column(name = "account_type", nullable = false)
-    private AccountType accountType;
+    private AccountType accountType = AccountType.REGULAR;
 
     @Column(name = "email_verified", nullable = false)
     private boolean emailVerified = false;

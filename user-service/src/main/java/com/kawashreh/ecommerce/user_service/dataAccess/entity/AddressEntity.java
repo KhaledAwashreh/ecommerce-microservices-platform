@@ -21,6 +21,7 @@ public class AddressEntity {
     @Column(nullable = false, updatable = false)
     private UUID id;
 
+    @ToString.Exclude
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id" ,nullable = false)
     private UserEntity user;

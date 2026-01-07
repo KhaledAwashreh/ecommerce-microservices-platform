@@ -19,15 +19,7 @@ public final class UserMapper {
                 .username(d.getUsername())
                 .createdAt(d.getCreatedAt())
                 .updatedAt(d.getUpdatedAt())
-                .account(AccountMapper.toEntity(d.getAccount()))
-
-                .addresses(
-                        d.getAddresses() != null
-                                ? d.getAddresses().stream()
-                                .map(AddressMapper::toEntity)
-                                .toList()
-                                : List.of()
-                )
+                .name(d.getName())
                 .build();
 
     }
@@ -43,15 +35,7 @@ public final class UserMapper {
                 .username(e.getUsername())
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
-                .account(AccountMapper.toDomain(e.getAccount()))
-                .addresses(
-                        e.getAddresses() != null
-                                ? e.getAddresses().stream()
-                                .map(AddressMapper::toDomain)
-                                .toList()
-                                : List.of()
-                )
-
+                .name(e.getName())
                 .build();
     }
 }
