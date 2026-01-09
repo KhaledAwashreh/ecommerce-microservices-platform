@@ -8,7 +8,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 
 import java.util.UUID;
 
-@FeignClient(name = "user-service", url = "localhost:8081/api/v1/user")
+@FeignClient(name = "user-service", url = "localhost:8080/api/v1/user")
 public interface UserServiceClient {
 
     @GetMapping("/{userId}")
