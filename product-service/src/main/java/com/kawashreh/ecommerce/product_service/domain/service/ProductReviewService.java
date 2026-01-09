@@ -1,5 +1,6 @@
 package com.kawashreh.ecommerce.product_service.domain.service;
 
+import com.kawashreh.ecommerce.product_service.domain.model.Product;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductReview;
 
 import java.util.List;
@@ -11,7 +12,7 @@ public interface ProductReviewService {
 
     public ProductReview find(UUID id);
 
-    public void save(ProductReview productReview);
+    public ProductReview save(ProductReview productReview, Product product);
 
     public void update(ProductReview productReview);
 

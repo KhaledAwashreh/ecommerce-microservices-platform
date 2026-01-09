@@ -1,6 +1,7 @@
 package com.kawashreh.ecommerce.product_service.application.controller;
 
 import com.kawashreh.ecommerce.product_service.application.dto.ProductReviewDto;
+import com.kawashreh.ecommerce.product_service.application.mapper.ProductReviewHttpMapper;
 import com.kawashreh.ecommerce.product_service.application.service.ReviewApplicationService;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductReview;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductReviewService;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/productReview")
@@ -25,31 +27,40 @@ public class ProductReviewController {
     }
 
     @GetMapping()
-    public ResponseEntity<List<ProductReview>> get() {
-        List<ProductReview> reviews = service.getAll();
+    public ResponseEntity<List<ProductReviewDto>> get() {
+        List<ProductReviewDto> dtos = service.getAll()
+                .stream()
+                .map(ProductReviewHttpMapper::toDto)
+                .collect(Collectors.toList());
 
-        return ResponseEntity.ok(reviews);
+        return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/{productId}")
-    public ResponseEntity<List<ProductReview>> getReviewsForProduct(@PathVariable UUID productId) {
-        List<ProductReview> reviews = service.findByProductId(productId);
-        return ResponseEntity.ok(reviews);
+    public ResponseEntity<List<ProductReviewDto>> getReviewsForProduct(@PathVariable UUID productId) {
+        List<ProductReviewDto> dtos = service.findByProductId(productId)
+                .stream()
+                .map(ProductReviewHttpMapper::toDto)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(dtos);
 
     }
 
     @GetMapping("/{reviewId}")
-    public ResponseEntity<ProductReview> findById(@PathVariable UUID reviewId) {
+    public ResponseEntity<ProductReviewDto> findById(@PathVariable UUID reviewId) {
         ProductReview review = service.find(reviewId);
-        return ResponseEntity.ok(review);
+        if (review == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(ProductReviewHttpMapper.toDto(review));
     }
 
     @PostMapping
-    public ResponseEntity<ProductReview> create(@RequestBody ProductReviewDto dto) {
+    public ResponseEntity<ProductReviewDto> create(@RequestBody ProductReviewDto dto) {
 
         ProductReview review = reviewApplicationService.createReview(dto);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(review);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ProductReviewHttpMapper.toDto(review));
     }
 
     @DeleteMapping("/{reviewId}")
@@ -59,3 +70,4 @@ public class ProductReviewController {
     }
 
 }
+

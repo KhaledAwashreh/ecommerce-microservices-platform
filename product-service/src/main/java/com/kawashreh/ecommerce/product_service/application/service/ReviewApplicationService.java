@@ -38,7 +38,8 @@ public class ReviewApplicationService {
                     .review(dto.getReview())
                     .stars(dto.getStars())
                     .build();
-            productReviewService.save(review);
+
+            productReviewService.save(review, product);
         }
         return review;
     }

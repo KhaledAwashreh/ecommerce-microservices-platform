@@ -1,5 +1,7 @@
 package com.kawashreh.ecommerce.product_service.application.controller;
 
+import com.kawashreh.ecommerce.product_service.application.dto.CategoryDto;
+import com.kawashreh.ecommerce.product_service.application.mapper.CategoryHttpMapper;
 import com.kawashreh.ecommerce.product_service.domain.model.Category;
 import com.kawashreh.ecommerce.product_service.domain.service.CategoryService;
 import org.springframework.http.HttpStatus;
@@ -8,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/categories")
@@ -20,26 +23,37 @@ public class CategoryController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Category>> findAll() {
-        return ResponseEntity.ok(service.getAll());
+    public ResponseEntity<List<CategoryDto>> findAll() {
+        List<CategoryDto> dtos = service.getAll()
+                .stream()
+                .map(CategoryHttpMapper::toDto)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/{categoryId}")
-    public ResponseEntity<Category> findById(@PathVariable UUID categoryId) {
+    public ResponseEntity<CategoryDto> findById(@PathVariable UUID categoryId) {
         Category category = service.find(categoryId);
-        return ResponseEntity.ok(category);
+        if (category == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(CategoryHttpMapper.toDto(category));
     }
 
     @GetMapping("/name/{categoryName}")
-    public ResponseEntity<Category> findByName(@PathVariable String categoryName) {
+    public ResponseEntity<CategoryDto> findByName(@PathVariable String categoryName) {
         Category category = service.findByName(categoryName);
-        return ResponseEntity.ok(category);
+        if (category == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(CategoryHttpMapper.toDto(category));
     }
 
     @PostMapping
-    public ResponseEntity<Category> create(@RequestBody Category category) {
+    public ResponseEntity<CategoryDto> create(@RequestBody CategoryDto categoryDto) {
+        Category category = CategoryHttpMapper.toDomain(categoryDto);
         service.save(category);
-        return ResponseEntity.status(HttpStatus.CREATED).body(category);
+        return ResponseEntity.status(HttpStatus.CREATED).body(CategoryHttpMapper.toDto(category));
     }
 
     @DeleteMapping("/{categoryId}")

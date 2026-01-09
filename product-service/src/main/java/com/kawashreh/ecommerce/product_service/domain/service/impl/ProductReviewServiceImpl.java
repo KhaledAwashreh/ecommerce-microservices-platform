@@ -3,6 +3,7 @@ package com.kawashreh.ecommerce.product_service.domain.service.impl;
 import com.kawashreh.ecommerce.product_service.dataAccess.Dao.ProductReviewRepository;
 import com.kawashreh.ecommerce.product_service.dataAccess.mapper.ProductReviewMapper;
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.ProductReviewEntity;
+import com.kawashreh.ecommerce.product_service.domain.model.Product;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductReview;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductReviewService;
 import org.springframework.stereotype.Service;
@@ -31,8 +32,14 @@ public class ProductReviewServiceImpl implements ProductReviewService {
     }
 
     @Override
-    public void save(ProductReview productReview) {
-        repository.save(ProductReviewMapper.toEntity(productReview));
+    public ProductReview save(ProductReview productReview, Product product) {
+
+        if(!productReview.getUserId().equals(product.getOwnerId())) {
+            repository.save(ProductReviewMapper.toEntity(productReview));
+            return productReview;
+        }
+
+        return null;
     }
 
     @Override
