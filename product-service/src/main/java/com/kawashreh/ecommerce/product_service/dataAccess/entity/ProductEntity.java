@@ -18,6 +18,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
+@Table(name = "Product")
 public class ProductEntity {
 
     @Id
@@ -25,7 +26,7 @@ public class ProductEntity {
     private UUID id;
 
     @Column(name = "owner_id", nullable = false)
-    private UUID ownerIdd;
+    private UUID ownerId;
 
 
     @Column(name = "name", nullable = false, length = 255)
@@ -36,7 +37,7 @@ public class ProductEntity {
 
     @ManyToMany
     @JoinTable(
-            name = "product_categories",
+            name = "category",
             joinColumns = @JoinColumn(name = "product_id"),
             inverseJoinColumns = @JoinColumn(name = "category_id")
     )
@@ -50,7 +51,7 @@ public class ProductEntity {
     @Column(name = "updated_At")
     private Instant updatedAt;
 
-    @Column(name="thumbnail_url")
+    @Column(name = "thumbnail_url")
     private String thumbnailUrl;
 
 }

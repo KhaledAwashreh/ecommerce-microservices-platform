@@ -15,6 +15,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @Entity
 @Accessors(chain = true)
+@Table(name = "categry")
 public class CategoryEntity {
 
     @Id

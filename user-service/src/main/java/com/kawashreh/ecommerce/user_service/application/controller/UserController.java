@@ -1,18 +1,19 @@
 package com.kawashreh.ecommerce.user_service.application.controller;
 
+import com.kawashreh.ecommerce.user_service.application.dto.UserDto;
+import com.kawashreh.ecommerce.user_service.application.mapper.UserHttpMapper;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
-import jakarta.ws.rs.PathParam;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/user")
-
 public class UserController {
 
     private final UserService service;
@@ -21,36 +22,50 @@ public class UserController {
         this.service = service;
     }
 
-    @GetMapping()
-    public ResponseEntity<List<User>> get() {
-        return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(service.getAll());
+    // GET all users
+    @GetMapping
+    public ResponseEntity<List<UserDto>> getAll() {
+        List<UserDto> dtos = service.getAll()
+                .stream()
+                .map(UserHttpMapper::toDto)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(dtos);
     }
 
+    // GET user by ID
     @GetMapping("/{userId}")
-    public ResponseEntity<User> findById(@PathVariable UUID userId) {
+    public ResponseEntity<UserDto> findById(@PathVariable UUID userId) {
         User user = service.find(userId);
-        return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(user);
+
+        if (user == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(UserHttpMapper.toDto(user));
     }
 
+    // DELETE user
     @DeleteMapping("/{userId}")
-    public ResponseEntity<User> delete(@PathVariable UUID userId) {
+    public ResponseEntity<Void> delete(@PathVariable UUID userId) {
         service.delete(userId);
-
-        return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(null);
+        return ResponseEntity.noContent().build();
     }
 
+    // CREATE user
     @PostMapping
-    public ResponseEntity<User> create(@RequestBody User user) {
+    public ResponseEntity<UserDto> create(@RequestBody UserDto userDto) {
+        // Map DTO -> domain
+        User user = UserHttpMapper.toDomain(userDto);
 
-        service.create(user);
+        // Save
+        User saved = service.create(user);
+
+        // Map domain -> DTO
+        UserDto savedDto = UserHttpMapper.toDto(saved);
+
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(user);
+                .body(savedDto);
     }
 
 }

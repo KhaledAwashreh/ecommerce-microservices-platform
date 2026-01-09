@@ -13,6 +13,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
+@Table(name = "productReview")
 public class ProductReviewEntity {
 
     @Id
@@ -26,10 +27,10 @@ public class ProductReviewEntity {
     @JoinColumn(name = "product_id", nullable = false)
     private ProductEntity product;
 
-    @Column
+    @Column(name = "review", nullable = false)
     private String review;
 
-    @Column
+    @Column(name = "stars")
     private int stars;
 
 }

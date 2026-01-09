@@ -17,6 +17,7 @@ public final class ProductMapper {
                 .createdAt(d.getCreatedAt())
                 .updatedAt(d.getUpdatedAt())
                 .thumbnailUrl(d.getThumbnailUrl())
+                .ownerId(d.getOwnerId())
                 .build();
     }
 
@@ -29,6 +30,7 @@ public final class ProductMapper {
                 .categories(CategoryMapper.toDomainList(e.getCategories()))
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
+                .ownerId(e.getOwnerId())
                 .thumbnailUrl(e.getThumbnailUrl())
                 .build();
     }

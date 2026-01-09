@@ -2,10 +2,7 @@ package com.kawashreh.ecommerce.user_service.domain.model;
 
 import com.kawashreh.ecommerce.user_service.domain.enums.AccountStatus;
 import com.kawashreh.ecommerce.user_service.domain.enums.AccountType;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import lombok.experimental.Accessors;
 
 import java.time.Instant;
@@ -22,6 +19,7 @@ public class Account {
 
     private UUID id;
 
+    @ToString.Exclude
     private User user;
 
     @Builder.Default

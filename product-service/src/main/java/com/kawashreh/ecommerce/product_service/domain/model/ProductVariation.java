@@ -34,7 +34,7 @@ public class ProductVariation {
 
     private String thumbnailUrl;
 
-    private List<String> attachments;
+    private List<UUID> attachments;
 
     private List<Attribute> attributes;
 

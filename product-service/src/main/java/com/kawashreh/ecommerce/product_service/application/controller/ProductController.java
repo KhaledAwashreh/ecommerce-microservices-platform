@@ -1,5 +1,6 @@
 package com.kawashreh.ecommerce.product_service.application.controller;
 
+import com.kawashreh.ecommerce.product_service.application.service.ProductApplicationService;
 import com.kawashreh.ecommerce.product_service.domain.model.Product;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductService;
 import org.springframework.http.HttpStatus;
@@ -14,9 +15,11 @@ import java.util.UUID;
 public class ProductController {
 
     private final ProductService service;
+    private final ProductApplicationService productApplicationService;
 
-    public ProductController(ProductService productService) {
+    public ProductController(ProductService productService, ProductApplicationService productApplicationService) {
         this.service = productService;
+        this.productApplicationService = productApplicationService;
     }
 
     @GetMapping
@@ -32,8 +35,9 @@ public class ProductController {
 
     @PostMapping
     public ResponseEntity<Product> create(@RequestBody Product product) {
-        service.save(product);
-        return ResponseEntity.status(HttpStatus.CREATED).body(product);
+
+        Product result = productApplicationService.createProduct(product);
+        return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
     @DeleteMapping("/{productId}")

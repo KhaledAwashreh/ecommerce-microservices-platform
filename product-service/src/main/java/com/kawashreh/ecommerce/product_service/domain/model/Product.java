@@ -17,6 +17,8 @@ public class Product {
 
     private UUID id;
 
+    private UUID ownerId;
+
     private String name;
 
     private String description;

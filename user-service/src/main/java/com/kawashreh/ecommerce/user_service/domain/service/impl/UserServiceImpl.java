@@ -10,6 +10,7 @@ import com.kawashreh.ecommerce.user_service.domain.model.Account;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -28,7 +29,8 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void create(User user) {
+    @Transactional
+    public User create(User user) {
 
         UserEntity ue = UserMapper.toEntity(user);
 
@@ -38,6 +40,10 @@ public class UserServiceImpl implements UserService {
 
         repository.save(ue);
         accountRepository.save(ae);
+
+        return UserMapper.toDomain(repository
+                .findByUsername(user.getUsername())
+                .orElse(null));
     }
 
     @Override
@@ -54,11 +60,16 @@ public class UserServiceImpl implements UserService {
         Map<UUID, Account> accounts =
                 accountRepository.findByUserIdIn(userIds)
                         .stream()
-                        .map(AccountMapper::toDomain)
                         .collect(Collectors.toMap(
-                                a -> a.getUser().getId(), // key = userId
-                                a -> a
+                                ae -> ae.getUser().getId(),   // entity → entity (safe)
+                                ae -> {
+                                    User user = UserMapper.toDomain(ae.getUser());
+                                    Account account = AccountMapper.toDomain(ae);
+                                    account.setUser(user);
+                                    return account;
+                                }
                         ));
+
 
         users.forEach(u ->
                 u.setAccount(accounts.get(u.getId()))

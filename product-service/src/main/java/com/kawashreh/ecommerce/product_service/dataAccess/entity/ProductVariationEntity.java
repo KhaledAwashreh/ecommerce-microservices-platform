@@ -18,42 +18,42 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
+@Table(name = "product_variation")
 public class ProductVariationEntity {
 
     @Id
     @GeneratedValue
+
     private UUID id;
 
-    @Column(nullable = false, unique = true, length = 50)
+    @Column(name = "sku", nullable = false, unique = true, length = 50)
     private String sku;
 
-    @Column(nullable = false)
+    @Column(name = "stock_quantity", nullable = false)
     private int stockQuantity;
 
-    @Column(nullable = false)
+    @Column(name = "name", nullable = false)
     private String name;
 
-    @Column(nullable = false)
+
+    @Column(name = "price", nullable = false)
     private BigDecimal price;
 
-    @Column(nullable = false)
+    @Column(name = "is_active", nullable = false)
     private Boolean isActive;
 
-    @CreationTimestamp
-    @Column
+    @Column(name = "created_at")
     private Instant createdAt;
 
-    @UpdateTimestamp
-    @Column
+    @Column(name = "updated_at")
     private Instant updatedAt;
 
-    @Column
+    @Column(name = "thumbnail_url")
     private String thumbnailUrl;
 
     @ElementCollection
-    @CollectionTable(name = "entity_attachments", joinColumns = @JoinColumn(name = "entity_id"))
-    @Column(name = "attachment")
-    private List<String> attachments;
+    @Column(name = "attachments")
+    private List<UUID> attachments;
 
     @OneToMany
     @JoinColumn(name = "category_id", nullable = false)

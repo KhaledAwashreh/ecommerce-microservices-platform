@@ -2,10 +2,7 @@ package com.kawashreh.ecommerce.user_service.domain.model;
 
 import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.Instant;
 import java.util.*;
@@ -34,8 +31,10 @@ public class User {
 
     private Instant updatedAt;
 
+    @ToString.Exclude
     private Account account;
 
+    @ToString.Exclude
     private List<Address> addresses = new ArrayList<>();
 
     // Add business method
