@@ -1,4 +1,4 @@
-package com.kawashreh.ecommerce.api_gateway;
+package com.kawashreh.ecommerce.api_gateway.Infra.configuration;
 
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
@@ -22,6 +22,5 @@ public class ApiGatewayConfiguration {
                         .uri("lb://product-service"))
 
                 .build();
-
     }
 }
