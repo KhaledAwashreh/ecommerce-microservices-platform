@@ -17,10 +17,15 @@ public class ApiGatewayConfiguration {
                                 .addRequestParameter("Param", "Value"))
                         .uri("http://httpbin.org:80"))
                 .route(p -> p.path("/api/v1/user/**")
+                        .filters(f -> f.circuitBreaker(config -> config
+                                .setName("user-service")
+                                .setFallbackUri("forward:/fallback")))
                         .uri("lb://user-service"))
                 .route(p -> p.path("/api/v1/product/**")
+                        .filters(f -> f.circuitBreaker(config -> config
+                                .setName("product-service")
+                                .setFallbackUri("forward:/fallback")))
                         .uri("lb://product-service"))
-
                 .build();
     }
 }
