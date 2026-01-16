@@ -1,6 +1,7 @@
 package com.kawashreh.ecommerce.user_service.domain.model;
 
 import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
+import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -77,4 +78,16 @@ public class User {
                 .ifPresent(a -> a.setDefaultAddress(true));
     }
 
+    public void changePassword(String newRawPassword, PasswordHasher hasher) throws Exception {
+        if (newRawPassword == null || newRawPassword.length() < 8) {
+            throw new Exception("Password does not meet security requirements");
+        }
+
+        this.account.setHashedPassword(hasher.encode(newRawPassword));
+        updatedAt = Instant.now();
+    }
+
+    public boolean checkPassword(String candidatePassword, PasswordHasher hasher) {
+        return hasher.matches(candidatePassword, this.account.getHashedPassword());
+    }
 }

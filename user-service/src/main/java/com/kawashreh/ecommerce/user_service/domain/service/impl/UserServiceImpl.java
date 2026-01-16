@@ -9,6 +9,8 @@ import com.kawashreh.ecommerce.user_service.dataAccess.repository.UserRepository
 import com.kawashreh.ecommerce.user_service.domain.model.Account;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
+import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
+import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,10 +24,12 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository repository;
     private final AccountRepository accountRepository;
+    private final PasswordHasher passwordHasher;
 
-    public UserServiceImpl(UserRepository repository, AccountRepository accountRepository) {
+    public UserServiceImpl(UserRepository repository, AccountRepository accountRepository, PasswordHasher passwordHasher) {
         this.repository = repository;
         this.accountRepository = accountRepository;
+        this.passwordHasher = passwordHasher;
     }
 
     @Override
@@ -104,4 +108,29 @@ public class UserServiceImpl implements UserService {
     public void delete(UUID id) {
         repository.deleteById(id);
     }
+
+    public User Login(String username, String password) {
+        User user = findByUsername(username);
+        if (user == null) {
+            return null;
+        }
+
+        return user.checkPassword(password, passwordHasher) ? user : null;
+    }
+
+    public User changePassword(String username, String oldPassword, String newPassword) throws Exception {
+        User user = findByUsername(username);
+        if (user == null) {
+            return null;
+        }
+
+        if (!user.checkPassword(oldPassword, passwordHasher)) {
+            return null;
+        }
+
+        user.changePassword(newPassword, passwordHasher);
+        return user;
+    }
+
+
 }

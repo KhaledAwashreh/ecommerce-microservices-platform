@@ -63,6 +63,9 @@ public class AccountEntity {
     @Column(name = "phone_verified", nullable = false)
     private boolean phoneVerified = false;
 
+    @Column(name="hashed_password", nullable = false)
+    private String hashedPassword;
+
     @Column(name = "locale", nullable = false)
     @Builder.Default
     private Locale locale = Locale.ENGLISH;

@@ -18,6 +18,7 @@ public final class AccountMapper {
                 .timeZone(d.getTimeZone())
                 .createdAt(d.getCreatedAt())
                 .updatedAt(d.getUpdatedAt())
+                .hashedPassword(d.getHashedPassword())
                 .build();
     }
 
@@ -36,6 +37,7 @@ public final class AccountMapper {
                 .timeZone(e.getTimeZone())
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
+                .hashedPassword(e.getHashedPassword())
                 .build();
     }
 }

@@ -31,7 +31,7 @@ public class ReviewApplicationService {
         UserDto user = userServiceClient.retrieveUser(dto.getUserId());
         ProductReview review = null;
 
-        if (Objects.nonNull(user) && Objects.nonNull(product)) {
+        if (Objects.nonNull(user) && Objects.nonNull(product) && !product.getOwnerId().equals(user.getId())) {
              review = ProductReview.builder()
                     .product(product)
                     .userId(dto.getUserId())

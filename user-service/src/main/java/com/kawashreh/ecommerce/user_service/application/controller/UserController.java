@@ -52,8 +52,7 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
-    // CREATE user
-    @PostMapping
+    @PostMapping("/register")
     public ResponseEntity<UserDto> create(@RequestBody UserDto userDto) {
         // Map DTO -> domain
         User user = UserHttpMapper.toDomain(userDto);
