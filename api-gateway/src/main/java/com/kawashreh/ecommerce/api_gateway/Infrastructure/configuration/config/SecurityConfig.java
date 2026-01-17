@@ -1,6 +1,7 @@
 package com.kawashreh.ecommerce.api_gateway.Infrastructure.configuration.config;
 
 
+import com.kawashreh.ecommerce.api_gateway.Infrastructure.configuration.filter.JwtAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -11,6 +12,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -39,7 +41,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 // Disable CSRF (not needed for stateless JWT)
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
 
                 // Configure endpoint authorization
                 .authorizeHttpRequests(auth -> auth
@@ -66,19 +68,12 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /*
-     * Password encoder bean (uses BCrypt hashing)
-     * Critical for secure password storage
-     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    /*
-     * Authentication provider configuration
-     * Links UserDetailsService and PasswordEncoder
-     */
+
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
@@ -87,10 +82,7 @@ public class SecurityConfig {
         return provider;
     }
 
-    /*
-     * Authentication manager bean
-     * Required for programmatic authentication (e.g., in /generateToken)
-     */
+
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();

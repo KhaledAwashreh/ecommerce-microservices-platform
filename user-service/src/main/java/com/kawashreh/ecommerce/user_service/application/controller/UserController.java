@@ -4,6 +4,7 @@ import com.kawashreh.ecommerce.user_service.application.dto.UserDto;
 import com.kawashreh.ecommerce.user_service.application.mapper.UserHttpMapper;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
+import jakarta.ws.rs.QueryParam;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -37,6 +38,17 @@ public class UserController {
     @GetMapping("/{userId}")
     public ResponseEntity<UserDto> findById(@PathVariable UUID userId) {
         User user = service.find(userId);
+
+        if (user == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(UserHttpMapper.toDto(user));
+    }
+
+    @GetMapping
+    public ResponseEntity<UserDto> findByUsername(@RequestParam String username) {
+        User user = service.findByUsername(username);
 
         if (user == null) {
             return ResponseEntity.notFound().build();
