@@ -1,4 +1,4 @@
-package com.kawashreh.ecommerce.api_gateway.Infrastructure.configuration.filter;
+package com.kawashreh.ecommerce.api_gateway.Infrastructure.filter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

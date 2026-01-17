@@ -1,4 +1,4 @@
-package com.kawashreh.ecommerce.api_gateway.Infrastructure.configuration.filter;
+package com.kawashreh.ecommerce.api_gateway.Infrastructure.filter;
 
 import com.kawashreh.ecommerce.api_gateway.Infrastructure.http.client.UserServiceClient;
 import com.kawashreh.ecommerce.api_gateway.Infrastructure.http.dto.UserDto;
@@ -40,7 +40,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDto userDetails = userServiceClient.retrieveUsername(username);
+            UserDto userDetails = userServiceClient.retrieveByUsername(username);
             if (jwtService.validateToken(token, userDetails)) {
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails,

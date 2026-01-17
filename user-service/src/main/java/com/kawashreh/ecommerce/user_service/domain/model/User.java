@@ -1,6 +1,7 @@
 package com.kawashreh.ecommerce.user_service.domain.model;
 
 import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
+import com.kawashreh.ecommerce.user_service.domain.enums.UserRole;
 import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
 import jakarta.persistence.*;
 import lombok.*;
@@ -37,6 +38,9 @@ public class User {
 
     @ToString.Exclude
     private List<Address> addresses = new ArrayList<>();
+
+    @Builder.Default
+    private List<UserRole> roles = new ArrayList<>();
 
     // Add business method
     public void addAddress(Address address) {
@@ -89,5 +93,17 @@ public class User {
 
     public boolean checkPassword(String candidatePassword, PasswordHasher hasher) {
         return hasher.matches(candidatePassword, this.account.getHashedPassword());
+    }
+
+    public boolean isAdmin(){
+        return roles.contains(UserRole.ADMIN);
+    }
+
+    public boolean isCustomer(){
+        return roles.contains(UserRole.CUSTOMER);
+    }
+
+    public boolean isSeller(){
+        return roles.contains(UserRole.SELLER);
     }
 }

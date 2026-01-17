@@ -1,6 +1,7 @@
 package com.kawashreh.ecommerce.user_service.application.controller;
 
 import com.kawashreh.ecommerce.user_service.application.dto.UserDto;
+import com.kawashreh.ecommerce.user_service.application.dto.UserLoginDto;
 import com.kawashreh.ecommerce.user_service.application.mapper.UserHttpMapper;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
@@ -77,6 +78,15 @@ public class UserController {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(savedDto);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<UserDto> Login(@RequestBody UserLoginDto userDto) {
+
+        var user = service.Login(userDto.getUsername(), userDto.getPassword());
+
+        return ResponseEntity.ok(UserHttpMapper.toDto(user));
+
     }
 
 }
