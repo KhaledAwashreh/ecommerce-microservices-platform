@@ -14,4 +14,6 @@ import java.util.UUID;
 public class UserDto {
     private String name;
     private UUID id;
+    private String username;
+    private String Role;
 }

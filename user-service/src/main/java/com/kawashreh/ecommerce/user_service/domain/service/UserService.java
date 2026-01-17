@@ -18,4 +18,7 @@ public interface UserService {
 
     void delete(UUID id);
 
+    User Login(String username, String password);
+
+    User changePassword(String username, String oldPassword, String newPassword) throws Exception;
 }

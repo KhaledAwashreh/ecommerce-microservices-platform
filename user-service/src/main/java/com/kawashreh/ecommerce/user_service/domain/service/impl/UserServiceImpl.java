@@ -10,7 +10,6 @@ import com.kawashreh.ecommerce.user_service.domain.model.Account;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
 import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
-import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -109,15 +108,16 @@ public class UserServiceImpl implements UserService {
         repository.deleteById(id);
     }
 
+    @Override
     public User Login(String username, String password) {
         User user = findByUsername(username);
         if (user == null) {
             return null;
         }
-
         return user.checkPassword(password, passwordHasher) ? user : null;
     }
 
+    @Override
     public User changePassword(String username, String oldPassword, String newPassword) throws Exception {
         User user = findByUsername(username);
         if (user == null) {
@@ -131,6 +131,4 @@ public class UserServiceImpl implements UserService {
         user.changePassword(newPassword, passwordHasher);
         return user;
     }
-
-
 }
