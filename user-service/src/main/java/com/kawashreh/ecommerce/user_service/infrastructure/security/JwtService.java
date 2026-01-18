@@ -1,7 +1,5 @@
 package com.kawashreh.ecommerce.user_service.infrastructure.security;
 
-import com.kawashreh.ecommerce.api_gateway.Infrastructure.http.dto.UserDto;
-import com.kawashreh.ecommerce.user_service.domain.model.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -20,12 +18,12 @@ public class JwtService {
 
     public static final String SECRET = "5367566859703373367639792F423F452848284D6251655468576D5A71347437";
 
-    public String generateToken(String username) { // Use email as username
+    public static String generateToken(String username) {
         Map<String, Object> claims = new HashMap<>();
         return createToken(claims, username);
     }
 
-    private String createToken(Map<String, Object> claims, String username) {
+    private static String createToken(Map<String, Object> claims, String username) {
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(username)
@@ -35,7 +33,7 @@ public class JwtService {
                 .compact();
     }
 
-    private Key getSignKey() {
+    private static Key getSignKey() {
         byte[] keyBytes = Decoders.BASE64.decode(SECRET);
         return Keys.hmacShaKeyFor(keyBytes);
     }

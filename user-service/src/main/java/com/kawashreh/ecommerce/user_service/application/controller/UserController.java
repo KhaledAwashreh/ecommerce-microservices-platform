@@ -5,12 +5,13 @@ import com.kawashreh.ecommerce.user_service.application.dto.UserLoginDto;
 import com.kawashreh.ecommerce.user_service.application.mapper.UserHttpMapper;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
-import jakarta.ws.rs.QueryParam;
+import com.kawashreh.ecommerce.user_service.infrastructure.security.JwtService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -35,7 +36,6 @@ public class UserController {
         return ResponseEntity.ok(dtos);
     }
 
-    // GET user by ID
     @GetMapping("/{userId}")
     public ResponseEntity<UserDto> findById(@PathVariable UUID userId) {
         User user = service.find(userId);
@@ -47,7 +47,7 @@ public class UserController {
         return ResponseEntity.ok(UserHttpMapper.toDto(user));
     }
 
-    @GetMapping
+    @GetMapping(params = "username")
     public ResponseEntity<UserDto> findByUsername(@RequestParam String username) {
         User user = service.findByUsername(username);
 
@@ -81,12 +81,12 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<UserDto> Login(@RequestBody UserLoginDto userDto) {
+    public ResponseEntity<String> Login(@RequestBody UserLoginDto userDto) {
+        User user = service.Login(userDto.getUsername(), userDto.getPassword());
 
-        var user = service.Login(userDto.getUsername(), userDto.getPassword());
-
-        return ResponseEntity.ok(UserHttpMapper.toDto(user));
-
+        return Objects.nonNull(user) ?
+                ResponseEntity.status(HttpStatus.ACCEPTED).body(JwtService.generateToken(user.getUsername()))
+                : ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 
 }
