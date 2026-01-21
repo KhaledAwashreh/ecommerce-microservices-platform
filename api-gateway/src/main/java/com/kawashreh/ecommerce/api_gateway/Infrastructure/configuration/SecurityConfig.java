@@ -4,14 +4,13 @@ import com.kawashreh.ecommerce.api_gateway.Infrastructure.filter.JwtAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
+
+import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.web.server.SecurityWebFilterChain;
 
 @Configuration
-@EnableWebSecurity
+@EnableWebFluxSecurity
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
@@ -21,25 +20,15 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityWebFilterChain securityFilterChain(ServerHttpSecurity  http) throws Exception {
+
         http
-                // Disable CSRF (not needed for stateless JWT)
-                .csrf(AbstractHttpConfigurer::disable)
-
-                // Configure endpoint authorization
-                .authorizeHttpRequests(auth -> auth
-                        // Public endpoints: register and login
-                        .requestMatchers("/api/v1/user/register", "/api/v1/user/login").permitAll()
-
-                        // All other endpoints require authentication
-                        .anyRequest().authenticated()
-                )
-
-                // Stateless session management
-                .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // Add JWT filter before Spring Security's default filter
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .authorizeExchange(exchanges -> exchanges
+                        .pathMatchers("/api/v1/user/register", "/api/v1/user/login").permitAll()
+                        .anyExchange()
+                        .authenticated()
+                );
 
         return http.build();
     }
