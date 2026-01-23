@@ -8,12 +8,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.UUID;
 
-@FeignClient(name = "user-service", url = "/api/v1/user")
+@FeignClient(name = "user-service")
 public interface UserServiceClient {
 
-    @GetMapping("/{userId}")
+    @GetMapping("/api/v1/user/{userId}")
     UserDto retrieveUserById(@PathVariable("userId") UUID userId);
 
-    @GetMapping(params = "username")  // ✅ Specify the query parameter
+    @GetMapping("/api/v1/user")
     UserDto retrieveByUsername(@RequestParam String username);
 }
