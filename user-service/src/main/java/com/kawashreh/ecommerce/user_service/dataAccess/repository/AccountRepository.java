@@ -8,11 +8,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface AccountRepository extends JpaRepository<AccountEntity, UUID> {
-    public AccountEntity findByUserId(UUID userId);
+    public Optional<AccountEntity> findByUserId(UUID userId);
 
     @Query("""
     select a from AccountEntity a

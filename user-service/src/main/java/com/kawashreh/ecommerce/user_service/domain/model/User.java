@@ -3,7 +3,6 @@ package com.kawashreh.ecommerce.user_service.domain.model;
 import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
 import com.kawashreh.ecommerce.user_service.domain.enums.UserRole;
 import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
-import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;

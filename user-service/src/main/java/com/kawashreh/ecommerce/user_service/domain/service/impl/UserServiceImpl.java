@@ -33,12 +33,13 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public User create(User user) {
+    public User create(User user, String hashedPassword) {
 
         UserEntity ue = UserMapper.toEntity(user);
 
         AccountEntity ae = new AccountEntity();
         ae.setUser(ue);        // owning side
+        ae.setHashedPassword(hashedPassword);
         ue.setAccount(ae);     // inverse side
 
         repository.save(ue);
@@ -111,6 +112,9 @@ public class UserServiceImpl implements UserService {
     @Override
     public User Login(String username, String password) {
         User user = findByUsername(username);
+        Account account = findAccountByUserId(user.getId());
+        user.setAccount(account);
+
         if (user == null) {
             return null;
         }
@@ -130,5 +134,11 @@ public class UserServiceImpl implements UserService {
 
         user.changePassword(newPassword, passwordHasher);
         return user;
+    }
+
+    private Account findAccountByUserId(UUID id) {
+        return accountRepository.findByUserId(id)
+                .map(AccountMapper::toDomain)
+                .orElse(null);
     }
 }

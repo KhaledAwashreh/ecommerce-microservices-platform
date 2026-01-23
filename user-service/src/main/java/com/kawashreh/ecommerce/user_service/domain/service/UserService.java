@@ -1,12 +1,13 @@
 package com.kawashreh.ecommerce.user_service.domain.service;
 
+import com.kawashreh.ecommerce.user_service.domain.model.Account;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 
 import java.util.List;
 import java.util.UUID;
 
 public interface UserService {
-    User create(User user);
+    User create(User user, String hashedPassword);
 
     List<User> getAll();
 

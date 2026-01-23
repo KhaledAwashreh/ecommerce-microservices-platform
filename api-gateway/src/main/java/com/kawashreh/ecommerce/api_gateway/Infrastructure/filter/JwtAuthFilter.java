@@ -26,36 +26,43 @@ public class JwtAuthFilter implements WebFilter {
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
 
-        // Skip filter for public endpoints
-        if (path.equals("/api/v1/user/register") || path.equals("/api/v1/user/login")) {
-            return chain.filter(exchange);
+        // 1. Explicitly check for public paths first
+        if (path.contains("/api/v1/user/register") || path.contains("/api/v1/user/login")) {
+            var dummy  =  chain.filter(exchange);
+            return dummy;
         }
 
         String authHeader = exchange.getRequest().getHeaders().getFirst("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            // No token, but path wasn't public?
+            // Let authorizeExchange decide if this is allowed (it will fail for anyExchange().authenticated())
+            return chain.filter(exchange);
+        }
 
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
+        String token = authHeader.substring(7);
+        try {
+            String username = jwtService.extractUsername(token);
+            if (username != null) {
 
-            try {
-                String username = jwtService.extractUsername(token);
+                UserDto userDetails = userServiceClient.retrieveByUsername(username);
 
-                if (username != null) {
-                    // Fetch user details (this would ideally be reactive too)
-                    UserDto userDetails = userServiceClient.retrieveByUsername(username);
+                if (jwtService.validateToken(token, userDetails)) {
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(userDetails, null, null);
 
-                    if (jwtService.validateToken(token, userDetails)) {
-                        UsernamePasswordAuthenticationToken authentication =
-                                new UsernamePasswordAuthenticationToken(userDetails, null, null);
-
-                        return chain.filter(exchange)
-                                .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication));
-                    }
+                    return chain.filter(exchange)
+                            .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication));
                 }
-            } catch (Exception e) {
-                // Log error but continue
             }
+        } catch (Exception e) {
+            // Log error
         }
 
         return chain.filter(exchange);
     }
+
 }
+
+
+
+

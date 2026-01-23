@@ -2,10 +2,12 @@ package com.kawashreh.ecommerce.user_service.application.controller;
 
 import com.kawashreh.ecommerce.user_service.application.dto.UserDto;
 import com.kawashreh.ecommerce.user_service.application.dto.UserLoginDto;
+import com.kawashreh.ecommerce.user_service.application.dto.UserRegisterDto;
 import com.kawashreh.ecommerce.user_service.application.mapper.UserHttpMapper;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
 import com.kawashreh.ecommerce.user_service.infrastructure.security.JwtService;
+import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,9 +22,11 @@ import java.util.stream.Collectors;
 public class UserController {
 
     private final UserService service;
+    private final PasswordHasher hasher;
 
-    public UserController(UserService service) {
+    public UserController(UserService service, PasswordHasher hasher) {
         this.service = service;
+        this.hasher = hasher;
     }
 
     // GET all users
@@ -66,14 +70,11 @@ public class UserController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<UserDto> create(@RequestBody UserDto userDto) {
-        // Map DTO -> domain
+    public ResponseEntity<UserDto> create(@RequestBody UserRegisterDto userDto) {
         User user = UserHttpMapper.toDomain(userDto);
 
-        // Save
-        User saved = service.create(user);
+        User saved = service.create(user,hasher.encode(userDto.getRawPassword()) );
 
-        // Map domain -> DTO
         UserDto savedDto = UserHttpMapper.toDto(saved);
 
         return ResponseEntity.status(HttpStatus.CREATED)

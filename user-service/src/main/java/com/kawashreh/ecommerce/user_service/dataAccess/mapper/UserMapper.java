@@ -20,6 +20,7 @@ public final class UserMapper {
                 .createdAt(d.getCreatedAt())
                 .updatedAt(d.getUpdatedAt())
                 .name(d.getName())
+                .gender(d.getGender())
                 .build();
 
     }
@@ -36,6 +37,7 @@ public final class UserMapper {
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
                 .name(e.getName())
+                .gender(e.getGender())
                 .build();
     }
 }
