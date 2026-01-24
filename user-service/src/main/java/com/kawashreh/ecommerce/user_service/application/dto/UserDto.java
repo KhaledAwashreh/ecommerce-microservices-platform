@@ -31,7 +31,6 @@ public class UserDto {
     @NonNull
     private String phone;
 
-    @NonNull
     private Gender gender;
 
     @NonNull
