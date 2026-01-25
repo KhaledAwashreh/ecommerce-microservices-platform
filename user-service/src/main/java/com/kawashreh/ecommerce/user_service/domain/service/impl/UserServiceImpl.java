@@ -32,7 +32,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public User create(User user, String hashedPassword) {
 
         UserEntity ue = UserMapper.toEntity(user);
