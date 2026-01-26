@@ -3,6 +3,8 @@ package com.kawashreh.ecommerce.user_service.domain.model;
 import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
 import com.kawashreh.ecommerce.user_service.domain.enums.UserRole;
 import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import lombok.*;
 
 import java.time.Instant;
@@ -39,6 +41,7 @@ public class User {
     private List<Address> addresses = new ArrayList<>();
 
     @Builder.Default
+    @Enumerated(EnumType.STRING)
     private List<UserRole> roles = new ArrayList<>();
 
     // Add business method
