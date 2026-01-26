@@ -1,5 +1,6 @@
 package com.kawashreh.ecommerce.order_service.domain.model;
 
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -7,8 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
-import java.util.List;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Data
@@ -17,18 +17,12 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-public class Order {
+public class OrderItem {
 
     private UUID id;
-
-    private UUID seller;
-
-    private UUID buyer;
-
-    private List<OrderItem> selectedItems;
-
-    private Instant updatedAt;
-
-    private Instant createdAt;
+    private Order order;
+    private UUID productSku;
+    private int quantity;
+    private BigDecimal unitPrice;
 
 }

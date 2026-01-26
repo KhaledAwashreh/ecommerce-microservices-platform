@@ -2,7 +2,6 @@ package com.kawashreh.ecommerce.user_service.domain.model;
 
 import com.kawashreh.ecommerce.user_service.domain.enums.AccountStatus;
 import com.kawashreh.ecommerce.user_service.domain.enums.AccountType;
-import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
 import lombok.*;
 import lombok.experimental.Accessors;
 
