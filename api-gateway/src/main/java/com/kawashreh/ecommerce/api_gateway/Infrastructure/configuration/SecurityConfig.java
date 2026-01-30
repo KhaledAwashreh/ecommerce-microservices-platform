@@ -8,8 +8,6 @@ import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 
-import static org.springframework.security.config.web.server.SecurityWebFiltersOrder.AUTHENTICATION;
-
 @Configuration
 @EnableWebFluxSecurity
 public class SecurityConfig {
