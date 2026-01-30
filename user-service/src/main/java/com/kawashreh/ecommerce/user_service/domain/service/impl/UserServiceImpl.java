@@ -1,5 +1,6 @@
 package com.kawashreh.ecommerce.user_service.domain.service.impl;
 
+import com.kawashreh.ecommerce.user_service.constants.CacheConstants;
 import com.kawashreh.ecommerce.user_service.dataAccess.mapper.AccountMapper;
 import com.kawashreh.ecommerce.user_service.dataAccess.mapper.UserMapper;
 import com.kawashreh.ecommerce.user_service.dataAccess.entity.AccountEntity;
@@ -10,6 +11,7 @@ import com.kawashreh.ecommerce.user_service.domain.model.Account;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
 import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
+import org.springframework.cache.Cache;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
@@ -86,7 +88,7 @@ public class UserServiceImpl implements UserService {
     }
 
 
-    @Cacheable(value = "usersById", key = "#id")
+    @Cacheable(value = CacheConstants.USERS_BY_ID, key = "#id")
     @Override
     public User find(UUID id) {
         return repository.findById(id)
@@ -101,7 +103,7 @@ public class UserServiceImpl implements UserService {
                 .orElse(null);
     }
 
-    @Cacheable(value = "usersByUsername", key = "#username")
+    @Cacheable(value = CacheConstants.USER_BY_USERNAME, key = "#username")
     @Override
     public User findByUsername(String username) {
         return repository.findByUsername(username)
@@ -110,8 +112,8 @@ public class UserServiceImpl implements UserService {
     }
 
     @Caching(evict = {
-            @CacheEvict(value = "usersById", key = "#id"),
-            @CacheEvict(value = "usersByUsername", key = "#username")
+            @CacheEvict(value = CacheConstants.USERS_BY_ID, key = "#id"),
+            @CacheEvict(value = CacheConstants.USERS_BY_EMAIL, key = "#username")
     })
     @Override
     public void delete(UUID id) {

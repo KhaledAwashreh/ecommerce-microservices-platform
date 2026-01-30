@@ -1,6 +1,7 @@
 package com.kawashreh.ecommerce.user_service.domain.service.impl;
 
 
+import com.kawashreh.ecommerce.user_service.constants.CacheConstants;
 import com.kawashreh.ecommerce.user_service.dataAccess.mapper.AddressMapper;
 import com.kawashreh.ecommerce.user_service.dataAccess.repository.AddressRepository;
 import com.kawashreh.ecommerce.user_service.domain.model.Address;
@@ -18,11 +19,9 @@ import java.util.stream.Collectors;
 public class AddressServiceImpl implements AddressService {
 
     private final AddressRepository repository;
-    private final RedisCacheManager  cacheManager;
 
-    public AddressServiceImpl(AddressRepository repository, RedisCacheManager cacheManager) {
+    public AddressServiceImpl(AddressRepository repository) {
         this.repository = repository;
-        this.cacheManager = cacheManager;
     }
 
     @Override
@@ -38,14 +37,14 @@ public class AddressServiceImpl implements AddressService {
                 .collect(Collectors.toList());
     }
 
-    @Cacheable(value = "addressById", key = "#id")
+    @Cacheable(value = CacheConstants.ADDRESS_BY_ID, key = "#id")
     @Override
     public Address find(UUID id) {
         return AddressMapper.toDomain(repository.findById(id)
                 .orElse(null));
     }
 
-    @CacheEvict(value = "addressById", key = "#id")
+    @CacheEvict(value = CacheConstants.ADDRESS_BY_ID, key = "#id")
     @Override
     public void delete(UUID id) {
         repository.deleteById(id);
