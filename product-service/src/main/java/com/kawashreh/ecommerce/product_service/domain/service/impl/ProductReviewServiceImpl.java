@@ -1,11 +1,13 @@
 package com.kawashreh.ecommerce.product_service.domain.service.impl;
 
+import com.kawashreh.ecommerce.product_service.Const.CacheConstants;
 import com.kawashreh.ecommerce.product_service.dataAccess.Dao.ProductReviewRepository;
 import com.kawashreh.ecommerce.product_service.dataAccess.mapper.ProductReviewMapper;
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.ProductReviewEntity;
 import com.kawashreh.ecommerce.product_service.domain.model.Product;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductReview;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductReviewService;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -58,6 +60,7 @@ public class ProductReviewServiceImpl implements ProductReviewService {
         return ProductReviewMapper.toDomainList(entities);
     }
 
+    @Cacheable(value = CacheConstants.PRODUCT_REVIEW_BY_PRODUCT_ID, key ="#productId" )
     @Override
     public List<ProductReview> findByProductId(UUID productId) {
         List<ProductReviewEntity> entities = repository.findByProductId(productId);
