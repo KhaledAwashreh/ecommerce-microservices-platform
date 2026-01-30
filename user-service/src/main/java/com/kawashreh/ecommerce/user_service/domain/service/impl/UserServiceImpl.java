@@ -10,6 +10,9 @@ import com.kawashreh.ecommerce.user_service.domain.model.Account;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
 import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -83,6 +86,7 @@ public class UserServiceImpl implements UserService {
     }
 
 
+    @Cacheable(value = "usersById", key = "#id")
     @Override
     public User find(UUID id) {
         return repository.findById(id)
@@ -97,6 +101,7 @@ public class UserServiceImpl implements UserService {
                 .orElse(null);
     }
 
+    @Cacheable(value = "usersByUsername", key = "#username")
     @Override
     public User findByUsername(String username) {
         return repository.findByUsername(username)
@@ -104,8 +109,19 @@ public class UserServiceImpl implements UserService {
                 .orElse(null);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "usersById", key = "#id"),
+            @CacheEvict(value = "usersByUsername", key = "#username")
+    })
     @Override
     public void delete(UUID id) {
+        User user = find(id);
+        if (user == null) {
+            return;
+        }
+
+        String username = user.getUsername();
+
         repository.deleteById(id);
     }
 

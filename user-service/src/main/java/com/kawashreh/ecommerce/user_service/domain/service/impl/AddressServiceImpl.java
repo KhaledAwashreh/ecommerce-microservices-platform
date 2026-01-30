@@ -5,6 +5,9 @@ import com.kawashreh.ecommerce.user_service.dataAccess.mapper.AddressMapper;
 import com.kawashreh.ecommerce.user_service.dataAccess.repository.AddressRepository;
 import com.kawashreh.ecommerce.user_service.domain.model.Address;
 import com.kawashreh.ecommerce.user_service.domain.service.AddressService;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,9 +18,11 @@ import java.util.stream.Collectors;
 public class AddressServiceImpl implements AddressService {
 
     private final AddressRepository repository;
+    private final RedisCacheManager  cacheManager;
 
-    public AddressServiceImpl(AddressRepository repository) {
+    public AddressServiceImpl(AddressRepository repository, RedisCacheManager cacheManager) {
         this.repository = repository;
+        this.cacheManager = cacheManager;
     }
 
     @Override
@@ -33,12 +38,14 @@ public class AddressServiceImpl implements AddressService {
                 .collect(Collectors.toList());
     }
 
+    @Cacheable(value = "addressById", key = "#id")
     @Override
     public Address find(UUID id) {
         return AddressMapper.toDomain(repository.findById(id)
                 .orElse(null));
     }
 
+    @CacheEvict(value = "addressById", key = "#id")
     @Override
     public void delete(UUID id) {
         repository.deleteById(id);
