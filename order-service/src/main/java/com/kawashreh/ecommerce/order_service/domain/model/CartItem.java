@@ -13,7 +13,7 @@ public class CartItem {
     private UUID productVariantId;
 
     private String productSku;
-    private String productName; // optional but useful
+    private String productName;
 
     private int quantity;
 
