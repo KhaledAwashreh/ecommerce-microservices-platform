@@ -9,6 +9,7 @@ import lombok.experimental.Accessors;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 @Data
@@ -25,5 +26,11 @@ public class OrderItem {
     private int quantity;
 
     private BigDecimal unitPrice;
+
+    private Instant createdAt;
+    private Instant updatedAt;
+
+    private UUID createdBy;
+    private UUID updatedBy;
 
 }
