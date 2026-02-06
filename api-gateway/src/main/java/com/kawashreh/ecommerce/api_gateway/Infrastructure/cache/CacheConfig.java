@@ -1,4 +1,4 @@
-package com.kawashreh.ecommerce.user_service.infrastructure.cache;
+package com.kawashreh.ecommerce.api_gateway.Infrastructure.cache;
 
 
 import com.fasterxml.jackson.databind.ObjectMapper;
