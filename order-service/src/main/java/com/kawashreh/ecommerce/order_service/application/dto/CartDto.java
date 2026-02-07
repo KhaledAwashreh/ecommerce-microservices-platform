@@ -1,12 +1,8 @@
-package com.kawashreh.ecommerce.order_service.domain.model;
+package com.kawashreh.ecommerce.order_service.application.dto;
 
 import com.kawashreh.ecommerce.order_service.domain.enums.CartStatus;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.experimental.Accessors;
-import org.springframework.stereotype.Component;
+import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -15,22 +11,25 @@ import java.util.List;
 import java.util.UUID;
 
 @Data
-@Builder
-@Component
+@SuperBuilder
 @AllArgsConstructor
 @NoArgsConstructor
-@Accessors(chain = true)
-public class Cart {
+public class CartDto {
 
+    @NonNull
     private UUID id;
+
+    @NonNull
     private UUID userId;
-    private UUID createdBy;
-    private UUID updatedBy;
-    private UUID sessionId; //when moving between guest to actual user
-    private CartStatus status;
+
+    private UUID sessionId;
+
+    @NonNull
+    @Builder.Default
+    private CartStatus status = CartStatus.ACTIVE;
 
     @Builder.Default
-    private List<CartItem> cartItems = new ArrayList<>();
+    private List<CartItemDto> cartItems = new ArrayList<>();
 
     private BigDecimal subtotal;
     private BigDecimal discountTotal;
@@ -38,6 +37,12 @@ public class Cart {
     private BigDecimal shippingTotal;
     private BigDecimal totalPrice;
 
+    @NonNull
     private Instant createdAt;
+
+    @NonNull
     private Instant updatedAt;
+
+    private UUID createdBy;
+    private UUID updatedBy;
 }
