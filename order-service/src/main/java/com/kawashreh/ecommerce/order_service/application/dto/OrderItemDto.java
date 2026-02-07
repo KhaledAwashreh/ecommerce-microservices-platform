@@ -1,36 +1,36 @@
-package com.kawashreh.ecommerce.order_service.domain.model;
+package com.kawashreh.ecommerce.order_service.application.dto;
 
-
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.experimental.Accessors;
-import org.springframework.stereotype.Component;
+import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
 @Data
-@Builder
-@Component
+@SuperBuilder
 @AllArgsConstructor
 @NoArgsConstructor
-@Accessors(chain = true)
-public class OrderItem {
+public class OrderItemDto {
 
+    @NonNull
     private UUID id;
-    private UUID orderId;
+
+    @NonNull
     private UUID productSku;
+
+    @NonNull
     private int quantity;
 
+    @NonNull
     private BigDecimal unitPrice;
 
+    @NonNull
     private Instant createdAt;
+
+    @NonNull
     private Instant updatedAt;
 
     private UUID createdBy;
     private UUID updatedBy;
-
 }

@@ -1,12 +1,8 @@
-package com.kawashreh.ecommerce.order_service.domain.model;
+package com.kawashreh.ecommerce.order_service.application.dto;
 
 import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.experimental.Accessors;
-import org.springframework.stereotype.Component;
+import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -14,34 +10,39 @@ import java.util.List;
 import java.util.UUID;
 
 @Data
-@Builder
-@Component
+@SuperBuilder
 @AllArgsConstructor
 @NoArgsConstructor
-@Accessors(chain = true)
-public class Order {
+public class OrderDto {
 
+    @NonNull
     private UUID id;
 
+    @NonNull
     private UUID storeId;
 
+    @NonNull
     private UUID seller;
 
+    @NonNull
     private UUID buyer;
 
+    @NonNull
     @Builder.Default
     private OrderStatus status = OrderStatus.PENDING;
 
     @Builder.Default
-    private List<OrderItem> selectedItems = new ArrayList<>();
+    private List<OrderItemDto> selectedItems = new ArrayList<>();
 
     @Builder.Default
-    private List<Discount> discountsApplied = new ArrayList<>();
+    private List<DiscountDto> discountsApplied = new ArrayList<>();
 
+    @NonNull
     private Instant createdAt;
+
+    @NonNull
     private Instant updatedAt;
 
     private UUID createdBy;
     private UUID updatedBy;
-
 }
