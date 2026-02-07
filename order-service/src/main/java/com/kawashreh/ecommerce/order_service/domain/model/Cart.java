@@ -26,7 +26,7 @@ public class Cart {
     private UUID userId;
     private UUID createdBy;
     private UUID updatedBy;
-    private UUID sessionId; //when moving between guest to actual user
+    private UUID sessionId;
     private CartStatus status;
 
     @Builder.Default
