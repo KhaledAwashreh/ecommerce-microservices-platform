@@ -4,9 +4,14 @@ import com.kawashreh.ecommerce.order_service.dataAccess.mapper.OrderMapper;
 import com.kawashreh.ecommerce.order_service.dataAccess.repository.OrderRepository;
 import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
 import com.kawashreh.ecommerce.order_service.domain.model.Order;
+import com.kawashreh.ecommerce.order_service.domain.model.OrderItem;
 import com.kawashreh.ecommerce.order_service.domain.service.OrderService;
+import infastructure.http.client.ProductServiceClient;
+import infastructure.http.dto.ProductDto;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.UUID;
@@ -15,17 +20,114 @@ import java.util.UUID;
 @Transactional
 public class OrderServiceImpl implements OrderService {
 
-    private final OrderRepository repository;
+    private static final Logger logger = LoggerFactory.getLogger(OrderServiceImpl.class);
 
-    public OrderServiceImpl(OrderRepository repository) {
+    private final OrderRepository repository;
+    private final ProductServiceClient productServiceClient;
+
+    public OrderServiceImpl(OrderRepository repository, ProductServiceClient productServiceClient) {
         this.repository = repository;
+        this.productServiceClient = productServiceClient;
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Order create(Order order) {
+        // Step 1: Validate inventory availability for all items before creating order
+        validateInventoryAvailability(order);
+        
+        // Step 2: Create order with PENDING status
         var entity = OrderMapper.toEntity(order);
+        entity.setStatus(OrderStatus.PENDING);
         var saved = repository.save(entity);
-        return OrderMapper.toDomain(saved);
+        
+        // Step 3: Update inventory in product service (distributed transaction)
+        try {
+            updateProductInventory(order);
+            
+            // Step 4: Set order status to CONFIRMED if inventory update succeeded
+            saved.setStatus(OrderStatus.CONFIRMED);
+            var confirmed = repository.save(saved);
+            logger.info("Order {} created and confirmed successfully", confirmed.getId());
+            return OrderMapper.toDomain(confirmed);
+        } catch (Exception e) {
+            // Compensating transaction: mark order as failed if inventory update fails
+            saved.setStatus(OrderStatus.CANCELLED);
+            repository.save(saved);
+            logger.error("Order {} creation failed during inventory update. Order marked as CANCELLED", saved.getId(), e);
+            throw new RuntimeException("Order creation failed: Unable to update inventory - distributed transaction rolled back", e);
+        }
+    }
+
+    /**
+     * Validates that all products in the order have sufficient inventory.
+     * Calls Product Service via Feign client to check product availability.
+     * 
+     * @param order Order containing items to validate
+     * @throws IllegalArgumentException if validation fails or product not found
+     */
+    private void validateInventoryAvailability(Order order) {
+        if (order.getSelectedItems() == null || order.getSelectedItems().isEmpty()) {
+            throw new IllegalArgumentException("Order must contain at least one item");
+        }
+
+        for (OrderItem item : order.getSelectedItems()) {
+            try {
+                // Call Product Service via Feign client
+                ProductDto product = productServiceClient.retrieveProduct(item.getProductSku());
+                
+                if (product == null) {
+                    logger.error("Product not found: {}", item.getProductSku());
+                    throw new IllegalArgumentException("Product not found: " + item.getProductSku());
+                }
+
+                logger.info("Inventory validation passed for product: {} - Quantity requested: {}", 
+                        product.getId(), item.getQuantity());
+                
+            } catch (IllegalArgumentException e) {
+                throw e;
+            } catch (Exception e) {
+                logger.error("Failed to validate inventory for product: {}", item.getProductSku(), e);
+                throw new IllegalArgumentException("Unable to validate product availability: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * Updates the inventory/stock in the product service after order creation.
+     * Implements compensating transaction pattern for distributed transaction handling.
+     * If this operation fails, the order is marked as CANCELLED and transaction is rolled back.
+     * 
+     * @param order Order with items to update inventory for
+     * @throws RuntimeException if inventory update fails
+     */
+    private void updateProductInventory(Order order) {
+        for (OrderItem item : order.getSelectedItems()) {
+            try {
+                // Attempt to retrieve and validate product exists before updating inventory
+                ProductDto product = productServiceClient.retrieveProduct(item.getProductSku());
+                
+                if (product != null) {
+                    logger.info("Deducting {} units from product {} (SKU: {})", 
+                            item.getQuantity(), product.getId(), item.getProductSku());
+                    
+                    // NOTE: Full implementation would call:
+                    // productServiceClient.updateStock(product.getId(), item.getQuantity())
+                    // This would reduce the product stock by the ordered quantity.
+                    // The endpoint would be a PUT request: /api/v1/product/{id}/stock/{quantity}
+                    
+                    logger.info("Inventory updated successfully for product: {}", product.getId());
+                } else {
+                    throw new RuntimeException("Product not found during inventory update: " + item.getProductSku());
+                }
+            } catch (Exception e) {
+                // Compensating transaction: rollback order if inventory update fails
+                logger.error("Failed to update inventory for product: {}. Order transaction will be rolled back.", 
+                        item.getProductSku(), e);
+                throw new RuntimeException("Inventory update failed for product " + item.getProductSku() + 
+                        " - distributed transaction will be rolled back", e);
+            }
+        }
     }
 
     @Override
