@@ -29,7 +29,6 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<Order> getAll() {
         return repository.findAll()
                 .stream()
@@ -38,7 +37,6 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Order findById(UUID id) {
         return repository.findById(id)
                 .map(OrderMapper::toDomain)
@@ -46,7 +44,6 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<Order> findByBuyer(UUID buyerId) {
         return repository.findByBuyer(buyerId)
                 .stream()
@@ -55,7 +52,6 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<Order> findBySeller(UUID sellerId) {
         return repository.findBySeller(sellerId)
                 .stream()
@@ -64,7 +60,6 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<Order> findByStoreId(UUID storeId) {
         return repository.findByStoreId(storeId)
                 .stream()
@@ -82,7 +77,6 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<Order> findByBuyerAndStoreId(UUID buyerId, UUID storeId) {
         return repository.findByBuyerAndStoreId(buyerId, storeId)
                 .stream()
@@ -91,7 +85,6 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<Order> findBySellerAndStoreId(UUID sellerId, UUID storeId) {
         return repository.findBySellerAndStoreId(sellerId, storeId)
                 .stream()
@@ -100,7 +93,6 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<Order> findByBuyerAndStatus(UUID buyerId, OrderStatus status) {
         return repository.findByBuyerAndStatus(buyerId, status)
                 .stream()

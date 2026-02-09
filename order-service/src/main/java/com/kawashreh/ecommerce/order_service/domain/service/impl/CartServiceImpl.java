@@ -35,7 +35,6 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Cart findById(UUID id) {
         return cartRepository.findById(id)
                 .map(CartMapper::toDomain)
@@ -43,7 +42,6 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Cart findByUserId(UUID userId) {
         return cartRepository.findByUserId(userId)
                 .map(CartMapper::toDomain)
@@ -51,7 +49,6 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Cart findBySessionId(UUID sessionId) {
         return cartRepository.findBySessionId(sessionId)
                 .map(CartMapper::toDomain)
@@ -59,7 +56,6 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Cart findByUserIdAndStatus(UUID userId, CartStatus status) {
         return cartRepository.findByUserIdAndStatus(userId, status)
                 .map(CartMapper::toDomain)
@@ -67,7 +63,6 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Cart findBySessionIdAndStatus(UUID sessionId, CartStatus status) {
         return cartRepository.findBySessionIdAndStatus(sessionId, status)
                 .map(CartMapper::toDomain)
@@ -75,7 +70,6 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<Cart> findByStatus(CartStatus status) {
         return cartRepository.findByStatus(status)
                 .stream()
@@ -84,6 +78,7 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
+    @Transactional
     public Cart addItem(UUID cartId, CartItem item) {
         var cartEntity = cartRepository.findById(cartId).orElse(null);
         if (cartEntity == null) return null;
@@ -98,6 +93,7 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
+    @Transactional
     public Cart removeItem(UUID cartId, UUID itemId) {
         var cartEntity = cartRepository.findById(cartId).orElse(null);
         if (cartEntity == null) return null;
@@ -113,6 +109,7 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
+    @Transactional
     public Cart updateItem(UUID cartId, CartItem item) {
         var cartEntity = cartRepository.findById(cartId).orElse(null);
         if (cartEntity == null) return null;
@@ -129,6 +126,7 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
+    @Transactional
     public Cart clearCart(UUID cartId) {
         var cartEntity = cartRepository.findById(cartId).orElse(null);
         if (cartEntity == null) return null;
@@ -168,8 +166,7 @@ public class CartServiceImpl implements CartService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         cartEntity.setSubtotal(subtotal);
-        // Note: discountTotal, taxTotal, shippingTotal should be calculated via business logic
-        // This is a simplified version - actual calculation depends on business rules
+
 
         var saved = cartRepository.save(cartEntity);
         return CartMapper.toDomain(saved);
