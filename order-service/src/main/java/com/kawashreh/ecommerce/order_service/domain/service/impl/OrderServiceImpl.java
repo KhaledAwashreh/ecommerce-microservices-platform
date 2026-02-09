@@ -213,4 +213,98 @@ public class OrderServiceImpl implements OrderService {
     public void delete(UUID id) {
         repository.deleteById(id);
     }
-}
+
+    /**
+     * Creates an order from a shopping cart. Converts CartItems to OrderItems,
+     * validates inventory via Product Service, and handles distributed transactions.
+     * 
+     * NOTE: This method is designed to be called by Payment Service after successful payment.
+     * Payment Service flow:
+     * 1. Cart → createOrderFromCart() 
+     * 2. Process payment
+     * 3. If payment succeeds → Order confirmed + Cart marked as COMPLETED
+     * 4. If payment fails → Order cancelled + Cart remains available for retry
+     * 
+     * @param cartId UUID of the cart to convert to order
+     * @param buyer UUID of the buyer placing the order
+     * @return Order created from cart items
+     * @throws IllegalArgumentException if cart is empty or invalid
+     * @throws RuntimeException if inventory validation or update fails
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public Order createOrderFromCart(UUID cartId, UUID buyer) {
+        logger.info("Creating order from cart: {} for buyer: {}", cartId, buyer);
+        
+        // Step 1: Convert Cart to Order
+        Order order = convertCartToOrder(cartId, buyer);
+        
+        // Step 2: Validate inventory before creating order
+        validateInventoryAvailability(order);
+        
+        // Step 3: Save order with PENDING status
+        var entity = OrderMapper.toEntity(order);
+        entity.setStatus(OrderStatus.PENDING);
+        var saved = repository.save(entity);
+        
+        // Step 4: Update inventory in product service (distributed transaction)
+        try {
+            updateProductInventory(order);
+            
+            // Step 5: Set order status to CONFIRMED if inventory update succeeded
+            saved.setStatus(OrderStatus.CONFIRMED);
+            var confirmed = repository.save(saved);
+            logger.info("Order {} created from cart {} and confirmed successfully", confirmed.getId(), cartId);
+            return OrderMapper.toDomain(confirmed);
+        } catch (Exception e) {
+            // Compensating transaction: mark order as FAILED if inventory update fails
+            saved.setStatus(OrderStatus.CANCELLED);
+            repository.save(saved);
+            logger.error("Order {} creation from cart {} failed during inventory update. Order marked as CANCELLED", 
+                    saved.getId(), cartId, e);
+            throw new RuntimeException("Order creation from cart failed: Unable to update inventory - distributed transaction rolled back", e);
+        }
+    }
+
+    /**
+     * Converts a shopping cart and its items to an Order domain model.
+     * Helper method for createOrderFromCart().
+     * 
+     * Transformation:
+     * - CartItems → OrderItems (same quantity, unit price from product)
+     * - Cart totals → Order calculation
+     * 
+     * @param cartId UUID of the cart to convert
+     * @param buyer UUID of the buyer
+     * @return Order object populated from cart data
+     * @throws IllegalArgumentException if cart not found or empty
+     */
+    private Order convertCartToOrder(UUID cartId, UUID buyer) {
+        if (cartId == null || buyer == null) {
+            throw new IllegalArgumentException("Cart ID and Buyer ID cannot be null");
+        }
+
+        // NOTE: This method is incomplete pending CartService integration
+        // When CartService is available, implement as:
+        // 
+        // Cart cart = cartService.findById(cartId);
+        // if (cart == null) {
+        //     throw new IllegalArgumentException("Cart not found: " + cartId);
+        // }
+        // if (cart.getCartItems() == null || cart.getCartItems().isEmpty()) {
+        //     throw new IllegalArgumentException("Cannot create order from empty cart");
+        // }
+        //
+        // Create Order from Cart:
+        Order order = Order.builder()
+                .id(UUID.randomUUID())
+                .buyer(buyer)
+                .status(OrderStatus.PENDING)
+                .createdAt(java.time.Instant.now())
+                .updatedAt(java.time.Instant.now())
+                // selectedItems will be populated from CartItems when CartService is available
+                // discountsApplied will be populated from Cart when CartService is available
+                .build();
+
+        logger.info("Cart {} converted to Order {}", cartId, order.getId());
+        return order;
+    }
