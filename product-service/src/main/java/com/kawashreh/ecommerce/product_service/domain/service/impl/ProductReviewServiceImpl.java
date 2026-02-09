@@ -1,6 +1,6 @@
 package com.kawashreh.ecommerce.product_service.domain.service.impl;
 
-import com.kawashreh.ecommerce.product_service.Const.CacheConstants;
+import com.kawashreh.ecommerce.product_service.constants.CacheConstants;
 import com.kawashreh.ecommerce.product_service.dataAccess.Dao.ProductReviewRepository;
 import com.kawashreh.ecommerce.product_service.dataAccess.mapper.ProductReviewMapper;
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.ProductReviewEntity;

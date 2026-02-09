@@ -1,4 +1,4 @@
-package com.kawashreh.ecommerce.product_service.Const;
+package com.kawashreh.ecommerce.product_service.constants;
 
 public final class
 CacheConstants {

@@ -1,6 +1,6 @@
 package com.kawashreh.ecommerce.product_service.domain.service.impl;
 
-import com.kawashreh.ecommerce.product_service.Const.CacheConstants;
+import com.kawashreh.ecommerce.product_service.constants.CacheConstants;
 import com.kawashreh.ecommerce.product_service.dataAccess.dao.ProductRepository;
 import com.kawashreh.ecommerce.product_service.dataAccess.mapper.ProductMapper;
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.ProductEntity;
@@ -8,7 +8,6 @@ import com.kawashreh.ecommerce.product_service.domain.model.Product;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductService;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
