@@ -35,16 +35,16 @@ public class OrderServiceImpl implements OrderService {
     public Order create(Order order) {
         // Step 1: Validate inventory availability for all items before creating order
         validateInventoryAvailability(order);
-        
+
         // Step 2: Create order with PENDING status
         var entity = OrderMapper.toEntity(order);
         entity.setStatus(OrderStatus.PENDING);
         var saved = repository.save(entity);
-        
+
         // Step 3: Update inventory in product service (distributed transaction)
         try {
             updateProductInventory(order);
-            
+
             // Step 4: Set order status to CONFIRMED if inventory update succeeded
             saved.setStatus(OrderStatus.CONFIRMED);
             var confirmed = repository.save(saved);
@@ -62,7 +62,7 @@ public class OrderServiceImpl implements OrderService {
     /**
      * Validates that all products in the order have sufficient inventory.
      * Calls Product Service via Feign client to check product availability.
-     * 
+     *
      * @param order Order containing items to validate
      * @throws IllegalArgumentException if validation fails or product not found
      */
@@ -75,15 +75,15 @@ public class OrderServiceImpl implements OrderService {
             try {
                 // Call Product Service via Feign client
                 ProductDto product = productServiceClient.retrieveProduct(item.getProductSku());
-                
+
                 if (product == null) {
                     logger.error("Product not found: {}", item.getProductSku());
                     throw new IllegalArgumentException("Product not found: " + item.getProductSku());
                 }
 
-                logger.info("Inventory validation passed for product: {} - Quantity requested: {}", 
+                logger.info("Inventory validation passed for product: {} - Quantity requested: {}",
                         product.getId(), item.getQuantity());
-                
+
             } catch (IllegalArgumentException e) {
                 throw e;
             } catch (Exception e) {
@@ -97,7 +97,7 @@ public class OrderServiceImpl implements OrderService {
      * Updates the inventory/stock in the product service after order creation.
      * Implements compensating transaction pattern for distributed transaction handling.
      * If this operation fails, the order is marked as CANCELLED and transaction is rolled back.
-     * 
+     *
      * @param order Order with items to update inventory for
      * @throws RuntimeException if inventory update fails
      */
@@ -106,25 +106,25 @@ public class OrderServiceImpl implements OrderService {
             try {
                 // Attempt to retrieve and validate product exists before updating inventory
                 ProductDto product = productServiceClient.retrieveProduct(item.getProductSku());
-                
+
                 if (product != null) {
-                    logger.info("Deducting {} units from product {} (SKU: {})", 
+                    logger.info("Deducting {} units from product {} (SKU: {})",
                             item.getQuantity(), product.getId(), item.getProductSku());
-                    
+
                     // NOTE: Full implementation would call:
                     // productServiceClient.updateStock(product.getId(), item.getQuantity())
                     // This would reduce the product stock by the ordered quantity.
                     // The endpoint would be a PUT request: /api/v1/product/{id}/stock/{quantity}
-                    
+
                     logger.info("Inventory updated successfully for product: {}", product.getId());
                 } else {
                     throw new RuntimeException("Product not found during inventory update: " + item.getProductSku());
                 }
             } catch (Exception e) {
                 // Compensating transaction: rollback order if inventory update fails
-                logger.error("Failed to update inventory for product: {}. Order transaction will be rolled back.", 
+                logger.error("Failed to update inventory for product: {}. Order transaction will be rolled back.",
                         item.getProductSku(), e);
-                throw new RuntimeException("Inventory update failed for product " + item.getProductSku() + 
+                throw new RuntimeException("Inventory update failed for product " + item.getProductSku() +
                         " - distributed transaction will be rolled back", e);
             }
         }
@@ -217,39 +217,39 @@ public class OrderServiceImpl implements OrderService {
     /**
      * Creates an order from a shopping cart. Converts CartItems to OrderItems,
      * validates inventory via Product Service, and handles distributed transactions.
-     * 
+     * <p>
      * NOTE: This method is designed to be called by Payment Service after successful payment.
      * Payment Service flow:
-     * 1. Cart → createOrderFromCart() 
+     * 1. Cart → createOrderFromCart()
      * 2. Process payment
      * 3. If payment succeeds → Order confirmed + Cart marked as COMPLETED
      * 4. If payment fails → Order cancelled + Cart remains available for retry
-     * 
+     *
      * @param cartId UUID of the cart to convert to order
-     * @param buyer UUID of the buyer placing the order
+     * @param buyer  UUID of the buyer placing the order
      * @return Order created from cart items
      * @throws IllegalArgumentException if cart is empty or invalid
-     * @throws RuntimeException if inventory validation or update fails
+     * @throws RuntimeException         if inventory validation or update fails
      */
     @Transactional(rollbackFor = Exception.class)
     public Order createOrderFromCart(UUID cartId, UUID buyer) {
         logger.info("Creating order from cart: {} for buyer: {}", cartId, buyer);
-        
+
         // Step 1: Convert Cart to Order
         Order order = convertCartToOrder(cartId, buyer);
-        
+
         // Step 2: Validate inventory before creating order
         validateInventoryAvailability(order);
-        
+
         // Step 3: Save order with PENDING status
         var entity = OrderMapper.toEntity(order);
         entity.setStatus(OrderStatus.PENDING);
         var saved = repository.save(entity);
-        
+
         // Step 4: Update inventory in product service (distributed transaction)
         try {
             updateProductInventory(order);
-            
+
             // Step 5: Set order status to CONFIRMED if inventory update succeeded
             saved.setStatus(OrderStatus.CONFIRMED);
             var confirmed = repository.save(saved);
@@ -259,7 +259,7 @@ public class OrderServiceImpl implements OrderService {
             // Compensating transaction: mark order as FAILED if inventory update fails
             saved.setStatus(OrderStatus.CANCELLED);
             repository.save(saved);
-            logger.error("Order {} creation from cart {} failed during inventory update. Order marked as CANCELLED", 
+            logger.error("Order {} creation from cart {} failed during inventory update. Order marked as CANCELLED",
                     saved.getId(), cartId, e);
             throw new RuntimeException("Order creation from cart failed: Unable to update inventory - distributed transaction rolled back", e);
         }
@@ -268,13 +268,13 @@ public class OrderServiceImpl implements OrderService {
     /**
      * Converts a shopping cart and its items to an Order domain model.
      * Helper method for createOrderFromCart().
-     * 
+     * <p>
      * Transformation:
      * - CartItems → OrderItems (same quantity, unit price from product)
      * - Cart totals → Order calculation
-     * 
+     *
      * @param cartId UUID of the cart to convert
-     * @param buyer UUID of the buyer
+     * @param buyer  UUID of the buyer
      * @return Order object populated from cart data
      * @throws IllegalArgumentException if cart not found or empty
      */
@@ -308,3 +308,4 @@ public class OrderServiceImpl implements OrderService {
         logger.info("Cart {} converted to Order {}", cartId, order.getId());
         return order;
     }
+}
