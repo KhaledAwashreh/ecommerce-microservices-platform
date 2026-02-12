@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: config-server
+  cloud:
+    config:
+      enabled: false
+      import-check:
+        enabled: false
