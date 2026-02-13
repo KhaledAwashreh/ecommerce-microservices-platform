@@ -130,6 +130,11 @@
 			<artifactId>micrometer-tracing-bridge-otel</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>io.github.openfeign</groupId>
+			<artifactId>feign-micrometer</artifactId>
+		</dependency>
+
 		<!-- OpenTelemetry exporter to Zipkin -->
 		<dependency>
 			<groupId>io.opentelemetry</groupId>
