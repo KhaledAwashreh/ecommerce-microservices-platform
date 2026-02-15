@@ -2,4 +2,66 @@ version: "3.9"
 
 
 services:
+  # Naming / Discovery Server (Eureka)
   naming-server:
+    build:
+      context: ./naming-server
+      dockerfile: Dockerfile
+  # Config Server
+  config-server:
+    build:
+      context: ./config-server
+      dockerfile: Dockerfile
+    depends_on:
+      - naming-server
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    depends_on:
+      - naming-server
+
+  # Order Service
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    depends_on:
+      - naming-server
+      - config-server
+
+  # Payment Service
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    depends_on:
+      - naming-server
+      - config-server
+  # Product Service
+  product-service:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    depends_on:
+      - naming-server
+      - config-server
+  # User Service
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    depends_on:
+      - naming-server
+      - config-server
+
+networks:
+  default:
+    name: ecommerce-platform
