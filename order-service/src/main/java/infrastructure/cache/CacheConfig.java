@@ -1,4 +1,4 @@
-package infastructure.cache;
+package infrastructure.cache;
 
 
 import com.fasterxml.jackson.databind.ObjectMapper;

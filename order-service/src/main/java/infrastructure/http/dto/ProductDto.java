@@ -1,4 +1,4 @@
-package infastructure.http.dto;
+package infrastructure.http.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

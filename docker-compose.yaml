@@ -1,12 +1,30 @@
 version: "3.9"
 
+name: ecommerce-platform
+
 services:
+
   # ==========================
-  # PostgreSQL
+  # Observability
+  # ==========================
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: zipkin
+    restart: unless-stopped
+    ports:
+      - "9411:9411"
+    environment:
+      STORAGE_TYPE: mem
+    networks:
+      - ecommerce-network
+
+  # ==========================
+  # Database Layer
   # ==========================
   postgres-server:
     image: postgres:15
-    container_name: Ecommerce
+    container_name: postgres-server
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: test1234
@@ -15,97 +33,161 @@ services:
       - "5433:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+      - ./docker/postgres/init:/v1__create__databases.sql
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
+      timeout: 5s
       retries: 5
+    networks:
+      - ecommerce-network
 
   redis-server:
-    image: redis:8.6.0
+    image: redis:7-alpine
     container_name: redis-server
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
+      timeout: 3s
       retries: 5
+    networks:
+      - ecommerce-network
 
+  redisinsight:
+    image: redislabs/redisinsight:latest
+    container_name: redisinsight
+    restart: unless-stopped
+    ports:
+      - "5540:5540"
+    volumes:
+      - redisinsight-data:/data
+    depends_on:
+      redis-server:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
 
-
-  # Naming / Discovery Server (Eureka)
+  # ==========================
+  # Infrastructure Services
+  # ==========================
   naming-server:
+    container_name: naming-server
     build:
       context: ./naming-server
       dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - ecommerce-network
 
-  # Config Server
   config-server:
+    container_name: config-server
     build:
       context: ./config-server
       dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
-      - naming-server
+      naming-server:
+        condition: service_started
+    networks:
+      - ecommerce-network
 
-  # API Gateway
   api-gateway:
+    container_name: api-gateway
     build:
       context: ./api-gateway
       dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
-      - naming-server
-      - postgres-server
+      naming-server:
+        condition: service_started
+      postgres-server:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
 
-  # Order Service
+  # ==========================
+  # Business Services
+  # ==========================
   order-service:
+    container_name: order-service
     build:
       context: ./order-service
       dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
-      - naming-server
-      - config-server
-      - postgres-server
+      naming-server:
+        condition: service_started
+      config-server:
+        condition: service_started
+      postgres-server:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
 
-
-  # Payment Service
   payment-service:
+    container_name: payment-service
     build:
       context: ./payment-service
       dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
-      - naming-server
-      - config-server
-      - postgres-server
+      naming-server:
+        condition: service_started
+      config-server:
+        condition: service_started
+      postgres-server:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
 
-
-  # Product Service
   product-service:
+    container_name: product-service
     build:
       context: ./product-service
       dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
-      - naming-server
-      - config-server
-      - postgres-server
+      naming-server:
+        condition: service_started
+      config-server:
+        condition: service_started
+      postgres-server:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
 
-
-
-  # User Service
   user-service:
+    container_name: user-service
     build:
       context: ./user-service
       dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
-      - naming-server
-      - config-server
-      - postgres-server
+      naming-server:
+        condition: service_started
+      config-server:
+        condition: service_started
+      postgres-server:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
 
+# ==========================
+# Networks
+# ==========================
 networks:
-  default:
-    name: ecommerce-platform
+  ecommerce-network:
+    driver: bridge
 
+# ==========================
+# Volumes
+# ==========================
 volumes:
   postgres-data:
   redis-data:
+  redisinsight-data:

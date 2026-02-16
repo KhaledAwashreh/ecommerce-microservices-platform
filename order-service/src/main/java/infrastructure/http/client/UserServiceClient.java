@@ -1,6 +1,6 @@
-package infastructure.http.client;
+package infrastructure.http.client;
 
-import infastructure.http.dto.UserDto;
+import infrastructure.http.dto.UserDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

@@ -6,7 +6,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 @SpringBootApplication
-@EnableFeignClients(basePackages = "com.kawashreh.ecommerce.product_service.infastructure.http.client")
+@EnableFeignClients
 @EnableTransactionManagement
 public class ProductServiceApplication {
 
