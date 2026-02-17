@@ -14,7 +14,15 @@ RUN mvn clean package -DskipTests
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
+# Install curl for health check
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 # Port is dynamically assigned (server.port=0 in application.properties)
 COPY --from=builder /app/target/*.jar app.jar
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8761/actuator/health || exit 1
+
+EXPOSE 8761
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
