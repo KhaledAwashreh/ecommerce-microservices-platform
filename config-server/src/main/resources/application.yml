@@ -1,0 +1,54 @@
+# -------------------------------
+# Server Configuration
+# -------------------------------
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-server
+  cloud:
+    config:
+      server:
+        git:
+          uri: https://github.com/KhaledAwashreh/ecommerece-configs
+          default-label: main
+          clone-on-start: true
+          timeout: 10
+      enabled: false
+      discovery:
+        enabled: false
+
+management:
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_BASE_URL:http://zipkin:9411}/api/v2/spans
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+
+# -------------------------------
+# Eureka Discovery
+# -------------------------------
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka}
+  instance:
+    prefer-ip-address: true
+
+# -------------------------------
+# CRITICAL: Prevent Config Server from being its own client
+# -------------------------------
+# DO NOT ADD spring.config.import here!
+
+# -------------------------------
+# Management & Monitoring
+# -------------------------------
+logging:
+  pattern:
+    level: "%5p [${spring.application.name}, %X{traceId:-}, %X{spanId:-}]"
