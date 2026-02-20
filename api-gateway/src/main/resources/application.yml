@@ -33,7 +33,7 @@ spring:
         - id: product-service
           uri: lb://product-service
           predicates:
-            - Path=/api/v1/product/**,/api/v1/productReview/**
+             - Path=/api/v1/product/**,/api/v1/productReview/**,/api/v1/categories/**
           filters:
             - name: Retry
               args:
@@ -42,6 +42,34 @@ spring:
             - name: CircuitBreaker
               args:
                 name: product-service
+                fallbackUri: forward:/fallback
+
+        - id: order-service
+          uri: lb://order-service
+          predicates:
+            - Path=/api/v1/orders/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                methods: GET,POST
+            - name: CircuitBreaker
+              args:
+                name: order-service
+                fallbackUri: forward:/fallback
+
+        - id: user-address-service
+          uri: lb://user-service
+          predicates:
+            - Path=/api/v1/Address/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                methods: GET,POST
+            - name: CircuitBreaker
+              args:
+                name: user-service
                 fallbackUri: forward:/fallback
 
 server:

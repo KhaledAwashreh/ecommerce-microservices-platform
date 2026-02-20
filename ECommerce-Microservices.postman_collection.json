@@ -1,0 +1,502 @@
+{
+  "info": {
+    "name": "E-Commerce Microservices Platform",
+    "description": "Postman collection for the E-Commerce Microservices Platform\n\nBase URL: http://localhost:8765 (API Gateway)\n\nServices:\n- API Gateway: http://localhost:8765\n- Naming Server (Eureka): http://localhost:8761\n- Config Server: http://localhost:8888",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8765",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "User Service",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user"]
+            }
+          }
+        },
+        {
+          "name": "Get User By ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/:userId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user", ":userId"]
+            }
+          }
+        },
+        {
+          "name": "Get User By Username",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user?username={{username}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user"],
+              "query": [
+                {
+                  "key": "username",
+                  "value": "{{username}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user", "register"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"johndoe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"phoneNumber\": \"+1234567890\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user", "login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"johndoe\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/:userId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user", ":userId"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Address Service",
+      "item": [
+        {
+          "name": "Get All Addresses",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/Address",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "Address"]
+            }
+          }
+        },
+        {
+          "name": "Get Address By ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/Address/:addressId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "Address", ":addressId"]
+            }
+          }
+        },
+        {
+          "name": "Create Address",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/Address",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "Address"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"street\": \"123 Main St\",\n  \"city\": \"New York\",\n  \"state\": \"NY\",\n  \"zipCode\": \"10001\",\n  \"country\": \"USA\",\n  \"userId\": \"{{userId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Address",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/Address?id={{addressId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "Address"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{addressId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Product Service",
+      "item": [
+        {
+          "name": "Get All Products",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/product",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "product"]
+            }
+          }
+        },
+        {
+          "name": "Get Product By ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/product/:productId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "product", ":productId"]
+            }
+          }
+        },
+        {
+          "name": "Create Product",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/product",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "product"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sample Product\",\n  \"description\": \"A sample product description\",\n  \"price\": 99.99,\n  \"stockQuantity\": 100,\n  \"categoryId\": \"{{categoryId}}\",\n  \"sellerId\": \"{{sellerId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Product",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/product/:productId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "product", ":productId"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Category Service",
+      "item": [
+        {
+          "name": "Get All Categories",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"]
+            }
+          }
+        },
+        {
+          "name": "Get Category By ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories/:categoryId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories", ":categoryId"]
+            }
+          }
+        },
+        {
+          "name": "Get Category By Name",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories/name/:categoryName",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories", "name", ":categoryName"]
+            }
+          }
+        },
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Electronics\",\n  \"description\": \"Electronic devices and accessories\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Category",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories/:categoryId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories", ":categoryId"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Product Review Service",
+      "item": [
+        {
+          "name": "Get All Reviews",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/productReview",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "productReview"]
+            }
+          }
+        },
+        {
+          "name": "Get Reviews For Product",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/productReview/:productId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "productReview", ":productId"]
+            }
+          }
+        },
+        {
+          "name": "Get Review By ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/productReview/review/:reviewId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "productReview", "review", ":reviewId"]
+            }
+          }
+        },
+        {
+          "name": "Create Review",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/productReview",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "productReview"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"userId\": \"{{userId}}\",\n  \"rating\": 5,\n  \"comment\": \"Great product! Highly recommended.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Review",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/productReview/:reviewId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "productReview", ":reviewId"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Order Service",
+      "item": [
+        {
+          "name": "Get All Orders",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders"]
+            }
+          }
+        },
+        {
+          "name": "Get Order By ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders", ":id"]
+            }
+          }
+        },
+        {
+          "name": "Get Orders By Buyer",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/buyer/:buyerId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders", "buyer", ":buyerId"]
+            }
+          }
+        },
+        {
+          "name": "Get Orders By Seller",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/seller/:sellerId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders", "seller", ":sellerId"]
+            }
+          }
+        },
+        {
+          "name": "Get Orders By Store",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/store/:storeId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders", "store", ":storeId"]
+            }
+          }
+        },
+        {
+          "name": "Get Orders By Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/status/:status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders", "status", ":status"]
+            }
+          }
+        },
+        {
+          "name": "Get Orders By Buyer And Store",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/buyer/:buyerId/store/:storeId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders", "buyer", ":buyerId", "store", ":storeId"]
+            }
+          }
+        },
+        {
+          "name": "Get Orders By Seller And Store",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/seller/:sellerId/store/:storeId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders", "seller", ":sellerId", "store", ":storeId"]
+            }
+          }
+        },
+        {
+          "name": "Get Orders By Buyer And Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/buyer/:buyerId/status/:status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders", "buyer", ":buyerId", "status", ":status"]
+            }
+          }
+        },
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"buyerId\": \"{{buyerId}}\",\n  \"sellerId\": \"{{sellerId}}\",\n  \"storeId\": \"{{storeId}}\",\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 2,\n  \"totalPrice\": 199.98,\n  \"status\": \"PENDING\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Order",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders", ":id"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"buyerId\": \"{{buyerId}}\",\n  \"sellerId\": \"{{sellerId}}\",\n  \"storeId\": \"{{storeId}}\",\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 3,\n  \"totalPrice\": 299.97,\n  \"status\": \"CONFIRMED\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Order",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders", ":id"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Checks",
+      "item": [
+        {
+          "name": "API Gateway Fallback",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/fallback",
+              "host": ["{{baseUrl}}"],
+              "path": ["fallback"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
