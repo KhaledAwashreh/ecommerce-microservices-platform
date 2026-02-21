@@ -104,7 +104,7 @@ public class UserServiceImpl implements UserService {
     @Cacheable(value = CacheConstants.USER_BY_USERNAME, key = "#username")
     @Override
     public User findByUsername(String username) {
-        return repository.findByUsername(username)
+        return repository.findByUsernameWithAccount(username)
                 .map(UserMapper::toDomain)
                 .orElse(null);
     }

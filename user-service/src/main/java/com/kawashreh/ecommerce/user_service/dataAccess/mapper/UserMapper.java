@@ -38,6 +38,7 @@ public final class UserMapper {
                 .updatedAt(e.getUpdatedAt())
                 .name(e.getName())
                 .gender(e.getGender())
+                .account(e.getAccount() != null ? AccountMapper.toDomain(e.getAccount()) : null)
                 .build();
     }
 }

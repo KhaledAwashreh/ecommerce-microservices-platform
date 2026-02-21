@@ -3,6 +3,7 @@ package com.kawashreh.ecommerce.user_service.domain.model;
 import lombok.*;
 import lombok.experimental.Accessors;
 
+import java.io.Serializable;
 import java.util.UUID;
 
 @Getter
@@ -11,7 +12,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Accessors(chain = true)
-public class Address {
+public class Address implements Serializable {
 
     private UUID id;
 

@@ -5,6 +5,7 @@ import com.kawashreh.ecommerce.user_service.domain.enums.AccountType;
 import lombok.*;
 import lombok.experimental.Accessors;
 
+import java.io.Serializable;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -15,7 +16,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-public class Account {
+public class Account implements Serializable {
 
     private UUID id;
 
