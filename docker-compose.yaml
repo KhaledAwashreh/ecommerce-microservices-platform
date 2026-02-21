@@ -85,6 +85,8 @@ services:
       - ZIPKIN_BASE_URL=http://zipkin:9411
     networks:
       - ecommerce-network
+    ports:
+      - "8761:8761"
 
   config-server:
     container_name: config-server
@@ -107,6 +109,8 @@ services:
       context: ./api-gateway
       dockerfile: Dockerfile
     restart: unless-stopped
+    ports:
+      - "8765:8765"
     environment:
       - ZIPKIN_BASE_URL=http://zipkin:9411
     depends_on:

@@ -37,6 +37,7 @@ public class User {
     @ToString.Exclude
     private Account account;
 
+    @Builder.Default
     @ToString.Exclude
     private List<Address> addresses = new ArrayList<>();
 
@@ -55,7 +56,7 @@ public class User {
     }
 
     public List<Address> getAddresses() {
-        return Collections.unmodifiableList(addresses);
+        return addresses == null ? Collections.emptyList() : Collections.unmodifiableList(addresses);
     }
 
     public void updateEmail(String newEmail) {

@@ -47,7 +47,6 @@ public class UserServiceImpl implements UserService {
         ue.setAccount(ae);     // inverse side
 
         repository.save(ue);
-        accountRepository.save(ae);
 
         return UserMapper.toDomain(repository
                 .findByUsername(user.getUsername())
