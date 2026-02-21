@@ -2,9 +2,6 @@ spring:
   application:
     name: api-gateway
   cloud:
-    loadbalancer:
-      discovery:
-        client-name: user-service
     gateway:
       discovery:
         locator:
@@ -97,14 +94,22 @@ resilience4j:
       default:
         timeoutDuration: 5s
         cancelRunningFuture: true
+    instances:
+      # These must match the 'name' property in your Gateway filters
+      user-service:
+        baseConfig: default
+      product-service:
+        baseConfig: default
+      order-service:
+        baseConfig: default
   circuitbreaker:
     configs:
       default:
         registerHealthIndicator: true
-        slidingWindowSize: 20          # larger window
+        slidingWindowSize: 20
         failureRateThreshold: 50
         slowCallRateThreshold: 80
-        waitDurationInOpenState: 10s   # explicit unit
+        waitDurationInOpenState: 10s
         slowCallDurationThreshold: 2s
         permittedNumberOfCallsInHalfOpenState: 5
     instances:
@@ -113,7 +118,9 @@ resilience4j:
       product-service:
         baseConfig: default
       order-service:
-        baseConfig: default  # add this!
+        baseConfig: default
+      payment-service:
+        base-config: default
 
 logging:
   pattern:
