@@ -1,5 +1,6 @@
 package com.kawashreh.ecommerce.user_service.domain.model;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
 import com.kawashreh.ecommerce.user_service.domain.enums.UserRole;
 import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
@@ -45,6 +46,16 @@ public class User implements Serializable {
     @Builder.Default
     @Enumerated(EnumType.STRING)
     private List<UserRole> roles = new ArrayList<>();
+
+    // Backward compatibility fields for legacy Redis cache format
+    @JsonAlias({"customer"})
+    private Boolean customer;
+
+    @JsonAlias({"seller"})
+    private Boolean seller;
+
+    @JsonAlias({"admin"})
+    private Boolean admin;
 
     // Add business method
     public void addAddress(Address address) {

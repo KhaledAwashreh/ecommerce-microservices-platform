@@ -1,6 +1,6 @@
 package com.kawashreh.ecommerce.product_service.domain.service.impl;
 
-import com.kawashreh.ecommerce.product_service.dataAccess.Dao.CategoryRepository;
+import com.kawashreh.ecommerce.product_service.dataAccess.dao.CategoryRepository;
 import com.kawashreh.ecommerce.product_service.dataAccess.mapper.CategoryMapper;
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.CategoryEntity;
 import com.kawashreh.ecommerce.product_service.domain.model.Category;

@@ -1,7 +1,87 @@
-# ===============================
-# API Gateway - Local Profile
-# For running from IDE without Docker
-# ===============================
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    loadbalancer:
+      discovery:
+        client-name: user-service
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: httpbin
+          uri: http://httpbin.org:80
+          predicates:
+            - Path=/get
+          filters:
+            - AddRequestHeader=MyHeader,MyURI
+            - AddRequestParameter=Param,Value
+
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/api/v1/user/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                methods: GET
+            - name: CircuitBreaker
+              args:
+                name: user-service
+                fallbackUri: forward:/fallback
+
+        - id: product-service
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/product/**,/api/v1/productReview/**,/api/v1/categories/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                methods: GET,POST
+            - name: CircuitBreaker
+              args:
+                name: product-service
+                fallbackUri: forward:/fallback
+
+        - id: order-service
+          uri: lb://order-service
+          predicates:
+            - Path=/api/v1/orders/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                methods: GET,POST
+            - name: CircuitBreaker
+              args:
+                name: order-service
+                fallbackUri: forward:/fallback
+
+        - id: user-address-service
+          uri: lb://user-service
+          predicates:
+            - Path=/api/v1/Address/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                methods: GET,POST
+            - name: CircuitBreaker
+              args:
+                name: user-service
+                fallbackUri: forward:/fallback
+
+server:
+  port: 8765
+
+management:
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans
 
 eureka:
   client:
@@ -11,7 +91,25 @@ eureka:
     prefer-ip-address: true
     hostname: localhost
 
-management:
-  zipkin:
-    tracing:
-      endpoint: http://localhost:9411/api/v2/spans
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowSize: 20          # larger window
+        failureRateThreshold: 50
+        slowCallRateThreshold: 80
+        waitDurationInOpenState: 10s   # explicit unit
+        slowCallDurationThreshold: 2s
+        permittedNumberOfCallsInHalfOpenState: 5
+    instances:
+      user-service:
+        baseConfig: default
+      product-service:
+        baseConfig: default
+      order-service:
+        baseConfig: default  # add this!
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name}, %X{traceId:-}, %X{spanId:-}]"

@@ -1,4 +1,4 @@
-package com.kawashreh.ecommerce.product_service.dataAccess.Dao;
+package com.kawashreh.ecommerce.product_service.dataAccess.dao;
 
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.ProductReviewEntity;
 import org.springframework.data.domain.Page;

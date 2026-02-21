@@ -1,6 +1,8 @@
 package com.kawashreh.ecommerce.user_service.domain.enums;
 
-public enum UserRole {
+import java.io.Serializable;
+
+public enum UserRole implements Serializable {
     ADMIN,
     SELLER,
     CUSTOMER
