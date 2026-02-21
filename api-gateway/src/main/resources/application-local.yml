@@ -92,6 +92,11 @@ eureka:
     hostname: localhost
 
 resilience4j:
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 5s
+        cancelRunningFuture: true
   circuitbreaker:
     configs:
       default:
@@ -113,3 +118,7 @@ resilience4j:
 logging:
   pattern:
     level: "%5p [${spring.application.name}, %X{traceId:-}, %X{spanId:-}]"
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    reactor.netty: DEBUG
+    io.github.resilience4j: DEBUG
