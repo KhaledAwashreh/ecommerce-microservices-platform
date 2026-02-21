@@ -1,0 +1,16 @@
+# ===============================
+# Config Server - Local Profile
+# For running from IDE without Docker
+# ===============================
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka
+  instance:
+    prefer-ip-address: true
+
+management:
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans

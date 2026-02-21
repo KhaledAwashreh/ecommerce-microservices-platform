@@ -1,0 +1,9 @@
+# ===============================
+# Naming Server (Eureka) - Local Profile
+# For running from IDE without Docker
+# ===============================
+
+management:
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans
