@@ -3,6 +3,8 @@ package com.kawashreh.ecommerce.order_service.domain.service.impl;
 import com.kawashreh.ecommerce.order_service.dataAccess.mapper.OrderMapper;
 import com.kawashreh.ecommerce.order_service.dataAccess.repository.OrderRepository;
 import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
+import com.kawashreh.ecommerce.order_service.domain.exception.InsufficientStockException;
+import com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceClient;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceClient;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.ProductDto;
 import com.kawashreh.ecommerce.order_service.domain.model.Order;
@@ -79,7 +81,21 @@ public class OrderServiceImpl implements OrderService {
                 if (product == null) {
                     logger.error("Product not found: {}", item.getProductSku());
                     throw new IllegalArgumentException("Product not found: " + item.getProductSku());
+}
+
+                // Check stock availability
+                int availableStock = product.getStock() != null ? product.getStock() : 0;
+                if (availableStock < item.getQuantity()) {
+                    logger.warn("Insufficient stock for product {}: requested {}, available {}",
+                            product.getId(), item.getQuantity(), availableStock);
+                    throw new InsufficientStockException(
+                            product.getId().toString(),
+                            item.getQuantity(),
+                            availableStock);
                 }
+
+                logger.info("Inventory validation passed for product: {} - Quantity requested: {}",
+                        product.getId(), item.getQuantity());
 
                 logger.info("Inventory validation passed for product: {} - Quantity requested: {}",
                         product.getId(), item.getQuantity());
