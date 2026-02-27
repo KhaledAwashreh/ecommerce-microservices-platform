@@ -35,7 +35,15 @@ management:
 # -------------------------------
 feign:
   client:
+    feign:
+  client:
     config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 10000
+        loggerLevel: basic
+      product-service:
+        errorDecoder: productServiceErrorDecoder
       default:
         connectTimeout: 5000
         readTimeout: 10000
