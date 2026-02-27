@@ -31,6 +31,17 @@ management:
       endpoint: ${ZIPKIN_BASE_URL:http://zipkin:9411}/api/v2/spans
 
 # -------------------------------
+# Feign Client Configuration
+# -------------------------------
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 10000
+        loggerLevel: basic
+
+# -------------------------------
 # Eureka Discovery
 # -------------------------------
 eureka:
