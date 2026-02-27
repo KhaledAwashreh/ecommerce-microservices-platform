@@ -5,7 +5,7 @@ import com.kawashreh.ecommerce.order_service.dataAccess.repository.OrderReposito
 import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
 import com.kawashreh.ecommerce.order_service.domain.exception.InsufficientStockException;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceClient;
-import com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceClient;
+import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.InventoryDto;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.ProductDto;
 import com.kawashreh.ecommerce.order_service.domain.model.Order;
 import com.kawashreh.ecommerce.order_service.domain.model.OrderItem;
@@ -83,19 +83,25 @@ public class OrderServiceImpl implements OrderService {
                     throw new IllegalArgumentException("Product not found: " + item.getProductSku());
 }
 
-                // Check stock availability
-                int availableStock = product.getStock() != null ? product.getStock() : 0;
+                // Check inventory availability via Inventory table
+                InventoryDto inventory = productServiceClient.retrieveInventory(item.getProductSku());
+                if (inventory == null) {
+                    logger.error("Inventory not found for product: {}", item.getProductSku());
+                    throw new IllegalArgumentException("Inventory not found for product: " + item.getProductSku());
+                }
+
+                int availableStock = inventory.getAvailableQuantity();
                 if (availableStock < item.getQuantity()) {
                     logger.warn("Insufficient stock for product {}: requested {}, available {}",
-                            product.getId(), item.getQuantity(), availableStock);
+                            item.getProductSku(), item.getQuantity(), availableStock);
                     throw new InsufficientStockException(
-                            product.getId().toString(),
+                            item.getProductSku().toString(),
                             item.getQuantity(),
                             availableStock);
                 }
 
                 logger.info("Inventory validation passed for product: {} - Quantity requested: {}",
-                        product.getId(), item.getQuantity());
+                        item.getProductSku(), item.getQuantity());
 
                 logger.info("Inventory validation passed for product: {} - Quantity requested: {}",
                         product.getId(), item.getQuantity());
@@ -119,7 +125,15 @@ public class OrderServiceImpl implements OrderService {
      */
     private void updateProductInventory(Order order) {
         for (OrderItem item : order.getSelectedItems()) {
-            try {
+try {
+                // Deduct inventory via Inventory table
+                boolean deducted = productServiceClient.deductInventory(item.getProductSku(), item.getQuantity());
+                if (!deducted) {
+                    logger.error("Failed to deduct inventory for product: {}", item.getProductSku());
+                    throw new RuntimeException("Failed to deduct inventory for product: " + item.getProductSku());
+                }
+                logger.info("Inventory deducted successfully for product: {} - Quantity: {}",
+                        item.getProductSku(), item.getQuantity());
                 // Attempt to retrieve and validate product exists before updating inventory
                 ProductDto product = productServiceClient.retrieveProduct(item.getProductSku());
 
