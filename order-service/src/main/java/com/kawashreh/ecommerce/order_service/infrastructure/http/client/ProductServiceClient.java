@@ -7,9 +7,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.UUID;
 
-@FeignClient(name = "product-service", url = "/api/v1/product")
+@FeignClient(name = "product-service",
+        decoder = ProductServiceErrorDecoder.class)
 public interface ProductServiceClient {
 
-    @GetMapping("/{productId}")
+    @GetMapping("/api/v1/product/{productId}")
     ProductDto retrieveProduct(@PathVariable UUID productId);
 }
