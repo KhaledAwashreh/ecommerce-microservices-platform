@@ -1,5 +1,21 @@
 package com.kawashreh.ecommerce.payment_service.domain.service.impl;
 
+import com.kawashreh.ecommerce.payment_service.dataAccess.dao.PaymentRepository;
+import com.kawashreh.ecommerce.payment_service.dataAccess.entity.PaymentEntity;
+import com.kawashreh.ecommerce.payment_service.dataAccess.mapper.PaymentMapper;
+import com.kawashreh.ecommerce.payment_service.domain.model.Payment;
+import com.kawashreh.ecommerce.payment_service.domain.service.PaymentService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.UUID;
+
+import com.kawashreh.ecommerce.payment_service.dataAccess.dao.PaymentRepository;
+import com.kawashreh.ecommerce.payment_service.dataAccess.mapper.PaymentMapper;
 import com.kawashreh.ecommerce.payment_service.domain.model.Payment;
 import com.kawashreh.ecommerce.payment_service.domain.service.PaymentService;
 import org.slf4j.Logger;
@@ -15,6 +31,12 @@ import java.util.UUID;
 public class PaymentServiceImpl implements PaymentService {
 
     private static final Logger logger = LoggerFactory.getLogger(PaymentServiceImpl.class);
+
+    private final PaymentRepository paymentRepository;
+
+    public PaymentServiceImpl(PaymentRepository paymentRepository) {
+        this.paymentRepository = paymentRepository;
+    }
 
     @Override
     @Transactional
@@ -37,29 +59,41 @@ public class PaymentServiceImpl implements PaymentService {
                 .updatedAt(Instant.now())
                 .build();
 
-        logger.info("Payment processed successfully: {} for order: {}", payment.getId(), orderId);
-        return payment;
+        var entity = PaymentMapper.toEntity(payment);
+        var saved = paymentRepository.save(entity);
+        
+        logger.info("Payment processed successfully: {} for order: {}", saved.getId(), orderId);
+        return PaymentMapper.toDomain(saved);
     }
 
     @Override
     public Payment getPaymentById(UUID paymentId) {
         logger.debug("Fetching payment by id: {}", paymentId);
-        // TODO: Implement repository fetch
-        return null;
+        return paymentRepository.findById(paymentId)
+                .map(PaymentMapper::toDomain)
+                .orElse(null);
     }
 
     @Override
     public Payment getPaymentByOrderId(UUID orderId) {
         logger.debug("Fetching payment by order id: {}", orderId);
-        // TODO: Implement repository fetch
-        return null;
+        return paymentRepository.findByOrderId(orderId)
+                .map(PaymentMapper::toDomain)
+                .orElse(null);
     }
 
     @Override
     @Transactional
     public boolean refundPayment(UUID paymentId) {
         logger.info("Processing refund for payment: {}", paymentId);
-        // TODO: Implement actual refund logic
-        return true;
+        
+        return paymentRepository.findById(paymentId)
+                .map(entity -> {
+                    entity.setStatus(PaymentEntity.PaymentStatus.REFUNDED);
+                    paymentRepository.save(entity);
+                    logger.info("Payment {} refunded successfully", paymentId);
+                    return true;
+                })
+                .orElse(false);
     }
 }
