@@ -1,7 +1,9 @@
 package com.kawashreh.ecommerce.product_service.dataAccess.dao;
 
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.InventoryEntity;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -14,6 +16,7 @@ public interface InventoryRepository extends JpaRepository<InventoryEntity, UUID
 
     Optional<InventoryEntity> findByProductVariationId(UUID productVariationId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT i FROM InventoryEntity i WHERE i.productVariation.id = :productVariationId")
     Optional<InventoryEntity> findByProductVariationIdWithLock(UUID productVariationId);
 

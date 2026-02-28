@@ -39,12 +39,26 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional
     public boolean deductStock(UUID productVariationId, int quantity) {
+        // Acquire pessimistic lock first (SELECT ... FOR UPDATE)
+        var inventoryOpt = inventoryRepository.findByProductVariationIdWithLock(productVariationId);
+        
+        if (inventoryOpt.isEmpty()) {
+            logger.warn("Inventory not found for variation: {}", productVariationId);
+            return false;
+        }
+        
+        // Atomic UPDATE with WHERE condition (protected by lock)
         int updated = inventoryRepository.deductQuantity(productVariationId, quantity);
+        
         if (updated > 0) {
             logger.info("Deducted {} units from inventory for variation {}", quantity, productVariationId);
             return true;
         }
-        logger.warn("Failed to deduct stock for variation {}: insufficient inventory", productVariationId);
+        
+        // If update failed, it's due to insufficient stock
+        var inventory = inventoryOpt.get();
+        logger.warn("Insufficient stock for variation {}: requested {}, available {}",
+                productVariationId, quantity, inventory.getQuantity());
         return false;
     }
 
