@@ -146,3 +146,145 @@ Access Eureka dashboard at http://localhost:8761 to:
 ## License
 
 MIT
+
+## Inter-Service Communication
+
+### Overview
+
+The platform uses **synchronous HTTP communication** via Spring Cloud OpenFeign for inter-service calls. Each service exposes REST APIs consumed by other services through Feign clients.
+
+### Service Communication Diagram
+
+```
+┌─────────────┐
+│   Client    │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────────────────────────────────────┐
+│            API Gateway (8765)                │
+│  - Routing                                     │
+│  - Circuit Breaker                            │
+│  - Rate Limiting                              │
+└──────────────────┬──────────────────────────────┘
+                   │
+       ┌───────────┼───────────┐
+       ▼           ▼           ▼
+┌──────────┐ ┌──────────┐ ┌────────────┐
+│  Order   │ │  Product │ │   User    │
+│ Service  │ │ Service  │ │  Service  │
+└────┬─────┘ └──────────┘ └────────────┘
+     │
+     ├────────────────────┐
+     ▼                     ▼
+┌──────────┐        ┌───────────┐
+│ Product  │        │  Payment  │
+│ Service  │        │  Service  │
+│ (stock)  │        │           │
+└──────────┘        └───────────┘
+```
+
+### Feign Clients
+
+| Client | Service Called | Purpose |
+|--------|---------------|---------|
+| `ProductServiceClient` | Product Service | Retrieve products, check inventory |
+| `PaymentClient` | Payment Service | Process payments |
+
+### Circuit Breaker & Retry
+
+Resilience4j is configured for fault tolerance:
+
+- **Circuit Breaker**: Opens after 50% failure rate in 10 calls
+- **Retry**: 3 attempts with exponential backoff
+- Applied to all Feign client calls
+
+---
+
+## Order Processing Flow
+
+### Sequence Diagram
+
+```
+┌────────┐    ┌─────────┐   ┌─────────┐   ┌──────────┐   ┌─────────┐
+│ Client │    │ Order   │   │Product  │   │Inventory│   │Payment  │
+│        │    │ Service │   │ Service │   │ Table   │   │ Service │
+└───┬────┘    └────┬────┘   └────┬────┘   └────┬────┘   └────┬────┘
+    │              │            │            │            │
+    │ POST /order │            │            │            │
+    │────────────>│            │            │            │
+    │              │            │            │            │
+    │              │ GET /product/{id} │            │
+    │              │───────────>│            │            │
+    │              │<───────────│            │            │
+    │              │            │            │            │
+    │              │ GET /inventory/{variationId} │
+    │              │───────────────────────────>│            │
+    │              │<──────────────────────────│            │
+    │              │            │            │            │
+    │   Check stock availability            │            │
+    │              │            │            │            │
+    │              │ PUT /inventory/deduct   │
+    │              │─────────────────────────>│            │
+    │              │<────────────────────────│            │
+    │              │            │            │            │
+    │              │ POST /payment/process   │            │
+    │              │────────────────────────────────────>│
+    │              │<────────────────────────────│            │
+    │              │            │            │            │
+    │  CONFIRMED  │            │            │            │
+    │<────────────│            │            │            │
+    │              │            │            │            │
+```
+
+### Order States
+
+| State | Description |
+|-------|-------------|
+| `PENDING` | Order created, awaiting inventory validation |
+| `CONFIRMED` | Payment successful, inventory deducted |
+| `CANCELLED` | Payment failed or inventory unavailable |
+
+### Error Handling
+
+1. **Insufficient Stock**: Returns `InsufficientStockException`
+2. **Service Unavailable**: Circuit breaker opens, returns fallback
+3. **Payment Failed**: Inventory is restored (compensating transaction)
+
+---
+
+## Database Schema
+
+### Inventory Table (Product Service)
+
+
+```sql
+CREATE TABLE inventory (
+    id UUID PRIMARY KEY,
+    product_variation_id UUID NOT NULL,
+    quantity INT NOT NULL DEFAULT 0,
+    reserved_quantity INT NOT NULL DEFAULT 0,
+    warehouse_location VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+```
+
+### Payment Table (Payment Service)
+
+```sql
+CREATE TABLE payment (
+    id UUID PRIMARY KEY,
+    order_id UUID NOT NULL,
+    buyer_id UUID NOT NULL,
+    amount DECIMAL NOT NULL,
+    payment_method VARCHAR(50),
+    status VARCHAR(20) NOT NULL,
+    transaction_id VARCHAR(255),
+    payment_gateway VARCHAR(50),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+```
+
+MIT
