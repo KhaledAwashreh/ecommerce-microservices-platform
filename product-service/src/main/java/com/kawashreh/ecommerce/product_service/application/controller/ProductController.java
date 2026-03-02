@@ -7,13 +7,14 @@ import com.kawashreh.ecommerce.product_service.domain.model.Product;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import com.kawashreh.ecommerce.product_service.constants.ApiPaths;
 
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
+@RequestMapping(ApiPaths.PRODUCT_BASE)
 @RequestMapping("/api/v1/product")
 public class ProductController {
 

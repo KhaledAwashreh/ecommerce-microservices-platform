@@ -4,11 +4,12 @@ import com.kawashreh.ecommerce.product_service.application.dto.InventoryDto;
 import com.kawashreh.ecommerce.product_service.application.mapper.InventoryHttpMapper;
 import com.kawashreh.ecommerce.product_service.domain.service.InventoryService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import com.kawashreh.ecommerce.product_service.constants.ApiPaths;
 
 import java.util.UUID;
 
 @RestController
+@RequestMapping(ApiPaths.INVENTORY_BASE)
 @RequestMapping("/api/v1/inventory")
 public class InventoryController {
 
@@ -18,7 +19,7 @@ public class InventoryController {
         this.inventoryService = inventoryService;
     }
 
-    @GetMapping("/product-variation/{productVariationId}")
+    @GetMapping(ApiPaths.PRODUCT_VARIATION)
     public ResponseEntity<InventoryDto> findByProductVariationId(@PathVariable UUID productVariationId) {
         var inventory = inventoryService.findByProductVariationId(productVariationId);
         if (inventory == null) {
@@ -27,7 +28,7 @@ public class InventoryController {
         return ResponseEntity.ok(InventoryHttpMapper.toDto(inventory));
     }
 
-    @GetMapping("/product-variation/{productVariationId}/availability")
+    @GetMapping(ApiPaths.PRODUCT_VARIATION_AVAILABILITY)
     public ResponseEntity<Boolean> checkAvailability(
             @PathVariable UUID productVariationId,
             @RequestParam int quantity) {
@@ -35,7 +36,7 @@ public class InventoryController {
         return ResponseEntity.ok(available);
     }
 
-    @PutMapping("/product-variation/{productVariationId}/deduct")
+    @PutMapping(ApiPaths.PRODUCT_VARIATION_DEDUCT)
     public ResponseEntity<Boolean> deductStock(
             @PathVariable UUID productVariationId,
             @RequestParam int quantity) {
@@ -43,7 +44,7 @@ public class InventoryController {
         return ResponseEntity.ok(success);
     }
 
-    @PutMapping("/product-variation/{productVariationId}/restore")
+    @PutMapping(ApiPaths.PRODUCT_VARIATION_RESTORE)
     public ResponseEntity<Boolean> restoreStock(
             @PathVariable UUID productVariationId,
             @RequestParam int quantity) {
