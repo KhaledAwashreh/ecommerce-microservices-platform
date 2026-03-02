@@ -1,5 +1,6 @@
 package com.kawashreh.ecommerce.product_service;
 
+import org.junit.jupiter.api.AfterAll;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -25,5 +26,12 @@ public abstract class BaseIntegrationTest {
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+    }
+
+    @AfterAll
+    static void cleanup() {
+        if (postgres != null && postgres.isRunning()) {
+            postgres.stop();
+        }
     }
 }
