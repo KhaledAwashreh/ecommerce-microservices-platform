@@ -6,11 +6,12 @@ import com.kawashreh.ecommerce.payment_service.application.mapper.PaymentHttpMap
 import com.kawashreh.ecommerce.payment_service.domain.model.Payment;
 import com.kawashreh.ecommerce.payment_service.domain.service.PaymentService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import com.kawashreh.ecommerce.payment_service.constants.ApiPaths;
 
 import java.util.UUID;
 
 @RestController
+@RequestMapping(ApiPaths.BASE_PATH)
 @RequestMapping("/api/v1/payment")
 public class PaymentController {
 
@@ -20,7 +21,7 @@ public class PaymentController {
         this.paymentService = paymentService;
     }
 
-    @PostMapping("/process")
+    @PostMapping(ApiPaths.PROCESS)
     public ResponseEntity<PaymentResponseDto> processPayment(@RequestBody PaymentRequestDto request) {
         Payment payment = paymentService.processPayment(
                 request.getOrderId(),
@@ -30,7 +31,7 @@ public class PaymentController {
         return ResponseEntity.ok(PaymentHttpMapper.toDto(payment));
     }
 
-    @GetMapping("/{paymentId}")
+    @GetMapping(ApiPaths.PAYMENT_BY_ID)
     public ResponseEntity<PaymentResponseDto> getPayment(@PathVariable UUID paymentId) {
         Payment payment = paymentService.getPaymentById(paymentId);
         if (payment == null) {
@@ -39,7 +40,7 @@ public class PaymentController {
         return ResponseEntity.ok(PaymentHttpMapper.toDto(payment));
     }
 
-    @GetMapping("/order/{orderId}")
+    @GetMapping(ApiPaths.PAYMENT_BY_ORDER)
     public ResponseEntity<PaymentResponseDto> getPaymentByOrderId(@PathVariable UUID orderId) {
         Payment payment = paymentService.getPaymentByOrderId(orderId);
         if (payment == null) {
@@ -48,7 +49,7 @@ public class PaymentController {
         return ResponseEntity.ok(PaymentHttpMapper.toDto(payment));
     }
 
-    @PostMapping("/{paymentId}/refund")
+    @PostMapping(ApiPaths.REFUND)
     public ResponseEntity<Boolean> refundPayment(@PathVariable UUID paymentId) {
         boolean success = paymentService.refundPayment(paymentId);
         return ResponseEntity.ok(success);
