@@ -6,12 +6,13 @@ import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
 import com.kawashreh.ecommerce.order_service.domain.service.OrderService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import com.kawashreh.ecommerce.order_service.constants.ApiPaths;
 
 import java.util.List;
 import java.util.UUID;
 
 @RestController
+@RequestMapping(ApiPaths.ORDER_BASE)
 @RequestMapping("/api/v1/orders")
 public class OrderController {
 
@@ -44,31 +45,31 @@ public class OrderController {
         return ResponseEntity.ok(OrderHttpMapper.toDto(order));
     }
 
-    @GetMapping("/buyer/{buyerId}")
+    @GetMapping(ApiPaths.ORDER_BY_BUYER)
     public ResponseEntity<List<OrderDto>> getOrdersByBuyer(@PathVariable UUID buyerId) {
         var orders = orderService.findByBuyer(buyerId);
         return ResponseEntity.ok(OrderHttpMapper.toDtoList(orders));
     }
 
-    @GetMapping("/seller/{sellerId}")
+    @GetMapping(ApiPaths.ORDER_BY_SELLER)
     public ResponseEntity<List<OrderDto>> getOrdersBySeller(@PathVariable UUID sellerId) {
         var orders = orderService.findBySeller(sellerId);
         return ResponseEntity.ok(OrderHttpMapper.toDtoList(orders));
     }
 
-    @GetMapping("/store/{storeId}")
+    @GetMapping(ApiPaths.ORDER_BY_STORE)
     public ResponseEntity<List<OrderDto>> getOrdersByStore(@PathVariable UUID storeId) {
         var orders = orderService.findByStoreId(storeId);
         return ResponseEntity.ok(OrderHttpMapper.toDtoList(orders));
     }
 
-    @GetMapping("/status/{status}")
+    @GetMapping(ApiPaths.ORDER_BY_STATUS)
     public ResponseEntity<List<OrderDto>> getOrdersByStatus(@PathVariable OrderStatus status) {
         var orders = orderService.findByStatus(status);
         return ResponseEntity.ok(OrderHttpMapper.toDtoList(orders));
     }
 
-    @GetMapping("/buyer/{buyerId}/store/{storeId}")
+    @GetMapping(ApiPaths.ORDER_BY_BUYER_AND_STORE)
     public ResponseEntity<List<OrderDto>> getOrdersByBuyerAndStore(
             @PathVariable UUID buyerId,
             @PathVariable UUID storeId) {
@@ -76,7 +77,7 @@ public class OrderController {
         return ResponseEntity.ok(OrderHttpMapper.toDtoList(orders));
     }
 
-    @GetMapping("/seller/{sellerId}/store/{storeId}")
+    @GetMapping(ApiPaths.ORDER_BY_SELLER_AND_STORE)
     public ResponseEntity<List<OrderDto>> getOrdersBySellerAndStore(
             @PathVariable UUID sellerId,
             @PathVariable UUID storeId) {
@@ -84,7 +85,7 @@ public class OrderController {
         return ResponseEntity.ok(OrderHttpMapper.toDtoList(orders));
     }
 
-    @GetMapping("/buyer/{buyerId}/status/{status}")
+    @GetMapping(ApiPaths.ORDER_BY_BUYER_AND_STATUS)
     public ResponseEntity<List<OrderDto>> getOrdersByBuyerAndStatus(
             @PathVariable UUID buyerId,
             @PathVariable OrderStatus status) {
