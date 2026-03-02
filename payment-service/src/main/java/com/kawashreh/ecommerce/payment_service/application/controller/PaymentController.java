@@ -11,8 +11,6 @@ import com.kawashreh.ecommerce.payment_service.constants.ApiPaths;
 import java.util.UUID;
 
 @RestController
-@RequestMapping(ApiPaths.BASE_PATH)
-@RequestMapping("/api/v1/payment")
 public class PaymentController {
 
     private final PaymentService paymentService;

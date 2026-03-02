@@ -14,8 +14,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping(ApiPaths.PRODUCT_BASE)
-@RequestMapping("/api/v1/product")
 public class ProductController {
 
     private final ProductService service;

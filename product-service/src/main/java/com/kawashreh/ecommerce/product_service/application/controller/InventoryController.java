@@ -9,8 +9,6 @@ import com.kawashreh.ecommerce.product_service.constants.ApiPaths;
 import java.util.UUID;
 
 @RestController
-@RequestMapping(ApiPaths.INVENTORY_BASE)
-@RequestMapping("/api/v1/inventory")
 public class InventoryController {
 
     private final InventoryService inventoryService;
