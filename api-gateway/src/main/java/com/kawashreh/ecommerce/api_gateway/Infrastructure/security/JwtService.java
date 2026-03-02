@@ -1,12 +1,13 @@
 package com.kawashreh.ecommerce.api_gateway.Infrastructure.security;
 
 import com.kawashreh.ecommerce.api_gateway.Infrastructure.http.dto.UserDto;
+import com.kawashreh.ecommerce.api_gateway.constants.JwtConstants;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import com.kawashreh.ecommerce.api_gateway.constants.JwtConstants;
+import org.springframework.stereotype.Component;
 
 import java.security.Key;
 import java.util.Date;

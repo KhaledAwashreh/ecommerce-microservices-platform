@@ -11,6 +11,7 @@ import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHash
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import com.kawashreh.ecommerce.user_service.constants.ApiPaths;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Objects;
@@ -19,7 +20,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping(ApiPaths.BASE_PATH)
-@RequestMapping("/api/v1/user")
 public class UserController {
 
     private final UserService service;
@@ -74,7 +74,7 @@ public class UserController {
     public ResponseEntity<UserDto> create(@RequestBody UserRegisterDto userDto) {
         User user = UserHttpMapper.toDomain(userDto);
 
-        User saved = service.create(user,hasher.encode(userDto.getRawPassword()) );
+        User saved = service.create(user, hasher.encode(userDto.getRawPassword()));
 
         UserDto savedDto = UserHttpMapper.toDto(saved);
 

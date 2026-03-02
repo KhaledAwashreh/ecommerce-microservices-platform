@@ -1,6 +1,7 @@
 package com.kawashreh.ecommerce.api_gateway;
 
 import org.springframework.http.HttpStatus;
+import com.kawashreh.ecommerce.api_gateway.constants.ApiPaths;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;

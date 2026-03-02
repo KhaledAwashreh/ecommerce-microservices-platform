@@ -6,6 +6,7 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import com.kawashreh.ecommerce.user_service.constants.JwtConstants;
+import org.springframework.stereotype.Component;
 
 import java.security.Key;
 import java.util.Date;
