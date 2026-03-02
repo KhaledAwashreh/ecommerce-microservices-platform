@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
+@RequestMapping(ApiPaths.ORDER_BASE)
 public class OrderController {
 
     private final OrderService orderService;

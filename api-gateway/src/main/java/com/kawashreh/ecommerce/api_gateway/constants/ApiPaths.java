@@ -6,4 +6,8 @@ public final class ApiPaths {
 
     // Fallback
     public static final String FALLBACK = "/fallback";
+
+    // User Service
+    public static final String USER_BASE = "/api/v1/user";
+    public static final String USER_BY_ID = "/{userId}";
 }
