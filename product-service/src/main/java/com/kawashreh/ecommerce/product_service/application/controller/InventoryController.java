@@ -5,6 +5,7 @@ import com.kawashreh.ecommerce.product_service.application.mapper.InventoryHttpM
 import com.kawashreh.ecommerce.product_service.domain.service.InventoryService;
 import org.springframework.http.ResponseEntity;
 import com.kawashreh.ecommerce.product_service.constants.ApiPaths;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
