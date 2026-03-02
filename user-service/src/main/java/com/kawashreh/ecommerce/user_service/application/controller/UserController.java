@@ -10,7 +10,7 @@ import com.kawashreh.ecommerce.user_service.infrastructure.security.JwtService;
 import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import com.kawashreh.ecommerce.user_service.constants.ApiPaths;
 
 import java.util.List;
 import java.util.Objects;
@@ -18,6 +18,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
+@RequestMapping(ApiPaths.BASE_PATH)
 @RequestMapping("/api/v1/user")
 public class UserController {
 
