@@ -1,6 +1,7 @@
 package com.kawashreh.ecommerce.product_service;
 
 import com.kawashreh.ecommerce.product_service.dataAccess.dao.InventoryRepository;
+import com.kawashreh.ecommerce.product_service.dataAccess.dao.ProductRepository;
 import com.kawashreh.ecommerce.product_service.dataAccess.dao.ProductVariationRepository;
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.InventoryEntity;
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.ProductEntity;
@@ -26,6 +27,9 @@ class InventoryServiceIntegrationTest extends BaseIntegrationTest {
     private InventoryRepository inventoryRepository;
 
     @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
     private ProductVariationRepository productVariationRepository;
 
     private UUID productVariationId;
@@ -37,16 +41,14 @@ class InventoryServiceIntegrationTest extends BaseIntegrationTest {
 
         // Create test product
         ProductEntity product = ProductEntity.builder()
-                .id(UUID.randomUUID())
                 .name("Test Product")
                 .description("Test Description")
                 .ownerId(UUID.randomUUID())
                 .build();
-        product = productVariationRepository.save(product);
+        product = productRepository.save(product);
 
         // Create test product variation
         ProductVariationEntity variation = ProductVariationEntity.builder()
-                .id(UUID.randomUUID())
                 .sku("TEST-SKU-001")
                 .name("Test Variation")
                 .price(BigDecimal.valueOf(99.99))
@@ -59,7 +61,6 @@ class InventoryServiceIntegrationTest extends BaseIntegrationTest {
 
         // Create inventory record
         InventoryEntity inventory = InventoryEntity.builder()
-                .id(UUID.randomUUID())
                 .productVariation(variation)
                 .quantity(10)
                 .reservedQuantity(0)
