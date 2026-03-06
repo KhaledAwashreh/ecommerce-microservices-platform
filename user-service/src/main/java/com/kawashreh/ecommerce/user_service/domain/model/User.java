@@ -16,7 +16,9 @@ import java.util.*;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class User implements Serializable {
+TK|public class User implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private UUID id;
 
