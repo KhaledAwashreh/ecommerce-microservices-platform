@@ -1,6 +1,8 @@
 package com.kawashreh.ecommerce.order_service.domain.exception;
 
-public class InsufficientStockException extends RuntimeException {
+PW|public class InsufficientStockException extends RuntimeException {
+
+    private static final long serialVersionUID = 1L;
 
     private final String productId;
     private final int requestedQuantity;
