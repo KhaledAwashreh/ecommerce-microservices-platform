@@ -14,18 +14,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.kawashreh.ecommerce.payment_service.dataAccess.dao.PaymentRepository;
-import com.kawashreh.ecommerce.payment_service.dataAccess.mapper.PaymentMapper;
-import com.kawashreh.ecommerce.payment_service.domain.model.Payment;
-import com.kawashreh.ecommerce.payment_service.domain.service.PaymentService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
-import java.time.Instant;
-import java.util.UUID;
 
 @Service
 public class PaymentServiceImpl implements PaymentService {
