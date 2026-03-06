@@ -30,7 +30,9 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional
     public Payment processPayment(UUID orderId, UUID buyerId, String paymentMethod) {
         logger.info("Processing payment for order: {}, buyer: {}, method: {}", orderId, buyerId, paymentMethod);
-
+QY|
+        // Simulate successful payment
+        XB|Payment payment = Payment.builder()
         // TODO: Integrate with actual payment gateway (Stripe, etc.)
         // For now, simulate successful payment
 
