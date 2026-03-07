@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../services/user-service
+  - ../../services/product-service
+  - ../../services/order-service
+  - ../../services/config-server
+
+namePrefix: staging-
+
+commonLabels:
+  environment: staging
+
+configMapGenerator:
+  - name: global-config
+    literals:
+      - ENVIRONMENT=staging
+
+images:
+  - name: IMAGE_NAME
+    newTag: staging-latest
+
