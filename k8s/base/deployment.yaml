@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: SERVICE_NAME
+  namespace: ecommerce
+  labels:
+    app: SERVICE_NAME
+spec:
+  replicas: REPLICA_COUNT
+  selector:
+    matchLabels:
+      app: SERVICE_NAME
+  template:
+    metadata:
+      labels:
+        app: SERVICE_NAME
+    spec:
+      containers:
+      - name: SERVICE_NAME
+        image: IMAGE_NAME:TAG
+        ports:
+        - containerPort: CONTAINER_PORT
+        envFrom:
+        - configMapRef:
+            name: SERVICE_NAME-config
+        - secretRef:
+            name: SERVICE_NAME-secrets
+        resources:
+          requests:
+            memory: "MEMORY_REQUEST"
+            cpu: "CPU_REQUEST"
+          limits:
+            memory: "MEMORY_LIMIT"
+            cpu: "CPU_LIMIT"

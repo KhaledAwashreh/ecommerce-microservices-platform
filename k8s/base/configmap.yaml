@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: SERVICE_NAME-config
+  namespace: ecommerce
+data:
+  SPRING_PROFILES_ACTIVE: "PROFILE"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "EUREKA_URL"
+  ZIPKIN_BASE_URL: "ZIPKIN_URL"
+
