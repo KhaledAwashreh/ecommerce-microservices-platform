@@ -9,23 +9,3 @@ resources:
 
 namePrefix: prod-
 
-commonLabels:
-  environment: production
-
-configMapGenerator:
-  - name: global-config
-    literals:
-      - ENVIRONMENT=production
-
-images:
-  - name: IMAGE_NAME
-    newTag: v1.0.0
-
-replicas:
-  - name: user-deployment
-    count: 3
-  - name: product-deployment
-    count: 3
-  - name: order-deployment
-    count: 3
-

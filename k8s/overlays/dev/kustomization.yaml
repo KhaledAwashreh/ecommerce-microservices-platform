@@ -9,15 +9,3 @@ resources:
 
 namePrefix: dev-
 
-commonLabels:
-  environment: dev
-
-configMapGenerator:
-  - name: global-config
-    literals:
-      - ENVIRONMENT=development
-
-images:
-  - name: IMAGE_NAME
-    newTag: dev-latest
-

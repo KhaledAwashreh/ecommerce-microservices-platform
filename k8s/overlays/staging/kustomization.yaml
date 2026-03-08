@@ -9,15 +9,3 @@ resources:
 
 namePrefix: staging-
 
-commonLabels:
-  environment: staging
-
-configMapGenerator:
-  - name: global-config
-    literals:
-      - ENVIRONMENT=staging
-
-images:
-  - name: IMAGE_NAME
-    newTag: staging-latest
-

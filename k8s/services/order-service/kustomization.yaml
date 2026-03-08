@@ -2,30 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - ../../base/deployment.yaml
-  - ../../base/service.yaml
-  - ../../base/configmap.yaml
-  - ../../base/secrets.yaml
+  - ../../base
 
 namePrefix: order-
-
-commonLabels:
-  app: order-service
-
-images:
-  - name: IMAGE_NAME
-    newTag: latest
-
-configMapGenerator:
-  - name: order-config
-    behavior: merge
-    literals:
-      - SPRING_PROFILES_ACTIVE=local
-
-secretGenerator:
-  - name: order-secrets
-    behavior: merge
-    literals:
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=test1234
 
