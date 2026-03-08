@@ -30,7 +30,7 @@ spec:
         resources:
           requests:
             memory: "MEMORY_REQUEST"  # e.g., 256Mi, 512Mi, 1Gi
-            cpu: "CPU_REQUEST"        100m, 250m, 500 # e.g.,m
+            cpu: "CPU_REQUEST"        # e.g., 100m, 250m, 500m
           limits:
             memory: "MEMORY_LIMIT"    # e.g., 512Mi, 1Gi, 2Gi
             cpu: "CPU_LIMIT"          # e.g., 500m, 1000m, 2
