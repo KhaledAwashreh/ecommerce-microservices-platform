@@ -19,11 +19,20 @@ spec:
             - containerPort: 5432
           env:
             - name: POSTGRES_USER
-              value: postgres
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config
+                  key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
-              value: test1234
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
             - name: POSTGRES_DB
-              value: Ecommerce
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config
+                  key: POSTGRES_DB
           resources:
             requests:
               cpu: "250m"
@@ -32,14 +41,14 @@ spec:
               cpu: "1"
               memory: "1Gi"
           volumeMounts:
-            - name: postgres-storage
+            - name: postgres-data
               mountPath: /var/lib/postgresql/data
             - name: init-scripts
               mountPath: /docker-entrypoint-initdb.d
-    volumes:
+      volumes:
         - name: postgres-data
           persistentVolumeClaim:
             claimName: postgres-pvc
         - name: init-scripts
           configMap:
-            name: postgres-init-scripts 
+            name: postgres-init-scripts
