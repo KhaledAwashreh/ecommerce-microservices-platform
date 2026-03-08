@@ -1,3 +1,5 @@
+# Base Deployment Template
+# Customize SERVICE_NAME, IMAGE_NAME:TAG, CONTAINER_PORT, and resources per service
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -27,8 +29,8 @@ spec:
             name: SERVICE_NAME-secrets
         resources:
           requests:
-            memory: "MEMORY_REQUEST"
-            cpu: "CPU_REQUEST"
+            memory: "MEMORY_REQUEST"  # e.g., 256Mi, 512Mi, 1Gi
+            cpu: "CPU_REQUEST"        100m, 250m, 500 # e.g.,m
           limits:
-            memory: "MEMORY_LIMIT"
-            cpu: "CPU_LIMIT"
+            memory: "MEMORY_LIMIT"    # e.g., 512Mi, 1Gi, 2Gi
+            cpu: "CPU_LIMIT"          # e.g., 500m, 1000m, 2
