@@ -4,4 +4,3 @@ metadata:
   name: postgres-config
 data:
   POSTGRES_USER: postgres
-  POSTGRES_DB: Ecommerce
