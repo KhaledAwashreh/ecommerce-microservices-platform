@@ -11,7 +11,7 @@ spring:
     config:
       server:
         git:
-          uri: https://github.com/KhaledAwashreh/ecommerece-configs
+          uri: https://github.com/KhaledAwashreh/ecommerce-configs
           default-label: main
           clone-on-start: true
           timeout: 10
