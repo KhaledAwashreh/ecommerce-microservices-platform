@@ -42,4 +42,4 @@ spec:
             claimName: postgres-pvc
         - name: init-scripts
           configMap:
-            name: postgres-init-scripts  # You'll need to create this
+            name: postgres-init-scripts 
