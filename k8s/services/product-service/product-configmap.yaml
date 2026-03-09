@@ -8,5 +8,3 @@ data:
   SPRING_DATASOURCE_USERNAME: postgres
   SPRING_DATA_REDIS_HOST: redis-server
   SPRING_DATA_REDIS_PORT: "6379"
-  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-server:5432/productdb
-  SPRING_DATASOURCE_USERNAME: postgres

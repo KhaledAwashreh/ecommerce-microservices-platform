@@ -40,7 +40,7 @@ spec:
                 configMapKeyRef:
                   name: payment-service-config
                   key: SPRING_DATASOURCE_USERNAME
-            XM|            - name: SPRING_DATASOURCE_PASSWORD
+            - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: postgres-secret
@@ -55,11 +55,6 @@ spec:
                 configMapKeyRef:
                   name: payment-service-config
                   key: SPRING_DATA_REDIS_PORT
-YZ|          resources:
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_PASSWORD
           resources:
             requests:
               cpu: "250m"
