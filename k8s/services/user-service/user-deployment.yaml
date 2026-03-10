@@ -16,7 +16,10 @@ spec:
       initContainers:
         - name: wait-for-postgres
           image: busybox:1.36
-          command: ['sh', '-c', 'until nc -z postgres-server 5432; do echo "Waiting for postgres..."; sleep 2; done']
+          command:
+            - sh
+            - -c
+            - until nc -z postgres-server 5432; do echo "Waiting for postgres..."; sleep 2; done
           resources:
             limits:
               cpu: "100m"
@@ -28,14 +31,30 @@ spec:
             - containerPort: 8080
           env:
             - name: SPRING_DATASOURCE_URL
-              value: jdbc:postgresql://postgres-server:5432/userdb
+              valueFrom:
+                configMapKeyRef:
+                  name: user-service-config
+                  key: SPRING_DATASOURCE_URL
             - name: SPRING_DATASOURCE_USERNAME
-              value: postgres
+              valueFrom:
+                configMapKeyRef:
+                  name: user-service-config
+                  key: SPRING_DATASOURCE_USERNAME
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: postgres-secret
                   key: POSTGRES_PASSWORD
+            - name: SPRING_DATA_REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: user-service-config
+                  key: SPRING_DATA_REDIS_HOST
+            - name: SPRING_DATA_REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: user-service-config
+                  key: SPRING_DATA_REDIS_PORT
           resources:
             requests:
               cpu: "250m"
