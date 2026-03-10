@@ -8,3 +8,19 @@ data:
   SPRING_DATASOURCE_USERNAME: postgres
   SPRING_DATA_REDIS_HOST: redis-server
   SPRING_DATA_REDIS_PORT: "6379"
+  application.yml: |
+    spring:
+      cloud:
+        openfeign:
+          client:
+            config:
+              user-service:
+                url: http://user-service
+              default:
+                connectTimeout: 5000
+                readTimeout: 5000
+    eureka:
+      client:
+        enabled: false
+        register-with-eureka: false
+        fetch-registry: false
