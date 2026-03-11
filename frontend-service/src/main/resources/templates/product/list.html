@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:htmx="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Products - E-Commerce</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .nav-link:hover { color: #FF9900 !important; }
+        .btn-primary { background: #FF9900; color: black; }
+        .btn-primary:hover { background: #F08800; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <div th:replace="~{layout/base :: navbar}"></div>
+
+    <div class="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
+        <div class="flex items-center space-x-2 text-sm text-gray-600 mb-4">
+            <a href="/" class="hover:underline">Home</a>
+            <span>/</span>
+            <span class="font-medium text-gray-900">All Products</span>
+        </div>
+
+        <h1 class="text-2xl font-bold mb-6">All Products</h1>
+
+        <div id="products-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div th:each="product : ${products}" class="bg-white rounded-lg shadow-sm overflow-hidden card transition-all">
+                <a th:href="@{'/products/' + ${product.id}}">
+                    <div class="aspect-w-1 aspect-h-1 w-full bg-gray-200 flex items-center justify-center h-48">
+                        <img th:if="${product.thumbnailUrl}" 
+                             th:src="${product.thumbnailUrl}" 
+                             alt="${product.name}"
+                             class="object-cover h-full w-full">
+                        <span th:unless="${product.thumbnailUrl}" class="text-4xl text-gray-400">📦</span>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-medium text-gray-900 line-clamp-2" th:text="${product.name}">Product Name</h3>
+                        <p class="text-sm text-gray-500 mt-1 line-clamp-2" th:text="${product.description}">Product description</p>
+                        <div class="mt-2 flex items-center">
+                            <span class="text-yellow-500">★★★★☆</span>
+                            <span class="text-xs text-gray-500 ml-1">(123)</span>
+                        </div>
+                        <div class="mt-2">
+                            <span class="text-lg font-bold">$29.99</span>
+                        </div>
+                        <button class="mt-3 w-full btn-primary py-1.5 px-4 rounded text-sm font-bold">
+                            Add to Cart
+                        </button>
+                    </div>
+                </a>
+            </div>
+
+            <div th:if="${#lists.isEmpty(products)}" class="col-span-full text-center py-12">
+                <span class="text-4xl block mb-4">📦</span>
+                <p class="text-gray-500">No products available</p>
+            </div>
+        </div>
+    </div>
+
+    <div th:replace="~{layout/base :: footer}"></div>
+</body>
+</html>
