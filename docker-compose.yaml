@@ -216,6 +216,26 @@ services:
     networks:
       - ecommerce-network
 
+  frontend-service:
+    container_name: frontend-service
+    build:
+      context: ./frontend-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - API_GATEWAY_BASE-URL=http://api-gateway:8765
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://naming-server:8761/eureka
+    depends_on:
+      naming-server:
+        condition: service_started
+      api-gateway:
+        condition: service_started
+    networks:
+      - ecommerce-network
+
 # ==========================
 # Networks
 # ==========================

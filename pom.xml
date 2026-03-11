@@ -12,5 +12,11 @@
         <module>api-gateway</module>
         <module>user-service</module>
         <module>product-service</module>
+        <module>frontend-service</module>
+    </modules>
+        <module>naming-server</module>
+        <module>api-gateway</module>
+        <module>user-service</module>
+        <module>product-service</module>
     </modules>
 </project>
