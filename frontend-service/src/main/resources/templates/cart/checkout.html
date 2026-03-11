@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:htmx="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout - E-Commerce</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .nav-link:hover { color: #FF9900 !important; }
+        .btn-primary { background: #FF9900; color: black; }
+        .btn-primary:hover { background: #F08800; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <div th:replace="~{layout/base :: navbar}"></div>
+
+    <div class="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
+        <h1 class="text-2xl font-bold mb-6">Checkout</h1>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2">
+                <form action="/checkout/place" method="post" class="space-y-6">
+                    <div class="bg-white rounded-lg shadow-sm p-6">
+                        <h2 class="text-lg font-bold mb-4">Shipping Address</h2>
+                        <div class="space-y-3">
+                            <select name="addressId" required class="w-full border rounded px-3 py-2">
+                                <option value="">Select an address</option>
+                                <option value="1">123 Main St, New York, NY 10001</option>
+                            </select>
+                            <a href="/addresses" class="text-sm text-blue-600 hover:underline">Add new address</a>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow-sm p-6">
+                        <h2 class="text-lg font-bold mb-4">Payment Method</h2>
+                        <div class="space-y-3">
+                            <label class="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
+                                <input type="radio" name="paymentMethod" value="CREDIT_CARD" class="text-yellow-500">
+                                <span class="ml-2">Credit / Debit Card</span>
+                            </label>
+                            <label class="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
+                                <input type="radio" name="paymentMethod" value="PAYPAL" class="text-yellow-500">
+                                <span class="ml-2">PayPal</span>
+                            </label>
+                            <label class="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
+                                <input type="radio" name="paymentMethod" value="CASH_ON_DELIVERY" class="text-yellow-500">
+                                <span class="ml-2">Cash on Delivery</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow-sm p-6">
+                        <h2 class="text-lg font-bold mb-4">Review Your Order</h2>
+                        <div class="space-y-4">
+                            <div class="flex items-center border-b pb-4">
+                                <div class="h-16 w-16 bg-gray-200 rounded flex items-center justify-center">
+                                    <span>📦</span>
+                                </div>
+                                <div class="ml-4 flex-1">
+                                    <p class="font-medium">Sample Product</p>
+                                    <p class="text-sm text-gray-500">Qty: 2</p>
+                                </div>
+                                <p class="font-medium">$59.98</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full btn-primary py-3 px-4 rounded font-bold hover:bg-yellow-600 transition">
+                        Place Your Order
+                    </button>
+                </form>
+            </div>
+
+            <div>
+                <div class="bg-white rounded-lg shadow-sm p-6 sticky top-4">
+                    <h2 class="font-bold text-lg mb-4">Order Summary</h2>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Subtotal (2 items)</span>
+                            <span class="font-medium">$59.98</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Shipping</span>
+                            <span class="font-medium">$5.99</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Tax</span>
+                            <span class="font-medium">$4.80</span>
+                        </div>
+                        <div class="border-t pt-2 mt-2">
+                            <div class="flex justify-between text-base font-bold">
+                                <span>Order Total</span>
+                                <span>$70.77</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:replace="~{layout/base :: footer}"></div>
+</body>
+</html>

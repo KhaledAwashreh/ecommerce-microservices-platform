@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:htmx="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopping Cart - E-Commerce</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .nav-link:hover { color: #FF9900 !important; }
+        .btn-primary { background: #FF9900; color: black; }
+        .btn-primary:hover { background: #F08800; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <div th:replace="~{layout/base :: navbar}"></div>
+
+    <div class="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
+        <h1 class="text-2xl font-bold mb-6">Shopping Cart</h1>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+                    <table class="w-full">
+                        <thead class="bg-gray-50 border-b">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Product</th>
+                                <th class="px-4 py-3 text-center text-sm font-medium text-gray-500">Quantity</th>
+                                <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">Price</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            <tr th:each="item : ${cartItems}" class="hover:bg-gray-50">
+                                <td class="px-4 py-4">
+                                    <div class="flex items-center">
+                                        <div class="h-16 w-16 bg-gray-200 rounded flex items-center justify-center">
+                                            <span class="text-xl">📦</span>
+                                        </div>
+                                        <div class="ml-4">
+                                            <p class="font-medium text-gray-900" th:text="${item.productName}">Product Name</p>
+                                            <p class="text-sm text-gray-500" th:text="${item.variationName}">Variation</p>
+                                            <form action="/cart/remove" method="post" class="mt-1">
+                                                <input type="hidden" name="itemId" th:value="${item.id}">
+                                                <button type="submit" class="text-sm text-blue-600 hover:underline">Delete</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-4">
+                                    <form action="/cart/update" method="post" class="flex items-center justify-center">
+                                        <input type="hidden" name="itemId" th:value="${item.id}">
+                                        <select name="quantity" class="border border-gray-300 rounded px-2 py-1 text-sm"
+                                                onchange="this.form.submit()">
+                                            <option value="1" th:selected="${item.quantity == 1}">1</option>
+                                            <option value="2" th:selected="${item.quantity == 2}">2</option>
+                                            <option value="3" th:selected="${item.quantity == 3}">3</option>
+                                            <option value="4" th:selected="${item.quantity == 4}">4</option>
+                                            <option value="5" th:selected="${item.quantity == 5}">5</option>
+                                        </select>
+                                    </form>
+                                </td>
+                                <td class="px-4 py-4 text-right">
+                                    <p class="font-bold" th:text="${'$' + item.totalPrice}">$29.99</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div th:if="${#lists.isEmpty(cartItems)}" class="p-8 text-center">
+                        <span class="text-4xl block mb-4">🛒</span>
+                        <p class="text-gray-500">Your cart is empty</p>
+                        <a href="/products" class="mt-4 inline-block btn-primary px-6 py-2 rounded font-bold">Continue Shopping</a>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="bg-white rounded-lg shadow-sm p-6 sticky top-4">
+                    <h2 class="font-bold text-lg mb-4">Order Summary</h2>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Subtotal</span>
+                            <span class="font-medium" th:text="${'$' + (subtotal ?: '0.00')}">$0.00</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Shipping</span>
+                            <span class="font-medium">$5.99</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Tax</span>
+                            <span class="font-medium" th:text="${'$' + (tax ?: '0.00')}">$0.00</span>
+                        </div>
+                        <div class="border-t pt-2 mt-2">
+                            <div class="flex justify-between text-base font-bold">
+                                <span>Total</span>
+                                <span th:text="${'$' + (total ?: '0.00')}">$0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                    <a href="/checkout" class="mt-4 block w-full btn-primary py-3 px-4 rounded font-bold text-center hover:bg-yellow-600 transition"
+                       th:if="${!#lists.isEmpty(cartItems)}">
+                        Proceed to Checkout
+                    </a>
+                    <a href="/products" class="mt-4 block w-full border border-gray-300 py-3 px-4 rounded font-bold text-center hover:bg-gray-50 transition">
+                        Continue Shopping
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:replace="~{layout/base :: footer}"></div>
+</body>
+</html>
