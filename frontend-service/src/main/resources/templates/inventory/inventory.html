@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:htmx="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Management - E-Commerce</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .nav-link:hover { color: #FF9900 !important; }
+        .btn-primary { background: #FF9900; color: black; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <div th:replace="~{layout/base :: navbar}"></div>
+
+    <div class="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-2xl font-bold">Inventory Management</h1>
+            <button onclick="document.getElementById('add-product-modal').classList.remove('hidden')" 
+                    class="btn-primary px-4 py-2 rounded font-bold">
+                Add New Product
+            </button>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Product</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">SKU</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium text-gray-500">Available</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium text-gray-500">Reserved</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium text-gray-500">Location</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    <tr th:each="inv : ${inventory}" class="hover:bg-gray-50">
+                        <td class="px-4 py-4">
+                            <div class="flex items-center">
+                                <div class="h-12 w-12 bg-gray-200 rounded flex items-center justify-center">
+                                    <span>📦</span>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="font-medium" th:text="${inv.productName ?: 'Product'}">Product Name</p>
+                                    <p class="text-xs text-gray-500" th:text="${inv.variationName ?: ''}">Variation</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-4 py-4 text-sm font-mono" th:text="${inv.sku ?: 'N/A'}">SKU-001</td>
+                        <td class="px-4 py-4 text-center">
+                            <span th:class="${inv.availableQuantity > 10 ? 'text-green-600' : inv.availableQuantity > 0 ? 'text-yellow-600' : 'text-red-600'}"
+                                  class="font-bold" 
+                                  th:text="${inv.availableQuantity}">50</span>
+                        </td>
+                        <td class="px-4 py-4 text-center text-gray-600" th:text="${inv.reservedQuantity}">5</td>
+                        <td class="px-4 py-4 text-center text-gray-600" th:text="${inv.warehouseLocation ?: 'Main Warehouse'}">Warehouse A</td>
+                        <td class="px-4 py-4 text-right">
+                            <button class="text-blue-600 hover:underline text-sm mr-3">Edit</button>
+                            <button class="text-gray-600 hover:underline text-sm">Stock +</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div th:if="${#lists.isEmpty(inventory)}" class="p-12 text-center">
+                <span class="text-4xl block mb-4">📦</span>
+                <p class="text-gray-500 mb-4">No inventory items found</p>
+                <button onclick="document.getElementById('add-product-modal').classList.remove('hidden')" 
+                        class="btn-primary px-6 py-2 rounded font-bold">Add Your First Product</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="add-product-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 class="text-xl font-bold mb-4">Add New Product</h2>
+            <form action="/inventory/products/add" method="post" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Product Name</label>
+                    <input type="text" name="name" required class="mt-1 w-full border rounded px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Description</label>
+                    <textarea name="description" rows="3" class="mt-1 w-full border rounded px-3 py-2"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Price</label>
+                    <input type="number" step="0.01" name="price" required class="mt-1 w-full border rounded px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Initial Stock Quantity</label>
+                    <input type="number" name="quantity" required class="mt-1 w-full border rounded px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Warehouse Location</label>
+                    <input type="text" name="warehouseLocation" class="mt-1 w-full border rounded px-3 py-2" placeholder="e.g., Warehouse A, Shelf 3">
+                </div>
+                <div class="flex space-x-4 pt-2">
+                    <button type="submit" class="flex-1 btn-primary py-2 rounded font-bold">Add Product</button>
+                    <button type="button" onclick="document.getElementById('add-product-modal').classList.add('hidden')" 
+                            class="flex-1 border py-2 rounded font-bold hover:bg-gray-50">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div th:replace="~{layout/base :: footer}"></div>
+</body>
+</html>
