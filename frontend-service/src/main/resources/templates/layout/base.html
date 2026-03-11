@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:htmx="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:replace="${title}">E-Commerce</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .nav-link:hover { color: #FF9900 !important; }
+        .btn-primary { background: #FF9900; color: black; }
+        .btn-primary:hover { background: #F08800; }
+        .search-bar:focus-within { border-color: #FF9900; }
+        .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div th:fragment="navbar" class="bg-gray-900 text-white">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex items-center justify-between py-2">
+                <div class="flex items-center space-x-4">
+                    <a href="/" class="text-2xl font-bold text-yellow-400 hover:text-yellow-300">Marketplace</a>
+                    <div class="hidden md:flex items-center text-sm">
+                        <span class="mr-1">📍</span>
+                        <span>Deliver to</span>
+                        <span class="font-bold ml-1" th:text="${session.username} ?: 'Guest'">Guest</span>
+                    </div>
+                </div>
+
+                <div class="flex-1 max-w-2xl mx-4">
+                    <div class="flex search-bar bg-white rounded-md overflow-hidden border-2 border-transparent">
+                        <select class="bg-gray-100 border-r text-sm px-2 py-2.5 text-gray-700">
+                            <option>All</option>
+                        </select>
+                        <input type="text" placeholder="Search products..." 
+                               class="flex-1 px-3 py-2.5 outline-none text-gray-800"
+                               name="q" hx-get="/products/search" hx-trigger="keyup changed delay:300ms" hx-target="#search-results">
+                        <button class="btn-primary px-6 py-2.5 font-bold">Search</button>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-6 text-sm">
+                    <div th:if="${session.jwt_token == null}">
+                        <a href="/login" class="hover:underline nav-link">Hello, Sign in</a>
+                    </div>
+                    <div th:if="${session.jwt_token != null}" class="relative group">
+                        <span class="cursor-pointer nav-link" th:text="${session.username}">User</span>
+                        <div class="absolute right-0 top-full mt-1 w-48 bg-white text-gray-800 rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                            <a href="/profile" class="block px-4 py-2 hover:bg-gray-100">Your Account</a>
+                            <a href="/orders" class="block px-4 py-2 hover:bg-gray-100">Your Orders</a>
+                            <a href="/addresses" class="block px-4 py-2 hover:bg-gray-100">Addresses</a>
+                            <form action="/logout" method="post">
+                                <button type="submit" class="w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600">Sign Out</button>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <a href="/orders" class="hover:underline nav-link">Returns<br><span class="font-bold">& Orders</span></a>
+                    
+                    <a href="/cart" class="flex items-center hover:nav-link">
+                        <span class="text-2xl">🛒</span>
+                        <span class="font-bold ml-1">Cart</span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 py-1.5 text-sm flex space-x-4 overflow-x-auto">
+                <a href="/products" class="whitespace-nowrap hover:underline nav-link">All Products</a>
+                <a href="/products?category=electronics" class="whitespace-nowrap hover:underline nav-link">Electronics</a>
+                <a href="/products?category=fashion" class="whitespace-nowrap hover:underline nav-link">Fashion</a>
+                <a href="/products?category=home" class="whitespace-nowrap hover:underline nav-link">Home & Kitchen</a>
+                <a href="/products?category=sports" class="whitespace-nowrap hover:underline nav-link">Sports</a>
+                <th:block th:if="${session.jwt_token != null}">
+                    <a href="/inventory" class="whitespace-nowrap hover:underline nav-link">Inventory</a>
+                </th:block>
+            </div>
+        </div>
+    </div>
+
+    <div th:fragment="footer" class="bg-gray-900 text-white mt-auto">
+        <div class="max-w-7xl mx-auto py-8 px-4">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+                <div>
+                    <h4 class="font-bold mb-2">Get to Know Us</h4>
+                    <ul class="space-y-1 text-sm text-gray-400">
+                        <li><a href="#" class="hover:underline">Careers</a></li>
+                        <li><a href="#" class="hover:underline">About Us</a></li>
+                        <li><a href="#" class="hover:underline">Investor Relations</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-bold mb-2">Make Money with Us</h4>
+                    <ul class="space-y-1 text-sm text-gray-400">
+                        <li><a href="#" class="hover:underline">Sell on Marketplace</a></li>
+                        <li><a href="#" class="hover:underline">Sell under Marketplace Accelerator</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-bold mb-2">Payment Products</h4>
+                    <ul class="space-y-1 text-sm text-gray-400">
+                        <li><a href="#" class="hover:underline">Business Card</a></li>
+                        <li><a href="#" class="hover:underline">Shop with Points</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-bold mb-2">Let Us Help You</h4>
+                    <ul class="space-y-1 text-sm text-gray-400">
+                        <li><a href="#" class="hover:underline">Your Account</a></li>
+                        <li><a href="#" class="hover:underline">Your Orders</a></li>
+                        <li><a href="#" class="hover:underline">Help</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="border-t border-gray-700 mt-8 pt-8 text-center text-sm text-gray-400">
+                © 2024 E-Commerce Marketplace. All rights reserved.
+            </div>
+        </div>
+    </div>
+
+    <div th:fragment="toast(message, type)" class="fixed bottom-4 right-4 z-50 animate-fade-in-up">
+        <div th:class="${type == 'error'} ? 'bg-red-500' : 'bg-green-500'" 
+             class="text-white px-6 py-3 rounded-lg shadow-lg flex items-center">
+            <span th:text="${message}">Message</span>
+            <button @click="$el.parentElement.remove()" class="ml-4 text-white hover:text-gray-200">✕</button>
+        </div>
+    </div>
+</body>
+</html>
