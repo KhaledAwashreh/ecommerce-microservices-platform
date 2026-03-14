@@ -16,7 +16,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-TM|public class Account implements Serializable {
+public class Account implements Serializable {
 
     private static final long serialVersionUID = 1L;
 

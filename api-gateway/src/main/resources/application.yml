@@ -118,10 +118,6 @@ resilience4j:
         baseConfig: default
       product-service:
         baseConfig: default
-
-server:
-  port: 8080
-
 logging:
   pattern:
     level: "%5p [${spring.application.name}, %X{traceId:-}, %X{spanId:-}]"
