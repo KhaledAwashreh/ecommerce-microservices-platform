@@ -1,6 +1,6 @@
 package com.kawashreh.ecommerce.order_service.domain.exception;
 
-MZ|public class ProductServiceException extends RuntimeException {
+public class ProductServiceException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 
