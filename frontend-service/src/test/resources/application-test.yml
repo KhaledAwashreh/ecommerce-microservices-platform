@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: frontend-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/frontenddb
+    username: test
+    password: test
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+  config:
+    import: optional:configserver:http://localhost:8888
+
+server:
+  port: 0
+
+eureka:
+  client:
+    enabled: false
+
+logging:
+  level:
+    com.kawashreh.ecommerce: DEBUG
