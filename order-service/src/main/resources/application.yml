@@ -8,8 +8,6 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
-  config:
-    import: optional:configserver:http://localhost:8888
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/orderdb}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
@@ -64,12 +62,3 @@ resilience4j:
         maxAttempts: 3
         waitDuration: 1s
 
-# -------------------------------
-# Eureka Discovery
-# -------------------------------
-eureka:
-  client:
-    serviceUrl:
-      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka}
-  instance:
-    prefer-ip-address: true
