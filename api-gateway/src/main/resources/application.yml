@@ -5,8 +5,7 @@ spring:
     gateway:
       discovery:
         locator:
-          enabled: true
-          lower-case-service-id: true
+          enabled: false
       routes:
         - id: httpbin
           uri: http://httpbin.org:80
@@ -17,7 +16,7 @@ spring:
             - AddRequestParameter=Param,Value
 
         - id: user-service
-          uri: lb://user-service
+          uri: http://user-service:8080
           predicates:
             - Path=/api/v1/user/**
           filters:
@@ -31,7 +30,7 @@ spring:
                 fallbackUri: forward:/fallback
 
         - id: product-service
-          uri: lb://product-service
+          uri: http://product-service:8080
           predicates:
              - Path=/api/v1/product/**,/api/v1/productReview/**,/api/v1/categories/**
           filters:
@@ -45,7 +44,7 @@ spring:
                 fallbackUri: forward:/fallback
 
         - id: order-service
-          uri: lb://order-service
+          uri: http://order-service:8080
           predicates:
             - Path=/api/v1/orders/**
           filters:
@@ -59,7 +58,7 @@ spring:
                 fallbackUri: forward:/fallback
 
         - id: user-address-service
-          uri: lb://user-service
+          uri: http://user-service:8080
           predicates:
             - Path=/api/v1/Address/**
           filters:
@@ -80,13 +79,6 @@ management:
     tracing:
       endpoint: ${ZIPKIN_BASE_URL:http://zipkin:9411}/api/v2/spans
 
-eureka:
-  client:
-    serviceUrl:
-      defaultZone: http://naming-server:8761/eureka
-  instance:
-    prefer-ip-address: true
-    hostname: localhost
 
 resilience4j:
   circuitbreaker:
