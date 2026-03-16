@@ -30,6 +30,7 @@
         <java.version>21</java.version>
         <spring-cloud.version>2024.0.3</spring-cloud.version>
         <jjwt.version>0.11.5</jjwt.version>
+        <lombok.version>1.18.44</lombok.version>
     </properties>
     <dependencies>
         <dependency>
@@ -170,7 +171,15 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <!-- annotationProcessorPaths not needed - lombok as provided dependency auto-registers -->
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
             </plugin>
         </plugins>
     </build>
