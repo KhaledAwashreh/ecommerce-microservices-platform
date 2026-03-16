@@ -34,8 +34,12 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Clear Maven cache
+        run: rm -rf ~/.m2/repository
+
       - name: Run tests
         run: mvn clean test
+
 
       - name: Package
         run: mvn package -DskipTests
