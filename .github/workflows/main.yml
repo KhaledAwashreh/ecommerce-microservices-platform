@@ -43,6 +43,23 @@ jobs:
           mvn -version
           mvn dependency:tree | grep lombok
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Run Jest tests with coverage
+        run: npm test -- --coverage --passWithNoTests
+
+      - name: Upload Jest coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: jest-coverage-report
+          path: coverage/
       - name: Run tests
         run: mvn clean verify
 
