@@ -4,17 +4,17 @@
 
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.kawashreh.ecommerce</groupId>
-    <artifactId>naming-server</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <modules>
-        <module>naming-server</module>
-        <module>api-gateway</module>
-        <module>user-service</module>
-        <module>product-service</module>
-        <module>frontend-service</module>
-    </modules>
+<modules>
+    <module>api-gateway</module>
+    <module>user-service</module>
+    <module>product-service</module>
+    <module>order-service</module>
+    <module>payment-service</module>
+    <module>frontend-service</module>
+</modules>
 
     <build>
         <pluginManagement>
