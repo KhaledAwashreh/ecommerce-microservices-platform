@@ -67,10 +67,16 @@ jobs:
         uses: actions/upload-artifact@v4      # ← saves the JAR/WAR
         with:
           name: app
-          path: target/*.jar
+          path: '**/target/*.jar'
 
       - name: Upload JaCoCo report
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-report
           path: "**/target/site/jacoco/**"
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
