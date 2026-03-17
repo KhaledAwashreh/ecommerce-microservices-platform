@@ -44,11 +44,7 @@ jobs:
           mvn dependency:tree | grep lombok
 
       - name: Run tests
-        run: mvn clean test
-
-
-      - name: Package
-        run: mvn package -DskipTests
+        run: mvn clean verify
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4      # ← saves the JAR/WAR
