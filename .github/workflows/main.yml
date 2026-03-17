@@ -50,4 +50,4 @@ jobs:
         uses: actions/upload-artifact@v4      # ← saves the JAR/WAR
         with:
           name: app
-          path: target/*.jar
+          path: '**/target/*.jar'
