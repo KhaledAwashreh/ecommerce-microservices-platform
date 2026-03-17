@@ -15,4 +15,18 @@
         <module>product-service</module>
         <module>frontend-service</module>
     </modules>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>0.8.10</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
 </project>
+
+
