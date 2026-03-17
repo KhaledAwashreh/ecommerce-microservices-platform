@@ -51,3 +51,10 @@ jobs:
         with:
           name: app
           path: '**/target/*.jar'
+
+      - name: Upload JaCoCo report
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: "**/target/site/jacoco/**"
+
