@@ -37,12 +37,6 @@ jobs:
       - name: Clear Maven cache
         run: rm -rf ~/.m2/repository
 
-      - name: Debug Java & Maven info
-        run: |
-          java -version
-          mvn -version
-          mvn dependency:tree | grep lombok
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
