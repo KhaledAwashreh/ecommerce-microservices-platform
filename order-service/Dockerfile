@@ -31,7 +31,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Port is dynamically assigned (server.port=0 in application.properties)
-COPY --from=builder /app/target/*.jar app.jar
+COPY --from=builder /app/order-service/target/*.jar app.jar
 
 ENV MANAGEMENT_SERVER_PORT=8081
 

@@ -28,6 +28,6 @@ FROM eclipse-temurin:21-jre
 WORKDIR /app
 
 # Port is dynamically assigned (server.port=0 in application.properties)
-COPY --from=builder /app/target/*.jar app.jar
+COPY --from=builder /app/user-service/target/*.jar app.jar
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
