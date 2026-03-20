@@ -3,7 +3,9 @@ package com.kawashreh.ecommerce.order_service.dataAccess.mapper;
 import com.kawashreh.ecommerce.order_service.dataAccess.entity.OrderItemEntity;
 import com.kawashreh.ecommerce.order_service.domain.model.OrderItem;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public final class OrderItemMapper {
 
@@ -37,16 +39,16 @@ public final class OrderItemMapper {
     }
 
     public static List<OrderItem> toDomainList(List<OrderItemEntity> list) {
-        if (list == null) return null;
+        if (list == null) return new ArrayList<>();
         return list.stream()
                 .map(OrderItemMapper::toDomain)
-                .toList();
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     public static List<OrderItemEntity> toEntityList(List<OrderItem> list) {
-        if (list == null) return null;
+        if (list == null) return new ArrayList<>();
         return list.stream()
                 .map(OrderItemMapper::toEntity)
-                .toList();
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 }

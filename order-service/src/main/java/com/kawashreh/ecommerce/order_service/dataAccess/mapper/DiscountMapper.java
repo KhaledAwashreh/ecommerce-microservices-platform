@@ -3,7 +3,9 @@ package com.kawashreh.ecommerce.order_service.dataAccess.mapper;
 import com.kawashreh.ecommerce.order_service.dataAccess.entity.DiscountEntity;
 import com.kawashreh.ecommerce.order_service.domain.model.Discount;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public final class DiscountMapper {
 
@@ -36,16 +38,16 @@ public final class DiscountMapper {
     }
 
     public static List<Discount> toDomainList(List<DiscountEntity> list) {
-        if (list == null) return null;
+        if (list == null) return new ArrayList<>();
         return list.stream()
                 .map(DiscountMapper::toDomain)
-                .toList();
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     public static List<DiscountEntity> toEntityList(List<Discount> list) {
-        if (list == null) return null;
+        if (list == null) return new ArrayList<>();
         return list.stream()
                 .map(DiscountMapper::toEntity)
-                .toList();
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 }
