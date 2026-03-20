@@ -4,7 +4,7 @@ services:
   # ===========================================
   # Infrastructure Services
   # ===========================================
-  
+
   postgres-product:
     image: postgres:16-alpine
     container_name: postgres-product
@@ -110,51 +110,6 @@ services:
   # Microservices
   # ===========================================
 
-  naming-server:
-    build:
-      context: ./naming-server
-      dockerfile: Dockerfile
-    container_name: naming-server
-    ports:
-      - "8761:8761"
-    environment:
-      - SPRING_PROFILES_ACTIVE=local
-      - ZIPKIN_BASE_URL=http://zipkin:9411
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    networks:
-      - ecommerce-network
-    depends_on:
-      zipkin:
-        condition: service_started
-
-  config-server:
-    build:
-      context: ./config-server
-      dockerfile: Dockerfile
-    container_name: config-server
-    ports:
-      - "8888:8888"
-    environment:
-      - SPRING_PROFILES_ACTIVE=local
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://naming-server:8761/eureka
-      - ZIPKIN_BASE_URL=http://zipkin:9411
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    networks:
-      - ecommerce-network
-    depends_on:
-      naming-server:
-        condition: service_healthy
-
   api-gateway:
     build:
       context: ./api-gateway
@@ -164,8 +119,11 @@ services:
       - "8765:8765"
     environment:
       - SPRING_PROFILES_ACTIVE=local
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://naming-server:8761/eureka
       - ZIPKIN_BASE_URL=http://zipkin:9411
+      - USER_SERVICE_URL=http://user-service:8080
+      - PRODUCT_SERVICE_URL=http://product-service:8080
+      - ORDER_SERVICE_URL=http://order-service:8080
+      - PAYMENT_SERVICE_URL=http://payment-service:8080
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8765/actuator/health"]
       interval: 30s
@@ -175,7 +133,13 @@ services:
     networks:
       - ecommerce-network
     depends_on:
-      naming-server:
+      user-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      payment-service:
         condition: service_healthy
 
   user-service:
@@ -183,6 +147,8 @@ services:
       context: ./user-service
       dockerfile: Dockerfile
     container_name: user-service
+    ports:
+      - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=local
       - SPRING_DATA_REDIS_HOST=redis
@@ -190,10 +156,9 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-user:5432/userdb
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=test1234
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://naming-server:8761/eureka
       - ZIPKIN_BASE_URL=http://zipkin:9411
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -205,23 +170,22 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      naming-server:
-        condition: service_healthy
 
   product-service:
     build:
       context: ./product-service
       dockerfile: Dockerfile
     container_name: product-service
+    ports:
+      - "8081:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=local
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-product:5432/productdb
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=test1234
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://naming-server:8761/eureka
       - ZIPKIN_BASE_URL=http://zipkin:9411
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -231,23 +195,24 @@ services:
     depends_on:
       postgres-product:
         condition: service_healthy
-      naming-server:
-        condition: service_healthy
 
   order-service:
     build:
       context: ./order-service
       dockerfile: Dockerfile
     container_name: order-service
+    ports:
+      - "8082:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=local
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-order:5432/orderdb
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=test1234
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://naming-server:8761/eureka
+      - PRODUCT_SERVICE_URL=http://product-service:8080
+      - PAYMENT_SERVICE_URL=http://payment-service:8080
       - ZIPKIN_BASE_URL=http://zipkin:9411
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -257,7 +222,9 @@ services:
     depends_on:
       postgres-order:
         condition: service_healthy
-      naming-server:
+      product-service:
+        condition: service_healthy
+      payment-service:
         condition: service_healthy
 
   payment-service:
@@ -265,15 +232,16 @@ services:
       context: ./payment-service
       dockerfile: Dockerfile
     container_name: payment-service
+    ports:
+      - "8083:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=local
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-payment:5432/paymentdb
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=test1234
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://naming-server:8761/eureka
       - ZIPKIN_BASE_URL=http://zipkin:9411
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -283,7 +251,18 @@ services:
     depends_on:
       postgres-payment:
         condition: service_healthy
-      naming-server:
+
+  frontend-service:
+    build:
+      context: ./frontend-service
+      dockerfile: Dockerfile
+    container_name: frontend-service
+    ports:
+      - "3000:3000"
+    networks:
+      - ecommerce-network
+    depends_on:
+      api-gateway:
         condition: service_healthy
 
 volumes:

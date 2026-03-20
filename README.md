@@ -1,51 +1,123 @@
 # ecommerce-microservices-platform
 
-Production-grade e-commerce microservices architecture built with Spring Boot, Kubernetes, and AWS. Features independent Product, Order, and User services with Docker containerization, CI/CD pipelines, and comprehensive monitoring.
+> Production-grade e-commerce microservices platform demonstrating enterprise-grade architecture, distributed systems patterns, and DevOps best practices.
 
-## Architecture Overview
+A full-stack microservices platform built with Spring Boot, Docker, Kubernetes, and GitHub Actions. Implements service discovery, API gateway routing, fault-tolerant inter-service communication, distributed tracing, and automated CI/CD pipelines.
 
-This platform consists of the following microservices:
+**Stack:** Spring Boot 3 · Spring Cloud Gateway · Kubernetes DNS · OpenFeign · Resilience4j · PostgreSQL · Redis · Zipkin · Docker · Kubernetes · GitHub Actions
 
-| Service | Port | Description |
-|---------|------|-------------|
-| **API Gateway** | 8765 | Entry point for all client requests, handles routing, load balancing, circuit breaker, and retry logic |
-| **Naming Server (Eureka)** | 8761 | Service discovery registry for all microservices |
-| **Config Server** | 8888 | Centralized configuration management with Git backend |
-| **User Service** | Dynamic | Handles user management, authentication, and address data |
-| **Product Service** | Dynamic | Manages products, categories, and reviews |
-| **Order Service** | 8081 | Processes and manages customer orders |
-| **Payment Service** | Dynamic | Handles payment processing |
+---
 
-## Technology Stack
+## 📊 Project Status
 
-- **Framework**: Spring Boot 3.x
-- **Service Discovery**: Netflix Eureka
-- **API Gateway**: Spring Cloud Gateway
-- **Configuration**: Spring Cloud Config Server
-- **Databases**: PostgreSQL (per-service databases)
-- **Caching**: Redis
-- **Distributed Tracing**: Zipkin
-- **Containerization**: Docker
+| Dimension | Status |
+|-----------|--------|
+| Docker Compose (local dev) | ✅ Complete |
+| Inter-service communication | ✅ Complete |
+| CI/CD pipelines | ✅ Complete |
+| Kubernetes deployment | 🚧 Partial (core manifests) |
+| Integration testing | 🚧 In progress |
+| Observability (Prometheus/Grafana) | ⏳ Planned |
+| Performance testing | ⏳ Planned |
+
+---
+
+## Architecture
+
+```mermaid
+graph TB
+    Client["👤 Client"]
+
+    subgraph Infrastructure["Infrastructure"]
+        Gateway["API Gateway<br/>:8765<br/>Spring Cloud Gateway"]
+        Zipkin["Zipkin<br/>:9411<br/>Distributed Tracing"]
+    end
+
+    subgraph Services["Business Services"]
+        User["User Service<br/>JWT Auth · Profiles · Addresses"]
+        Order["Order Service<br/>Orchestration · Stock Validation"]
+        Product["Product Service<br/>Products · Variations · Inventory"]
+        Payment["Payment Service<br/>Payment Processing"]
+        Frontend["Frontend Service<br/>React / Node.js"]
+    end
+
+    subgraph Data["Data Layer"]
+        PG1["PostgreSQL<br/>User DB"]
+        PG2["PostgreSQL<br/>Product DB"]
+        PG3["PostgreSQL<br/>Order DB"]
+        PG4["PostgreSQL<br/>Payment DB"]
+        Redis["Redis<br/>Cache · Sessions"]
+    end
+
+    Client --> Gateway
+    Gateway --> User
+    Gateway --> Order
+    Gateway --> Product
+    Gateway --> Payment
+
+    Order -.->|"Kubernetes DNS<br/>product-service:8080"| Product
+    Order -.->|"Kubernetes DNS<br/>payment-service:8080"| Payment
+
+    User --> PG1
+    Product --> PG2
+    Order --> PG3
+    Payment --> PG4
+
+    User --> Redis
+    Services --> Zipkin
+    Product --> Redis
+
+    style Gateway fill:#1a73e8,color:#fff,stroke:#1a73e8
+    style Zipkin fill:#6b7280,color:#fff,stroke:#6b7280
+    style Redis fill:#dc2626,color:#fff,stroke:#dc2626
+    style PG1 fill:#336791,color:#fff,stroke:#336791
+    style PG2 fill:#336791,color:#fff,stroke:#336791
+    style PG3 fill:#336791,color:#fff,stroke:#336791
+    style PG4 fill:#336791,color:#fff,stroke:#336791
+```
+
+### Key Architectural Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| **Per-service PostgreSQL schemas** | Data isolation, independent scaling, failure containment |
+| **Synchronous Feign + Resilience4j** | Simplicity over eventual consistency; circuit breakers prevent cascade failures |
+| **Kubernetes DNS for service discovery** | Native K8s service-to-service resolution; no additional registry dependency |
+| **Compensating transactions** | Order cancellation triggers inventory restoration — no saga/orchestrator overhead |
+| **Zipkin distributed tracing** | End-to-end request visibility across service boundaries |
+
+---
+
+## Services
+
+| Service | Port | Technology | Responsibility |
+|---------|------|------------|---------------|
+| **API Gateway** | 8765 | Spring Cloud Gateway | Request routing, circuit breaker, retry, rate limiting |
+| **User Service** | Dynamic | Spring Boot + JWT | Authentication, user profiles, addresses |
+| **Product Service** | Dynamic | Spring Boot | Products, variations, inventory management |
+| **Order Service** | Dynamic | Spring Boot + Feign | Order orchestration, stock validation, cart-to-order |
+| **Payment Service** | Dynamic | Spring Boot | Payment processing (simulated gateway) |
+| **Frontend Service** | Dynamic | React + Node | Web client (portfolio showcase) |
+
+---
 
 ## Quick Start
 
 ### Prerequisites
-
-- Docker and Docker Compose
-- Maven 3.9+ (for local builds)
+- Docker & Docker Compose
 - Java 21
+- Maven 3.9+
 
-### Running with Docker Compose (Development)
+### One-command startup
 
 ```bash
-# Start all services
 docker-compose -f docker-compose.dev.yml up -d
+```
 
-# View logs
-docker-compose -f docker-compose.dev.yml logs -f
+Or with the convenience script:
 
-# Stop all services
-docker-compose -f docker-compose.dev.yml down
+```bash
+chmod +x start.sh && ./start.sh
 ```
 
 ### Service URLs
@@ -53,238 +125,303 @@ docker-compose -f docker-compose.dev.yml down
 | Service | URL |
 |---------|-----|
 | API Gateway | http://localhost:8765 |
-| Eureka Dashboard | http://localhost:8761 |
-| Config Server | http://localhost:8888 |
 | Zipkin Tracing | http://localhost:9411 |
 
-### API Endpoints
-
-All services are accessible through the API Gateway:
+### Key API Endpoints
 
 ```
-GET  /api/v1/user/{id}         - Get user by ID
-POST /api/v1/user              - Create new user
-GET  /api/v1/product           - List all products
-POST /api/v1/product           - Create new product
-GET  /api/v1/orders             - List all orders
-POST /api/v1/orders             - Create new order
+POST /api/v1/users/register      # User registration
+POST /api/v1/users/login          # Login → JWT token
+GET  /api/v1/products            # List products (paginated)
+GET  /api/v1/products/{id}      # Get product details
+POST /api/v1/products            # Create product
+GET  /api/v1/orders              # List orders (buyer/seller/status filters)
+POST /api/v1/orders              # Create order (validates stock, deducts inventory)
+POST /api/v1/payments/process     # Process payment
+GET  /actuator/health            # Health check (any service)
 ```
 
-## Docker Compose Services
-
-### Infrastructure Services
-
-| Service | Port | Description |
-|---------|------|-------------|
-| postgres-product | 5432 | Product service database |
-| postgres-user | 5433 | User service database |
-| postgres-payment | 5434 | Payment service database |
-| postgres-order | 5435 | Order service database |
-| redis | 6379 | Session/cache store |
-| zipkin | 9411 | Distributed tracing |
-
-### Environment Variables
-
-Each microservice can be configured using the following environment variables:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `SPRING_PROFILES_ACTIVE` | Spring profile | local |
-| `EUREKA_CLIENT_SERVICEURL_DEFAULTZONE` | Eureka server URL | http://localhost:8761/eureka |
-| `ZIPKIN_BASE_URL` | Zipkin server URL | http://localhost:9411 |
-| `SPRING_DATASOURCE_URL` | PostgreSQL connection URL | jdbc:postgresql://localhost:5432/dbname |
-| `SPRING_DATASOURCE_USERNAME` | Database username | postgres |
-| `SPRING_DATASOURCE_PASSWORD` | Database password | test1234 |
-| `SPRING_DATA_REDIS_HOST` | Redis host | localhost |
-| `SPRING_DATA_REDIS_PORT` | Redis port | 6379 |
-
-## Development
-
-### Building Services Locally
+### Stop
 
 ```bash
-# Build all services
-mvn clean install
-
-# Build specific service
-cd <service-directory>
-mvn clean package
+docker-compose -f docker-compose.dev.yml down
 ```
-
-### Running Services Locally (Without Docker)
-
-1. Start infrastructure services (PostgreSQL, Redis, Zipkin)
-2. Start Naming Server first
-3. Start Config Server
-4. Start other microservices
-
-## Health Checks
-
-All services expose health endpoints at `/actuator/health`:
-
-```bash
-# Check service health
-curl http://localhost:<port>/actuator/health
-```
-
-## Monitoring
-
-### Zipkin Distributed Tracing
-
-Access Zipkin UI at http://localhost:9411 to view:
-- Service dependency graph
-- Request traces
-- Performance bottlenecks
-
-### Eureka Service Registry
-
-Access Eureka dashboard at http://localhost:8761 to:
-- View registered services
-- Monitor service health status
-- See instance details
-
-## License
-
-MIT
-
-## Inter-Service Communication
-
-### Overview
-
-The platform uses **synchronous HTTP communication** via Spring Cloud OpenFeign for inter-service calls. Each service exposes REST APIs consumed by other services through Feign clients.
-
-### Service Communication Diagram
-
-```
-┌─────────────┐
-│   Client    │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────────────────────────────────┐
-│            API Gateway (8765)                │
-│  - Routing                                     │
-│  - Circuit Breaker                            │
-│  - Rate Limiting                              │
-└──────────────────┬──────────────────────────────┘
-                   │
-       ┌───────────┼───────────┐
-       ▼           ▼           ▼
-┌──────────┐ ┌──────────┐ ┌────────────┐
-│  Order   │ │  Product │ │   User    │
-│ Service  │ │ Service  │ │  Service  │
-└────┬─────┘ └──────────┘ └────────────┘
-     │
-     ├────────────────────┐
-     ▼                     ▼
-┌──────────┐        ┌───────────┐
-│ Product  │        │  Payment  │
-│ Service  │        │  Service  │
-│ (stock)  │        │           │
-└──────────┘        └───────────┘
-```
-
-### Feign Clients
-
-| Client | Service Called | Purpose |
-|--------|---------------|---------|
-| `ProductServiceClient` | Product Service | Retrieve products, check inventory |
-| `PaymentClient` | Payment Service | Process payments |
-
-### Circuit Breaker & Retry
-
-Resilience4j is configured for fault tolerance:
-
-- **Circuit Breaker**: Opens after 50% failure rate in 10 calls
-- **Retry**: 3 attempts with exponential backoff
-- Applied to all Feign client calls
 
 ---
 
-## Order Processing Flow
+## Technology Stack
 
-### Sequence Diagram
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| Framework | Spring Boot | 3.x |
+| Language | Java | 21 |
+| API Gateway | Spring Cloud Gateway | 2023.x |
+| Service Discovery | Kubernetes DNS | K8s native |
+| Inter-service | Spring Cloud OpenFeign | 4.x |
+| Fault Tolerance | Resilience4j | 2.x |
+| Databases | PostgreSQL | 16 |
+| Cache | Redis | 7 |
+| Distributed Tracing | Zipkin | 3.x |
+| Containerization | Docker | 24.x |
+| Orchestration | Kubernetes | 1.29+ |
+| CI/CD | GitHub Actions | — |
+| Testing | JUnit 5 + TestContainers | — |
+| Code Coverage | JaCoCo | 0.8.x |
+| Container Registry | GitHub Container Registry (GHCR) | — |
 
+---
+
+## Distributed Systems Patterns
+
+### Circuit Breaker (Resilience4j)
+```yaml
+circuit-breaker:
+  failure-rate-threshold: 50
+  wait-duration-in-open-state: 60s
+  sliding-window-type: count-based
+  sliding-window-size: 10
+retry:
+  max-attempts: 3
+  wait-duration: 500ms
+  exponential-backoff-multiplier: 2
 ```
-┌────────┐    ┌─────────┐   ┌─────────┐   ┌──────────┐   ┌─────────┐
-│ Client │    │ Order   │   │Product  │   │Inventory│   │Payment  │
-│        │    │ Service │   │ Service │   │ Table   │   │ Service │
-└───┬────┘    └────┬────┘   └────┬────┘   └────┬────┘   └────┬────┘
-    │              │            │            │            │
-    │ POST /order │            │            │            │
-    │────────────>│            │            │            │
-    │              │            │            │            │
-    │              │ GET /product/{id} │            │
-    │              │───────────>│            │            │
-    │              │<───────────│            │            │
-    │              │            │            │            │
-    │              │ GET /inventory/{variationId} │
-    │              │───────────────────────────>│            │
-    │              │<──────────────────────────│            │
-    │              │            │            │            │
-    │   Check stock availability            │            │
-    │              │            │            │            │
-    │              │ PUT /inventory/deduct   │
-    │              │─────────────────────────>│            │
-    │              │<────────────────────────│            │
-    │              │            │            │            │
-    │              │ POST /payment/process   │            │
-    │              │────────────────────────────────────>│
-    │              │<────────────────────────────│            │
-    │              │            │            │            │
-    │  CONFIRMED  │            │            │            │
-    │<────────────│            │            │            │
-    │              │            │            │            │
+
+### Compensating Transaction (Order → Inventory)
+```
+Order creation flow:
+1. Validate stock via Product Service (circuit breaker protected)
+2. Save order with PENDING status
+3. Deduct inventory
+   └─ Success  → Mark CONFIRMED
+   └─ Failure  → Restore inventory, mark CANCELLED
 ```
 
-### Order States
+### Feign Client (Order → Product)
 
-| State | Description |
-|-------|-------------|
-| `PENDING` | Order created, awaiting inventory validation |
-| `CONFIRMED` | Payment successful, inventory deducted |
-| `CANCELLED` | Payment failed or inventory unavailable |
+Services discover each other via **Kubernetes DNS** — e.g., `http://product-service:8080`. Feign clients call by service name with Resilience4j protection:
 
-### Error Handling
+```java
+@FeignClient(name = "product-service", url = "http://product-service:8080",
+             fallback = ProductServiceFallback.class)
+public interface ProductServiceClient {
+    @GetMapping("/api/v1/product/{sku}")
+    ProductDto retrieveProduct(@PathVariable UUID sku);
 
-1. **Insufficient Stock**: Returns `InsufficientStockException`
-2. **Service Unavailable**: Circuit breaker opens, returns fallback
-3. **Payment Failed**: Inventory is restored (compensating transaction)
+    @GetMapping("/api/v1/inventory/{sku}")
+    InventoryDto retrieveInventory(@PathVariable UUID sku);
+
+    @PutMapping("/api/v1/inventory/{sku}/deduct")
+    boolean deductInventory(@PathVariable UUID sku, @RequestParam int quantity);
+}
+```
+```
 
 ---
 
 ## Database Schema
 
-### Inventory Table (Product Service)
-
-
+### Product Service
 ```sql
-CREATE TABLE inventory (
-    id UUID PRIMARY KEY,
-    product_variation_id UUID NOT NULL,
-    quantity INT NOT NULL DEFAULT 0,
-    reserved_quantity INT NOT NULL DEFAULT 0,
-    warehouse_location VARCHAR(255),
-    created_at TIMESTAMP,
-    updated_at TIMESTAMP
-);
+products (id, name, description, category, owner_id, created_at, updated_at)
+product_variations (id, product_id, sku, name, price, stock_quantity, is_active)
+inventory (id, product_variation_id, quantity, reserved_quantity, warehouse_location, created_at, updated_at)
 ```
 
-### Payment Table (Payment Service)
-
+### Order Service
 ```sql
-CREATE TABLE payment (
-    id UUID PRIMARY KEY,
-    order_id UUID NOT NULL,
-    buyer_id UUID NOT NULL,
-    amount DECIMAL NOT NULL,
-    payment_method VARCHAR(50),
-    status VARCHAR(20) NOT NULL,
-    transaction_id VARCHAR(255),
-    payment_gateway VARCHAR(50),
-    created_at TIMESTAMP,
-    updated_at TIMESTAMP
-);
+orders (id, buyer, seller, store_id, status, created_at, updated_at, created_by, updated_by)
+order_items (id, order_id, product_sku, quantity, unit_price)
+discounts (id, order_id, code, discount_type, value)
 ```
+
+### User Service
+```sql
+users (id, email, password_hash, first_name, last_name, phone, is_active, created_at, updated_at)
+addresses (id, user_id, street, city, postal_code, country, is_default)
+```
+
+### Payment Service
+```sql
+payments (id, order_id, buyer_id, amount, payment_method, status, transaction_id, payment_gateway, created_at, updated_at)
+```
+
+---
+
+## Docker Compose
+
+`docker-compose.dev.yml` orchestrates the full local development environment:
+
+**Infrastructure (6 containers):**
+- PostgreSQL ×4 — isolated schemas per service
+- Redis — session storage + caching
+- Zipkin — distributed tracing UI
+
+**Application services (7 containers):**
+- API Gateway, User, Product, Order, Payment, Frontend services
+
+### Environment Configuration
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `SPRING_PROFILES_ACTIVE` | `local` | Spring profile |
+| `ZIPKIN_BASE_URL` | http://zipkin:9411 | Zipkin URL |
+| `SPRING_DATASOURCE_URL` | jdbc:postgresql://host:5432/db | DB connection |
+| `SPRING_DATA_REDIS_HOST` | `redis` | Redis host |
+| `POSTGRES_PASSWORD` | `test1234` | Database password |
+
+---
+
+## Kubernetes
+
+Kubernetes manifests under `k8s/`:
+
+```
+k8s/
+├── namespace.yaml
+├── postgres/         # Deployment, Service, ConfigMap, Secret, PVC, init scripts
+├── redis/            # Deployment, Service, PVC
+└── services/         # api-gateway, user, product, order, payment
+                       # (deployment + service + configmap per service)
+```
+
+### Kubernetes — Production Hardening
+
+- [ ] Ingress controller + Ingress rules
+- [ ] Resource `requests`/`limits` on all workloads
+- [ ] Liveness and readiness probes
+- [ ] Rolling update strategy configuration
+- [ ] Network policies (zero-trust between namespaces)
+- [ ] Horizontal Pod Autoscaler (HPA) for business services
+
+> **Note:** The codebase targets Docker Compose for local development and Docker for production. Kubernetes manifests are provided as a deployment option. Service-to-service communication uses Kubernetes DNS (`product-service`, `payment-service`, etc.). Full Kubernetes-native deployment is planned.
+
+---
+
+## CI/CD
+
+### Build & Test Pipeline (`main.yml`)
+
+```mermaid
+flowchart LR
+    A(["Push / PR\nto main"]) --> B["Checkout\nJava 21 + Maven"]
+    B --> C["Spin up\nPostgreSQL + Redis"]
+    C --> D["mvn clean verify"]
+    D --> E["JaCoCo\nCoverage Report"]
+    E --> F1["Upload to\nCodecov"]
+    E --> F2["Upload\nArtifacts"]
+    F1 --> G(["✅ Green Build"])
+    F2 --> G
+```
+
+- Runs on every push and PR to `main`
+- JaCoCo coverage reporting → Codecov
+- Jest coverage for frontend service
+- Coverage artifacts downloadable
+
+### Docker Image Pipeline (`docker.yml`)
+
+- Builds all 6 microservice images on Java/pom changes
+- Pushes to **GitHub Container Registry** (`ghcr.io/kawashreh/ecommerce-microservices-platform/*`)
+- Multi-arch: `linux/amd64` + `linux/arm64`
+- Tags: `latest`, version, commit SHA
+- GitHub Release created on main branch push
+
+**Available images:**
+```bash
+docker pull ghcr.io/kawashreh/ecommerce-microservices-platform/api-gateway:latest
+docker pull ghcr.io/kawashreh/ecommerce-microservices-platform/user-service:latest
+docker pull ghcr.io/kawashreh/ecommerce-microservices-platform/product-service:latest
+docker pull ghcr.io/kawashreh/ecommerce-microservices-platform/order-service:latest
+docker pull ghcr.io/kawashreh/ecommerce-microservices-platform/payment-service:latest
+docker pull ghcr.io/kawashreh/ecommerce-microservices-platform/frontend-service:latest
+```
+
+### Build Locally
+
+```bash
+# All services
+mvn clean install
+
+# Single service
+cd <service> && mvn clean package
+```
+
+---
+
+## Testing
+
+### Current Coverage
+
+| Service | Type | Status |
+|---------|------|--------|
+| Product Service | Unit + Integration (TestContainers) | ✅ Active |
+| Order Service | Unit + Integration (TestContainers) | ✅ Active |
+| Inventory | Integration tests with concurrent scenarios | ✅ Active |
+
+### Testing — Coverage Expansion
+
+- [ ] **OrderService** — complete unit test suite (CRUD, stock validation, compensating transactions)
+- [ ] **UserService** — unit tests: register, login, profile CRUD
+- [ ] **ProductService** — unit tests: CRUD + search + variation management
+- [ ] **Controller layer** — REST integration tests for all endpoints
+- [ ] **WebClient/Feign calls** — mocked integration tests for inter-service communication
+- [ ] **Circuit breaker behavior** — fallback + recovery test scenarios
+- [ ] **JaCoCo report** — target **30%** aggregate coverage
+
+> **Approach:** Focus on service layer unit tests and TestContainers-based integration tests covering the critical paths: order creation (with stock validation), payment processing, and inventory management.
+
+---
+
+## Observability — Planned
+
+- [ ] **Spring Boot Actuator** — expose `/actuator/prometheus` on all services
+- [ ] **Prometheus** — deploy to Kubernetes, configure scrape jobs for all services
+- [ ] **Grafana** — deploy, configure Prometheus datasource, import Spring Boot dashboard
+- [ ] **Custom business metrics** — order creation count, stock deductions, auth failures
+- [ ] **Alerting rules** — high error rate (>5%), service down detection
+- [ ] **Documentation** — monitoring setup guide with screenshots
+
+---
+
+## Performance & Optimization — Planned
+
+- [ ] **k6 load testing** — baseline performance tests for product listing, order creation, auth
+- [ ] **Database optimization** — indexes on foreign keys, `ORDER BY` columns; N+1 query detection
+- [ ] **HikariCP tuning** — connection pool sizing per service
+- [ ] **Redis caching** — cache product listings and hot read paths
+- [ ] **Cache hit rate monitoring** — measure and document improvement
+- [ ] **Benchmark report** — before/after performance comparison
+
+> **Priority:** Database indexing and Redis caching are highest-impact and can be completed in a single session. Load testing provides concrete numbers for interviews.
+
+---
+
+## Engineering Excellence — Planned
+
+- [ ] **Architecture diagram** — draw.io diagram showing all services, data flows, and integration points (PNG for README)
+- [ ] **Demo video** — 3-minute walkthrough: docker-compose startup → API calls → K8s deployment → Grafana dashboards
+- [ ] **Technical blog post** — "Building Production-Ready Microservices with Spring Boot and Kubernetes" on Dev.to/Medium
+- [ ] **OpenAPI/Swagger** — API documentation via springdoc-openapi
+- [ ] **Postman collection** — executable API examples for recruiters/interviewers
+- [ ] **Code hygiene** — remove dead code, resolve all `@SuppressWarnings`, enforce Spotless formatting
+
+---
+
+## Roadmap
+
+| Phase | Focus | Target |
+|-------|-------|--------|
+| ✅ Phase 1 | Local dev environment | Feb 2026 |
+| ✅ Phase 2 | Service integration | Feb 2026 |
+| ✅ Phase 3 | CI/CD pipelines | Mar 2026 |
+| 🚧 Phase 4 | Integration testing | Mar 2026 |
+| 🚧 Phase 5 | Kubernetes hardening | Mar 2026 |
+| ⏳ Phase 6 | Observability (Prometheus/Grafana) | Mar–Apr 2026 |
+| ⏳ Phase 7 | Performance optimization | Apr 2026 |
+| ⏳ Phase 8 | Polish + applications | Apr 2026 |
+
+---
+
+## License
 
 MIT

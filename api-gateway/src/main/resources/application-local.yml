@@ -5,35 +5,31 @@ spring:
     gateway:
       discovery:
         locator:
-          enabled: true
-          lower-case-service-id: true
+          enabled: false
       routes:
-        - id: httpbin
-          uri: http://httpbin.org:80
-          predicates:
-            - Path=/get
-          filters:
-            - AddRequestHeader=MyHeader,MyURI
-            - AddRequestParameter=Param,Value
-
         - id: user-service
-          uri: lb://user-service
+          uri: http://user-service:8080
           predicates:
             - Path=/api/v1/user/**
+            - Path=/api/v1/users/**
+            - Path=/api/v1/Address/**
           filters:
             - name: Retry
               args:
                 retries: 3
-                methods: GET
+                methods: GET,POST
             - name: CircuitBreaker
               args:
                 name: user-service
                 fallbackUri: forward:/fallback
 
         - id: product-service
-          uri: lb://product-service
+          uri: http://product-service:8080
           predicates:
-            - Path=/api/v1/product/**,/api/v1/productReview/**,/api/v1/categories/**
+            - Path=/api/v1/product/**
+            - Path=/api/v1/productReview/**
+            - Path=/api/v1/categories/**
+            - Path=/api/v1/inventory/**
           filters:
             - name: Retry
               args:
@@ -45,7 +41,7 @@ spring:
                 fallbackUri: forward:/fallback
 
         - id: order-service
-          uri: lb://order-service
+          uri: http://order-service:8080
           predicates:
             - Path=/api/v1/orders/**
           filters:
@@ -58,10 +54,10 @@ spring:
                 name: order-service
                 fallbackUri: forward:/fallback
 
-        - id: user-address-service
-          uri: lb://user-service
+        - id: payment-service
+          uri: http://payment-service:8080
           predicates:
-            - Path=/api/v1/Address/**
+            - Path=/api/v1/payments/**
           filters:
             - name: Retry
               args:
@@ -69,8 +65,13 @@ spring:
                 methods: GET,POST
             - name: CircuitBreaker
               args:
-                name: user-service
+                name: payment-service
                 fallbackUri: forward:/fallback
+
+        - id: frontend-service
+          uri: http://frontend-service:3000
+          predicates:
+            - Path=/**
 
 server:
   port: 8765
@@ -80,14 +81,6 @@ management:
     tracing:
       endpoint: http://localhost:9411/api/v2/spans
 
-eureka:
-  client:
-    serviceUrl:
-      defaultZone: http://localhost:8761/eureka
-  instance:
-    prefer-ip-address: true
-    hostname: localhost
-
 resilience4j:
   timelimiter:
     configs:
@@ -95,12 +88,13 @@ resilience4j:
         timeoutDuration: 5s
         cancelRunningFuture: true
     instances:
-      # These must match the 'name' property in your Gateway filters
       user-service:
         baseConfig: default
       product-service:
         baseConfig: default
       order-service:
+        baseConfig: default
+      payment-service:
         baseConfig: default
   circuitbreaker:
     configs:
@@ -120,7 +114,7 @@ resilience4j:
       order-service:
         baseConfig: default
       payment-service:
-        base-config: default
+        baseConfig: default
 
 logging:
   pattern:
