@@ -38,13 +38,15 @@ class InventoryServiceIntegrationTest extends BaseIntegrationTest {
     void setUp() {
         inventoryRepository.deleteAll();
         productVariationRepository.deleteAll();
+        productRepository.deleteAll(); // ✅ added cleanup
 
-        // Create test product
+        // ✅ FIX: set ownerId (required by DB)
         ProductEntity product = ProductEntity.builder()
                 .name("Test Product")
                 .description("Test Description")
-                .ownerId(UUID.randomUUID())
+                .ownerId(UUID.randomUUID()) // 🔥 REQUIRED FIX
                 .build();
+
         product = productRepository.save(product);
 
         // Create test product variation
@@ -52,10 +54,11 @@ class InventoryServiceIntegrationTest extends BaseIntegrationTest {
                 .sku("TEST-SKU-001")
                 .name("Test Variation")
                 .price(BigDecimal.valueOf(99.99))
-                .stockQuantity(0) // Not used anymore
+                .stockQuantity(0)
                 .isActive(true)
                 .product(product)
                 .build();
+
         variation = productVariationRepository.save(variation);
         productVariationId = variation.getId();
 
@@ -66,6 +69,7 @@ class InventoryServiceIntegrationTest extends BaseIntegrationTest {
                 .reservedQuantity(0)
                 .warehouseLocation("WAREHOUSE-A")
                 .build();
+
         inventoryRepository.save(inventory);
     }
 
@@ -109,7 +113,7 @@ class InventoryServiceIntegrationTest extends BaseIntegrationTest {
         assertThat(result).isFalse();
 
         var inventory = inventoryService.findByProductVariationId(productVariationId);
-        assertThat(inventory.getQuantity()).isEqualTo(10); // Unchanged
+        assertThat(inventory.getQuantity()).isEqualTo(10);
     }
 
     @Test
@@ -121,10 +125,8 @@ class InventoryServiceIntegrationTest extends BaseIntegrationTest {
 
     @Test
     void restoreStock_shouldSucceed() {
-        // First deduct
         inventoryService.deductStock(productVariationId, 5);
 
-        // Then restore
         boolean result = inventoryService.restoreStock(productVariationId, 5);
 
         assertThat(result).isTrue();
@@ -142,12 +144,10 @@ class InventoryServiceIntegrationTest extends BaseIntegrationTest {
 
     @Test
     void deductStock_concurrentDeduction_shouldHandleRaceCondition() throws InterruptedException {
-        // Setup: inventory has 5 units
         var inventory = inventoryRepository.findByProductVariationId(productVariationId).get();
         inventory.setQuantity(5);
         inventoryRepository.save(inventory);
 
-        // Two threads try to deduct 5 units simultaneously
         Thread thread1 = new Thread(() -> inventoryService.deductStock(productVariationId, 5));
         Thread thread2 = new Thread(() -> inventoryService.deductStock(productVariationId, 5));
 
@@ -157,8 +157,7 @@ class InventoryServiceIntegrationTest extends BaseIntegrationTest {
         thread1.join();
         thread2.join();
 
-        // Only one should succeed
         var finalInventory = inventoryService.findByProductVariationId(productVariationId);
-        assertThat(finalInventory.getQuantity()).isEqualTo(0); // 5 - 5 = 0
+        assertThat(finalInventory.getQuantity()).isEqualTo(0);
     }
 }

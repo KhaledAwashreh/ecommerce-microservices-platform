@@ -22,6 +22,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -60,6 +61,8 @@ class OrderServiceIntegrationTest {
 
     private UUID productVariationId;
     private UUID buyerId;
+    private UUID sellerId;
+    private UUID storeId;
 
     @BeforeEach
     void setUp() {
@@ -67,8 +70,9 @@ class OrderServiceIntegrationTest {
 
         productVariationId = UUID.randomUUID();
         buyerId = UUID.randomUUID();
+        sellerId = UUID.randomUUID();
+        storeId = UUID.randomUUID();
 
-        // Mock Product Service responses
         ProductDto mockProduct = ProductDto.builder()
                 .id(productVariationId)
                 .name("Test Product")
@@ -77,7 +81,6 @@ class OrderServiceIntegrationTest {
                 .build();
 
         InventoryDto mockInventory = InventoryDto.builder()
-                .id(UUID.randomUUID())
                 .productVariationId(productVariationId)
                 .quantity(10)
                 .reservedQuantity(0)
@@ -95,17 +98,16 @@ class OrderServiceIntegrationTest {
     @Test
     void create_shouldSucceed_whenInventoryAvailable() {
         Order order = Order.builder()
-                .id(UUID.randomUUID())
                 .buyer(buyerId)
-                .storeId(UUID.randomUUID())
-                .selectedItems(List.of(
+                .seller(sellerId)
+                .storeId(storeId)
+                .selectedItems(new ArrayList<>(List.of(
                         OrderItem.builder()
-                                .id(UUID.randomUUID())
                                 .productSku(productVariationId)
                                 .quantity(2)
                                 .unitPrice(BigDecimal.valueOf(99.99))
                                 .build()
-                ))
+                )))
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
@@ -119,9 +121,7 @@ class OrderServiceIntegrationTest {
 
     @Test
     void create_shouldFail_whenInsufficientInventory() {
-        // Mock insufficient inventory
         InventoryDto lowInventory = InventoryDto.builder()
-                .id(UUID.randomUUID())
                 .productVariationId(productVariationId)
                 .quantity(1)
                 .reservedQuantity(0)
@@ -130,17 +130,16 @@ class OrderServiceIntegrationTest {
         when(productServiceClient.retrieveInventory(any(UUID.class))).thenReturn(lowInventory);
 
         Order order = Order.builder()
-                .id(UUID.randomUUID())
                 .buyer(buyerId)
-                .storeId(UUID.randomUUID())
-                .selectedItems(List.of(
+                .seller(sellerId)
+                .storeId(storeId)
+                .selectedItems(new ArrayList<>(List.of(
                         OrderItem.builder()
-                                .id(UUID.randomUUID())
                                 .productSku(productVariationId)
                                 .quantity(5)
                                 .unitPrice(BigDecimal.valueOf(99.99))
                                 .build()
-                ))
+                )))
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
@@ -148,7 +147,6 @@ class OrderServiceIntegrationTest {
         try {
             orderService.create(order);
         } catch (Exception e) {
-            // Expected
             assertThat(e.getMessage()).contains("Insufficient stock");
         }
     }
@@ -158,17 +156,16 @@ class OrderServiceIntegrationTest {
         when(productServiceClient.retrieveProduct(any(UUID.class))).thenReturn(null);
 
         Order order = Order.builder()
-                .id(UUID.randomUUID())
                 .buyer(buyerId)
-                .storeId(UUID.randomUUID())
-                .selectedItems(List.of(
+                .seller(sellerId)
+                .storeId(storeId)
+                .selectedItems(new ArrayList<>(List.of(
                         OrderItem.builder()
-                                .id(UUID.randomUUID())
-                                .productSku(UUID.randomUUID())
+                                .productSku(productVariationId)
                                 .quantity(1)
                                 .unitPrice(BigDecimal.valueOf(99.99))
                                 .build()
-                ))
+                )))
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
@@ -176,33 +173,29 @@ class OrderServiceIntegrationTest {
         try {
             orderService.create(order);
         } catch (Exception e) {
-            // Expected
             assertThat(e.getMessage()).contains("Product not found");
         }
     }
 
     @Test
     void findByBuyer_shouldReturnOrders() {
-        // Create an order first
         Order order = Order.builder()
-                .id(UUID.randomUUID())
                 .buyer(buyerId)
-                .storeId(UUID.randomUUID())
-                .selectedItems(List.of(
+                .seller(sellerId)
+                .storeId(storeId)
+                .selectedItems(new ArrayList<>(List.of(
                         OrderItem.builder()
-                                .id(UUID.randomUUID())
                                 .productSku(productVariationId)
                                 .quantity(1)
                                 .unitPrice(BigDecimal.valueOf(99.99))
                                 .build()
-                ))
+                )))
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
 
         orderService.create(order);
 
-        // Find by buyer
         List<Order> orders = orderService.findByBuyer(buyerId);
 
         assertThat(orders).hasSize(1);
@@ -212,17 +205,16 @@ class OrderServiceIntegrationTest {
     @Test
     void findByStatus_shouldReturnFilteredOrders() {
         Order order = Order.builder()
-                .id(UUID.randomUUID())
                 .buyer(buyerId)
-                .storeId(UUID.randomUUID())
-                .selectedItems(List.of(
+                .seller(sellerId)
+                .storeId(storeId)
+                .selectedItems(new ArrayList<>(List.of(
                         OrderItem.builder()
-                                .id(UUID.randomUUID())
                                 .productSku(productVariationId)
                                 .quantity(1)
                                 .unitPrice(BigDecimal.valueOf(99.99))
                                 .build()
-                ))
+                )))
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
