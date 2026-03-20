@@ -9,10 +9,6 @@ spring:
 server:
   port: 0
 
-eureka:
-  client:
-    enabled: false
-
 logging:
   level:
     com.kawashreh.ecommerce: DEBUG
