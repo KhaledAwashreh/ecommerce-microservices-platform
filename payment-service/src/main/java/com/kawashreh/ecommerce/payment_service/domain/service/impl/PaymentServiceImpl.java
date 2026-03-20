@@ -32,13 +32,11 @@ public class PaymentServiceImpl implements PaymentService {
         logger.info("Processing payment for order: {}, buyer: {}, method: {}", orderId, buyerId, paymentMethod);
 
         Payment payment = Payment.builder()
-                .id(UUID.randomUUID())
                 .orderId(orderId)
                 .buyerId(buyerId)
                 .amount(BigDecimal.ZERO) // Would be fetched from order
                 .paymentMethod(paymentMethod)
                 .status(Payment.PaymentStatus.COMPLETED)
-                .transactionId(UUID.randomUUID().toString())
                 .paymentGateway("SIMULATED")
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
