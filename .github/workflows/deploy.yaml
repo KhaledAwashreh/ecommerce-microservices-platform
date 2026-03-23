@@ -1,0 +1,83 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag to deploy (e.g., latest, v1.0.0, commit SHA)'
+        required: false
+        default: 'latest'
+  workflow_run:
+    workflows: ["Build and Push Docker Images"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy to Kubernetes
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: vars
+        run: |
+          if [[ "${{ github.event.inputs.tag }}" != "" ]]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Authenticate to Kubernetes
+        uses: azure/k8s-set-context@v4
+        with:
+          method: service-account
+          k8s-url: ${{ secrets.K8S_URL }}
+          k8s-secret: ${{ secrets.KUBERNETES_SECRET }}
+
+      - name: Create ecommerce namespace
+        run: kubectl apply -f k8s/namespace.yaml
+
+      - name: Apply RBAC manifests
+        run: |
+          kubectl apply -f k8s/rbac/serviceaccount.yaml
+          kubectl apply -f k8s/rbac/role.yaml
+          kubectl apply -f k8s/rbac/rolebinding.yaml
+
+      - name: Apply ConfigMaps
+        run: |
+          kubectl apply -f k8s/services/api-gateway/api-gateway-configmap.yaml
+          kubectl apply -f k8s/services/user-service/user-configmap.yaml
+          kubectl apply -f k8s/services/product-service/product-configmap.yaml
+          kubectl apply -f k8s/services/order-service/order-configmap.yaml
+          kubectl apply -f k8s/services/payment-service/payment-configmap.yaml
+
+      - name: Deploy to Kubernetes
+        uses: azure/k8s-deploy@v5
+        with:
+          namespace: ecommerce
+          manifests: |
+            k8s/services/api-gateway/api-gateway-deployment.yaml
+            k8s/services/api-gateway/api-gateway-service.yaml
+            k8s/services/user-service/user-deployment.yaml
+            k8s/services/user-service/user-service.yaml
+            k8s/services/product-service/product-deployment.yaml
+            k8s/services/product-service/product-service.yaml
+            k8s/services/order-service/order-deployment.yaml
+            k8s/services/order-service/order-service.yaml
+            k8s/services/payment-service/payment-deployment.yaml
+            k8s/services/payment-service/payment-service.yaml
+          images: |
+            ghcr.io/kawashreh/ecommerce-microservices-platform/api-gateway:${{ steps.vars.outputs.tag }}
+            ghcr.io/kawashreh/ecommerce-microservices-platform/user-service:${{ steps.vars.outputs.tag }}
+            ghcr.io/kawashreh/ecommerce-microservices-platform/product-service:${{ steps.vars.outputs.tag }}
+            ghcr.io/kawashreh/ecommerce-microservices-platform/order-service:${{ steps.vars.outputs.tag }}
+            ghcr.io/kawashreh/ecommerce-microservices-platform/payment-service:${{ steps.vars.outputs.tag }}
