@@ -15,7 +15,7 @@ A full-stack microservices platform built with Spring Boot, Docker, Kubernetes, 
 | Docker Compose (local dev) | ✅ Complete |
 | Inter-service communication | ✅ Complete |
 | CI/CD pipelines | ✅ Complete |
-| Kubernetes deployment | 🚧 Partial (core manifests) |
+| Kubernetes deployment | ✅ Complete |
 | Integration testing | 🚧 In progress |
 | Observability (Prometheus/Grafana) | ⏳ Planned |
 | Performance testing | ⏳ Planned |
@@ -277,12 +277,64 @@ Kubernetes manifests under `k8s/`:
 
 ```
 k8s/
-├── namespace.yaml
-├── postgres/         # Deployment, Service, ConfigMap, Secret, PVC, init scripts
-├── redis/            # Deployment, Service, PVC
-└── services/         # api-gateway, user, product, order, payment
-                       # (deployment + service + configmap per service)
+├── namespace.yaml              # ecommerce namespace
+├── rbac/                      # RBAC configuration
+│   ├── serviceaccount.yaml    # github-actions service account
+│   ├── role.yaml              # deployment role (namespace-scoped)
+│   └── rolebinding.yaml       # binds role to service account
+├── services/                  # 5 microservices
+│   ├── api-gateway/
+│   ├── user-service/
+│   ├── product-service/
+│   ├── order-service/
+│   └── payment-service/
+│       # each contains: deployment.yaml, service.yaml, configmap.yaml
+└── (infrastructure manifests)
 ```
+
+### Local Development — Apply Manifests
+
+```bash
+# Apply namespace
+kubectl apply -f k8s/namespace.yaml
+
+# Apply RBAC (ServiceAccount, Role, RoleBinding)
+kubectl apply -f k8s/rbac/
+
+# Apply ConfigMaps for all services
+kubectl apply -f k8s/services/*/configmap.yaml
+
+# Deploy all services
+kubectl apply -f k8s/services/
+```
+
+### GHCR Image Pull Secret Setup
+
+To pull images from GitHub Container Registry, create an image pull secret in your Kubernetes cluster:
+
+```bash
+# Create secret for GHCR (replace OWNER with your GitHub username)
+kubectl create secret docker-registry github-container-registry \
+  --docker-server=ghcr.io \
+  --docker-username=<your-github-username> \
+  --docker-password=<github-personal-access-token> \
+  --docker-email=<your-email> \
+  -n ecommerce
+
+# Or apply from manifest:
+kubectl apply -f k8s/rbac/serviceaccount-secret.yaml
+```
+
+> **Note:** The deployment manifests reference `imagePullSecrets: - name: github-container-registry` to authenticate with GHCR.
+
+### Deploy Workflow Secrets
+
+The `deploy.yaml` workflow requires these GitHub secrets configured in your repository:
+
+| Secret | How to Get |
+|--------|------------|
+| `K8S_URL` | Run `kubectl cluster-info` to get the API server URL |
+| `KUBERNETES_SECRET` | Create a ServiceAccount with cluster-admin role, then get its token: `kubectl get secret <sa-token> -o jsonpath='{.data.token}' \| base64 -d` |
 
 ### Kubernetes — Production Hardening
 
@@ -298,6 +350,31 @@ k8s/
 ---
 
 ## CI/CD
+
+Full CI/CD pipeline with three workflows:
+
+```mermaid
+flowchart TB
+    subgraph "1. Build & Test"
+        A1["Push/PR to main"] --> A2["main.yml"]
+        A2 --> A3["mvn clean verify"]
+        A3 --> A4["JaCoCo Coverage"]
+    end
+
+    subgraph "2. Docker Build"
+        A4 --> B1["docker.yml"]
+        B1 --> B2["Build + Push to GHCR"]
+    end
+
+    subgraph "3. Deploy"
+        B2 --> C1["deploy.yaml"]
+        C1 --> C2["Apply to Kubernetes"]
+    end
+
+    style A4 fill:#22c55e,color:#fff
+    style B2 fill:#22c55e,color:#fff
+    style C2 fill:#22c55e,color:#fff
+```
 
 ### Build & Test Pipeline (`main.yml`)
 
@@ -335,6 +412,29 @@ docker pull ghcr.io/kawashreh/ecommerce-microservices-platform/order-service:lat
 docker pull ghcr.io/kawashreh/ecommerce-microservices-platform/payment-service:latest
 docker pull ghcr.io/kawashreh/ecommerce-microservices-platform/frontend-service:latest
 ```
+
+### Deploy Pipeline (`deploy.yaml`)
+
+```mermaid
+flowchart LR
+    A(["docker.yml\nComplete"]) --> B["workflow_dispatch\nor auto-trigger"]
+    B --> C["Auth to\nKubernetes"]
+    C --> D["Apply namespace<br/>RBAC manifests"]
+    D --> E["Apply ConfigMaps"]
+    E --> F["Deploy 5 services<br/>Deployments + Services"]
+    F --> G(["✅ Deployed"])
+```
+
+- **Trigger:** Automatically after `docker.yml` completes on `main`, or manual via `workflow_dispatch`
+- **Image Tag:** Specified via `workflow_dispatch` input (default: `latest`)
+- **RBAC:** Creates ServiceAccount, Role, and RoleBinding in `ecommerce` namespace
+- **Deploys:** All 5 microservices with ConfigMaps and ClusterIP services
+
+**Required GitHub Secrets:**
+| Secret | Description |
+|--------|-------------|
+| `K8S_URL` | Kubernetes API server URL |
+| `KUBERNETES_SECRET` | Kubernetes service account token or kubeconfig |
 
 ### Build Locally
 
