@@ -13,6 +13,8 @@ spec:
       labels:
         app: api-gateway
     spec:
+      imagePullSecrets:
+        - name: github-container-registry
       initContainers:
         - name: wait-for-redis
           image: busybox:1.36
@@ -26,7 +28,7 @@ spec:
               memory: "64Mi"
       containers:
         - name: api-gateway
-          image: api-gateway:latest
+          image: ghcr.io/kawashreh/ecommerce-microservices-platform/api-gateway:latest
           ports:
             - containerPort: 8080
           env:
