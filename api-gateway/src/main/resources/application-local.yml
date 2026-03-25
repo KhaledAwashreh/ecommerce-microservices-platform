@@ -77,6 +77,21 @@ server:
   port: 8765
 
 management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
   zipkin:
     tracing:
       endpoint: http://localhost:9411/api/v2/spans
