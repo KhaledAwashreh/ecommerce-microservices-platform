@@ -19,7 +19,7 @@ services:
       - ecommerce-network
 
   # ==========================
-  # Database Layer
+  # Database Layer (Unified - matches k8s)
   # ==========================
   postgres-server:
     image: postgres:15
@@ -73,36 +73,8 @@ services:
       - ecommerce-network
 
   # ==========================
-  # Infrastructure Services
+  # API Gateway (matches k8s config)
   # ==========================
-  naming-server:
-    container_name: naming-server
-    build:
-      context: ./naming-server
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      - ZIPKIN_BASE_URL=http://zipkin:9411
-    networks:
-      - ecommerce-network
-    ports:
-      - "8761:8761"
-
-  config-server:
-    container_name: config-server
-    build:
-      context: ./config-server
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      - ZIPKIN_BASE_URL=http://zipkin:9411
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://naming-server:8761/eureka
-    depends_on:
-      naming-server:
-        condition: service_started
-    networks:
-      - ecommerce-network
-
   api-gateway:
     container_name: api-gateway
     build:
@@ -113,59 +85,42 @@ services:
       - "8765:8765"
     environment:
       - ZIPKIN_BASE_URL=http://zipkin:9411
+      - SPRING_DATA_REDIS_HOST=redis-server
+      - SPRING_DATA_REDIS_PORT=6379
+      - USER_SERVICE_URL=http://user-service:8080
+      - PRODUCT_SERVICE_URL=http://product-service:8080
+      - ORDER_SERVICE_URL=http://order-service:8080
+      - PAYMENT_SERVICE_URL=http://payment-service:8080
+      - EUREKA_CLIENT_ENABLED=false
     depends_on:
-      naming-server:
-        condition: service_started
       postgres-server:
+        condition: service_healthy
+      redis-server:
         condition: service_healthy
     networks:
       - ecommerce-network
 
   # ==========================
-  # Business Services
+  # Business Services (matches k8s config)
   # ==========================
-  order-service:
-    container_name: order-service
+  user-service:
+    container_name: user-service
     build:
-      context: ./order-service
+      context: ./user-service
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
       - ZIPKIN_BASE_URL=http://zipkin:9411
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-server:5432/orderdb
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-server:5432/userdb
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=test1234
       - SPRING_DATA_REDIS_HOST=redis-server
       - SPRING_DATA_REDIS_PORT=6379
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://naming-server:8761/eureka
+      - EUREKA_CLIENT_ENABLED=false
     depends_on:
-      naming-server:
-        condition: service_started
-      config-server:
-        condition: service_started
       postgres-server:
         condition: service_healthy
-    networks:
-      - ecommerce-network
-
-  payment-service:
-    container_name: payment-service
-    build:
-      context: ./payment-service
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      - ZIPKIN_BASE_URL=http://zipkin:9411
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-server:5432/paymentdb
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=test1234
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://naming-server:8761/eureka
-    depends_on:
-      naming-server:
-        condition: service_started
-      config-server:
-        condition: service_started
-      postgres-server:
+      redis-server:
         condition: service_healthy
     networks:
       - ecommerce-network
@@ -181,37 +136,59 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-server:5432/productdb
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=test1234
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://naming-server:8761/eureka
+      - SPRING_DATA_REDIS_HOST=redis-server
+      - SPRING_DATA_REDIS_PORT=6379
+      - EUREKA_CLIENT_ENABLED=false
     depends_on:
-      naming-server:
-        condition: service_started
-      config-server:
-        condition: service_started
       postgres-server:
+        condition: service_healthy
+      redis-server:
         condition: service_healthy
     networks:
       - ecommerce-network
 
-  user-service:
-    container_name: user-service
+  order-service:
+    container_name: order-service
     build:
-      context: ./user-service
+      context: ./order-service
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
       - ZIPKIN_BASE_URL=http://zipkin:9411
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-server:5432/userdb
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-server:5432/orderdb
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=test1234
       - SPRING_DATA_REDIS_HOST=redis-server
       - SPRING_DATA_REDIS_PORT=6379
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://naming-server:8761/eureka
+      - PRODUCT_SERVICE_URL=http://product-service:8080
+      - PAYMENT_SERVICE_URL=http://payment-service:8080
+      - EUREKA_CLIENT_ENABLED=false
     depends_on:
-      naming-server:
-        condition: service_started
-      config-server:
-        condition: service_started
       postgres-server:
+        condition: service_healthy
+      redis-server:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+
+  payment-service:
+    container_name: payment-service
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - ZIPKIN_BASE_URL=http://zipkin:9411
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-server:5432/paymentdb
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=test1234
+      - SPRING_DATA_REDIS_HOST=redis-server
+      - SPRING_DATA_REDIS_PORT=6379
+      - EUREKA_CLIENT_ENABLED=false
+    depends_on:
+      postgres-server:
+        condition: service_healthy
+      redis-server:
         condition: service_healthy
     networks:
       - ecommerce-network
@@ -227,10 +204,8 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=local
       - API_GATEWAY_BASE-URL=http://api-gateway:8765
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://naming-server:8761/eureka
+      - EUREKA_CLIENT_ENABLED=false
     depends_on:
-      naming-server:
-        condition: service_started
       api-gateway:
         condition: service_started
     networks:
