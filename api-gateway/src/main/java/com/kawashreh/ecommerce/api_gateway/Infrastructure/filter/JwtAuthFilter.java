@@ -30,8 +30,9 @@ public class JwtAuthFilter implements WebFilter {
         String path = exchange.getRequest().getPath().value();
         logger.debug("JwtAuthFilter processing path: {}", path);
 
-        if (path.contains("/api/v1/user/register") || path.contains("/api/v1/user/login")) {
-            logger.debug("Path is public, skipping JWT validation");
+        // Skip JWT validation for public endpoints
+        if (isPublicPath(path)) {
+            logger.debug("Path is public, skipping JWT validation: {}", path);
             return chain.filter(exchange);
         }
 
@@ -43,7 +44,7 @@ public class JwtAuthFilter implements WebFilter {
 
         String token = authHeader.substring(7);
         logger.debug("Token extracted, length: {}", token.length());
-        
+
         return Mono.fromCallable(() -> jwtService.extractUsername(token))
                 .doOnNext(username -> logger.debug("Extracted username from token: {}", username))
                 .flatMap(username -> {
@@ -76,8 +77,11 @@ public class JwtAuthFilter implements WebFilter {
                 });
     }
 
+    private boolean isPublicPath(String path) {
+        return path.contains("/api/v1/user/register") ||
+                path.contains("/api/v1/user/login") ||
+                path.contains("/actuator/health") ||
+                path.contains("/actuator/info") ||
+                path.contains("/actuator/metrics");
+    }
 }
-
-
-
-

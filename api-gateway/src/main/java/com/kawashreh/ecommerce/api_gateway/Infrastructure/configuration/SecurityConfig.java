@@ -23,12 +23,20 @@ public class SecurityConfig {
         http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/api/v1/user/register", "/api/v1/user/login").permitAll()
+                        // Public endpoints
+                        .pathMatchers(
+                                "/api/v1/user/register",
+                                "/api/v1/user/login",
+                                // Actuator endpoints for health checks
+                                "/actuator/health",
+                                "/actuator/health/**",
+                                "/actuator/info",
+                                "/actuator/metrics"
+                        ).permitAll()
                         .anyExchange().authenticated()
                 )
                 .addFilterAt(jwtAuthFilter, SecurityWebFiltersOrder.AUTHENTICATION);
 
         return http.build();
     }
-
 }
