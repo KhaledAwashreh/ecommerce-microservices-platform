@@ -112,8 +112,8 @@ services:
 
   api-gateway:
     build:
-      context: ./api-gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: api-gateway/Dockerfile
     container_name: api-gateway
     ports:
       - "8765:8765"
@@ -144,8 +144,8 @@ services:
 
   user-service:
     build:
-      context: ./user-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: user-service/Dockerfile
     container_name: user-service
     ports:
       - "8080:8080"
@@ -173,8 +173,8 @@ services:
 
   product-service:
     build:
-      context: ./product-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: product-service/Dockerfile
     container_name: product-service
     ports:
       - "8081:8080"
@@ -198,8 +198,8 @@ services:
 
   order-service:
     build:
-      context: ./order-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: order-service/Dockerfile
     container_name: order-service
     ports:
       - "8082:8080"
@@ -229,8 +229,8 @@ services:
 
   payment-service:
     build:
-      context: ./payment-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: payment-service/Dockerfile
     container_name: payment-service
     ports:
       - "8083:8080"
@@ -254,8 +254,8 @@ services:
 
   frontend-service:
     build:
-      context: ./frontend-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend-service/Dockerfile
     container_name: frontend-service
     ports:
       - "3000:3000"
