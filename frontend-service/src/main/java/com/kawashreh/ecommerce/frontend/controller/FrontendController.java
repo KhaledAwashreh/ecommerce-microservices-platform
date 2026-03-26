@@ -1,63 +1,58 @@
 package com.kawashreh.ecommerce.frontend.controller;
 
-import com.kawashreh.ecommerce.frontend.config.JwtService;
+import com.kawashreh.ecommerce.frontend.client.*;
 import com.kawashreh.ecommerce.frontend.config.SessionManager;
 import com.kawashreh.ecommerce.frontend.dto.*;
-import com.kawashreh.ecommerce.frontend.service.ApiService;
+import com.kawashreh.ecommerce.frontend.dto.request.*;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Mono;
 
-import java.math.BigDecimal;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.UUID;
 
 @Controller
 public class FrontendController {
 
-    @Autowired
-    private ApiService apiService;
+    private static final Logger log = LoggerFactory.getLogger(FrontendController.class);
 
-    @Autowired
-    private SessionManager sessionManager;
+    @Autowired private SessionManager sessionManager;
+    @Autowired private UserServiceClient userServiceClient;
+    @Autowired private AddressServiceClient addressServiceClient;
+    @Autowired private ProductServiceClient productServiceClient;
+    @Autowired private OrderServiceClient orderServiceClient;
+    @Autowired private InventoryServiceClient inventoryServiceClient;
 
-    @Autowired
-    private JwtService jwtService;
+    // -------------------------------------------------------------------------
+    // Auth
+    // -------------------------------------------------------------------------
 
     @GetMapping("/")
-    public String home(Model model, HttpServletRequest request) {
-        model.addAttribute("title", "Home - E-Commerce");
+    public String home() {
         return "redirect:/products";
     }
 
     @GetMapping("/login")
     public String loginPage(@RequestParam(required = false) String error, Model model) {
         model.addAttribute("title", "Login");
-        if (error != null) {
-            model.addAttribute("error", "Invalid username or password");
-        }
+        if (error != null) model.addAttribute("error", "Invalid username or password");
         return "auth/login";
     }
 
     @PostMapping("/login")
-    public String login(@RequestParam String username, 
-                        @RequestParam String password,
-                        HttpServletRequest request,
-                        Model model) {
-        UserLoginDto loginDto = new UserLoginDto(username, password);
-        
+    public String login(@ModelAttribute UserLoginRequest loginRequest, HttpServletRequest request) {
         try {
-            String token = apiService.login(loginDto).block();
+            String token = userServiceClient.login(loginRequest);
             if (token != null && !token.isEmpty()) {
-                sessionManager.storeToken(request, token, username);
+                sessionManager.storeToken(request, token, loginRequest.getUsername());
                 return "redirect:/products";
             }
         } catch (Exception e) {
-            // Login failed
+            log.warn("Login failed for '{}': {}", loginRequest.getUsername(), e.getMessage());
         }
         return "redirect:/login?error=true";
     }
@@ -69,31 +64,13 @@ public class FrontendController {
     }
 
     @PostMapping("/register")
-    public String register(@RequestParam String name,
-                          @RequestParam String username,
-                          @RequestParam String email,
-                          @RequestParam String phone,
-                          @RequestParam String birthdate,
-                          @RequestParam String gender,
-                          @RequestParam String rawPassword,
-                          HttpServletRequest request,
-                          Model model) {
-        UserRegisterDto registerDto = UserRegisterDto.builder()
-                .name(name)
-                .username(username)
-                .email(email)
-                .phone(phone)
-                .rawPassword(rawPassword)
-                .gender(gender)
-                .build();
-        
+    public String register(@RequestBody UserRegisterRequest registerRequest) {
+        if (registerRequest.getBirthdate() == null) return "redirect:/register?error=true";
         try {
-            UserDto user = apiService.register(registerDto).block();
-            if (user != null) {
+            if (userServiceClient.register(registerRequest) != null)
                 return "redirect:/login?registered=true";
-            }
         } catch (Exception e) {
-            // Registration failed
+            log.warn("Registration failed: {}", e.getMessage());
         }
         return "redirect:/register?error=true";
     }
@@ -104,203 +81,122 @@ public class FrontendController {
         return "redirect:/login";
     }
 
+    // -------------------------------------------------------------------------
+    // Products
+    // -------------------------------------------------------------------------
+
     @GetMapping("/products")
-    public String products(@RequestParam(required = false) String category,
-                          @RequestParam(required = false) String q,
-                          Model model,
-                          HttpServletRequest request) {
+    public String products(Model model, HttpServletRequest request) {
         model.addAttribute("title", "All Products");
-        
-        String token = sessionManager.getToken(request);
-        if (token == null) {
+        if (!sessionManager.isAuthenticated(request)) {
             model.addAttribute("products", Collections.emptyList());
             return "product/list";
         }
-
         try {
-            List<ProductDto> products = apiService.getAllProducts(token).block();
+            var products = productServiceClient.getAllProducts();
             model.addAttribute("products", products != null ? products : Collections.emptyList());
         } catch (Exception e) {
+            log.error("Failed to fetch products: {}", e.getMessage());
             model.addAttribute("products", Collections.emptyList());
         }
-        
         return "product/list";
     }
 
     @GetMapping("/products/{productId}")
-    public String productDetail(@PathVariable String productId,
-                               Model model,
-                               HttpServletRequest request) {
-        String token = sessionManager.getToken(request);
-        
+    public String productDetail(@PathVariable UUID productId, Model model) {
         try {
-            ProductDto product = apiService.getProductById(productId, token).block();
-            model.addAttribute("product", product);
+            model.addAttribute("product", productServiceClient.getProductById(productId));
         } catch (Exception e) {
+            log.warn("Product not found: {}", productId);
             model.addAttribute("error", "Product not found");
         }
-        
         return "product/detail";
     }
 
-    @GetMapping("/cart")
-    public String cart(Model model, HttpServletRequest request) {
-        model.addAttribute("title", "Shopping Cart");
-        
-        String token = sessionManager.getToken(request);
-        if (token == null) {
-            return "redirect:/login";
-        }
+    // -------------------------------------------------------------------------
+    // Cart (not ready)
+    // -------------------------------------------------------------------------
 
-        model.addAttribute("cartItems", Collections.emptyList());
-        model.addAttribute("subtotal", "0.00");
-        model.addAttribute("tax", "0.00");
-        model.addAttribute("total", "0.00");
-        
-        return "cart/cart";
-    }
+//    @GetMapping("/cart")
+//    public String cart(Model model, HttpServletRequest request) { ... }
 
-    @PostMapping("/cart/add")
-    public String addToCart(@RequestParam String productId,
-                           @RequestParam(defaultValue = "1") int quantity,
-                           HttpServletRequest request) {
-        String token = sessionManager.getToken(request);
-        if (token == null) {
-            return "redirect:/login";
-        }
-        return "redirect:/cart";
-    }
+//    @PostMapping("/cart/add")
+//    public String addToCart(...) { ... }
+
+    // -------------------------------------------------------------------------
+    // Orders
+    // -------------------------------------------------------------------------
 
     @GetMapping("/orders")
     public String orders(Model model, HttpServletRequest request) {
         model.addAttribute("title", "Your Orders");
-        
-        String token = sessionManager.getToken(request);
         String username = sessionManager.getUsername(request);
-        
-        if (token == null || username == null) {
-            return "redirect:/login";
-        }
-
+        if (!sessionManager.isAuthenticated(request) || username == null) return "redirect:/login";
         try {
-            UserDto user = apiService.getUserByUsername(username, token).block();
-            if (user != null) {
-                List<OrderDto> orders = apiService.getOrdersByBuyer(user.getId().toString(), token).block();
-                model.addAttribute("orders", orders != null ? orders : Collections.emptyList());
-            }
+            UserDto user = userServiceClient.getUserByUsername(username);
+            var orders = (user != null && user.getId() != null)
+                    ? orderServiceClient.getOrdersByBuyer(user.getId())
+                    : Collections.emptyList();
+            model.addAttribute("orders", orders != null ? orders : Collections.emptyList());
         } catch (Exception e) {
+            log.error("Failed to load orders for '{}': {}", username, e.getMessage());
             model.addAttribute("orders", Collections.emptyList());
         }
-        
         return "order/orders";
     }
+
+    // -------------------------------------------------------------------------
+    // Profile & Addresses
+    // -------------------------------------------------------------------------
 
     @GetMapping("/profile")
     public String profile(Model model, HttpServletRequest request) {
         model.addAttribute("title", "Your Account");
-        
-        String token = sessionManager.getToken(request);
         String username = sessionManager.getUsername(request);
-        
-        if (token == null || username == null) {
-            return "redirect:/login";
-        }
-
+        if (!sessionManager.isAuthenticated(request) || username == null) return "redirect:/login";
         try {
-            UserDto user = apiService.getUserByUsername(username, token).block();
-            model.addAttribute("user", user);
-            
-            List<AddressDto> addresses = apiService.getAddresses(token).block();
+            model.addAttribute("user", userServiceClient.getUserByUsername(username));
+            var addresses = addressServiceClient.getAddresses();
             model.addAttribute("addresses", addresses != null ? addresses : Collections.emptyList());
         } catch (Exception e) {
-            // Handle error
+            log.error("Failed to load profile for '{}': {}", username, e.getMessage());
         }
-        
         return "user/profile";
     }
 
     @GetMapping("/addresses")
     public String addresses(Model model, HttpServletRequest request) {
         model.addAttribute("title", "Your Addresses");
-        
-        String token = sessionManager.getToken(request);
-        if (token == null) {
-            return "redirect:/login";
-        }
-
+        if (!sessionManager.isAuthenticated(request)) return "redirect:/login";
         try {
-            List<AddressDto> addresses = apiService.getAddresses(token).block();
+            var addresses = addressServiceClient.getAddresses();
             model.addAttribute("addresses", addresses != null ? addresses : Collections.emptyList());
         } catch (Exception e) {
+            log.error("Failed to load addresses: {}", e.getMessage());
             model.addAttribute("addresses", Collections.emptyList());
         }
-        
         return "user/addresses";
     }
 
     @PostMapping("/addresses/add")
-    public String addAddress(@RequestParam String street,
-                             @RequestParam String city,
-                             @RequestParam String state,
-                             @RequestParam String postalCode,
-                             @RequestParam String country,
-                             @RequestParam String phoneNumber,
-                             @RequestParam(required = false) String additionalInformation,
-                             @RequestParam(required = false, defaultValue = "false") boolean defaultAddress,
-                             HttpServletRequest request) {
-        String token = sessionManager.getToken(request);
-        if (token == null) {
-            return "redirect:/login";
-        }
-
-        AddressDto address = AddressDto.builder()
-                .street(street)
-                .city(city)
-                .state(state)
-                .postalCode(postalCode)
-                .country(country)
-                .phoneNumber(phoneNumber)
-                .additionalInformation(additionalInformation)
-                .defaultAddress(defaultAddress)
-                .build();
-
+    public String addAddress(@ModelAttribute AddressRequest addressRequest, HttpServletRequest request) {
+        if (!sessionManager.isAuthenticated(request)) return "redirect:/login";
         try {
-            apiService.createAddress(address, token).block();
+            addressServiceClient.createAddress(addressRequest);
         } catch (Exception e) {
-            // Handle error
+            log.error("Failed to add address: {}", e.getMessage());
         }
-        
         return "redirect:/addresses";
     }
 
     @PostMapping("/addresses/delete")
-    public String deleteAddress(@RequestParam String addressId,
-                                HttpServletRequest request) {
-        String token = sessionManager.getToken(request);
-        if (token == null) {
-            return "redirect:/login";
-        }
-
+    public String deleteAddress(@RequestParam UUID addressId, HttpServletRequest request) {
+        if (!sessionManager.isAuthenticated(request)) return "redirect:/login";
         try {
-            apiService.deleteAddress(addressId, token).block();
+            addressServiceClient.deleteAddress(addressId);
         } catch (Exception e) {
-            // Handle error
+            log.error("Failed to delete address '{}': {}", addressId, e.getMessage());
         }
-        
         return "redirect:/addresses";
-    }
-
-    @GetMapping("/inventory")
-    public String inventory(Model model, HttpServletRequest request) {
-        model.addAttribute("title", "Inventory Management");
-        
-        String token = sessionManager.getToken(request);
-        if (token == null) {
-            return "redirect:/login";
-        }
-
-        model.addAttribute("inventory", Collections.emptyList());
-        
-        return "inventory/inventory";
     }
 }

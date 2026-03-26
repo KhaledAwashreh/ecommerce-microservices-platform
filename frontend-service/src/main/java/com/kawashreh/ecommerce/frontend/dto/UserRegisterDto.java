@@ -1,5 +1,6 @@
 package com.kawashreh.ecommerce.frontend.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
@@ -16,5 +17,7 @@ public class UserRegisterDto {
     private java.util.Date birthdate;
     private String phone;
     private String gender;
+    
+    @JsonProperty("RawPassword")
     private String rawPassword;
 }
