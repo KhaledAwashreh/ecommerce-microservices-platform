@@ -4,6 +4,10 @@
 spring:
   application:
     name: product-service
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/productdb}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
