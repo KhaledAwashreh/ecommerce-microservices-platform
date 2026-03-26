@@ -1,10 +1,10 @@
 package com.kawashreh.ecommerce.api_gateway.Infrastructure.filter;
 
 import com.kawashreh.ecommerce.api_gateway.Infrastructure.http.client.ReactiveUserServiceClient;
-import com.kawashreh.ecommerce.api_gateway.Infrastructure.http.dto.UserDto;
 import com.kawashreh.ecommerce.api_gateway.Infrastructure.security.JwtService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -16,7 +16,8 @@ import reactor.core.publisher.Mono;
 @Component
 public class JwtAuthFilter implements WebFilter {
 
-    private static final Logger logger = LoggerFactory.getLogger(JwtAuthFilter.class);
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthFilter.class);
+
     private final ReactiveUserServiceClient userServiceClient;
     private final JwtService jwtService;
 
@@ -28,60 +29,54 @@ public class JwtAuthFilter implements WebFilter {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
-        logger.debug("JwtAuthFilter processing path: {}", path);
 
-        // Skip JWT validation for public endpoints
         if (isPublicPath(path)) {
-            logger.debug("Path is public, skipping JWT validation: {}", path);
             return chain.filter(exchange);
         }
 
         String authHeader = exchange.getRequest().getHeaders().getFirst("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            logger.debug("No Authorization header or invalid format");
-            return chain.filter(exchange);
+            log.debug("Missing or malformed Authorization header for path: {}", path);
+            return unauthorized(exchange);
         }
 
         String token = authHeader.substring(7);
-        logger.debug("Token extracted, length: {}", token.length());
 
         return Mono.fromCallable(() -> jwtService.extractUsername(token))
-                .doOnNext(username -> logger.debug("Extracted username from token: {}", username))
                 .flatMap(username -> {
                     if (username == null) {
-                        logger.warn("Username is null after extraction");
-                        return chain.filter(exchange);
+                        log.warn("Could not extract username from token");
+                        return unauthorized(exchange);
                     }
-                    logger.debug("Fetching user details for username: {}", username);
-                    return userServiceClient.retrieveByUsername(username, token)
-                            .doOnNext(userDetails -> logger.debug("Retrieved user details: {}", userDetails.getUsername()))
+                    return userServiceClient.retrieveByUsername(username)
                             .flatMap(userDetails -> {
                                 if (jwtService.validateToken(token, userDetails)) {
-                                    logger.info("Token validated successfully for user: {}", userDetails.getUsername());
+                                    log.info("Token validated for user: {}", userDetails.getUsername());
                                     UsernamePasswordAuthenticationToken authentication =
                                             new UsernamePasswordAuthenticationToken(userDetails, null, null);
                                     return chain.filter(exchange)
                                             .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication));
                                 }
-                                logger.warn("Token validation failed for user: {}", userDetails.getUsername());
-                                return chain.filter(exchange);
-                            })
-                            .onErrorResume(e -> {
-                                logger.error("Error retrieving user details: {}", e.getMessage(), e);
-                                return chain.filter(exchange);
+                                log.warn("Token validation failed for user: {}", userDetails.getUsername());
+                                return unauthorized(exchange);
                             });
                 })
                 .onErrorResume(e -> {
-                    logger.error("Error in JWT filter: {}", e.getMessage(), e);
-                    return chain.filter(exchange);
+                    log.error("JWT filter error for path {}: {}", path, e.getMessage());
+                    return unauthorized(exchange);
                 });
+    }
+
+    private Mono<Void> unauthorized(ServerWebExchange exchange) {
+        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+        return exchange.getResponse().setComplete();
     }
 
     private boolean isPublicPath(String path) {
         return path.contains("/api/v1/user/register") ||
-                path.contains("/api/v1/user/login") ||
-                path.contains("/actuator/health") ||
-                path.contains("/actuator/info") ||
+                path.contains("/api/v1/user/login")    ||
+                path.contains("/actuator/health")       ||
+                path.contains("/actuator/info")         ||
                 path.contains("/actuator/metrics");
     }
 }
