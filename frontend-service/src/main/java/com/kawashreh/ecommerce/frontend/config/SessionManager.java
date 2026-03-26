@@ -8,8 +8,7 @@ import org.springframework.stereotype.Component;
 public class SessionManager {
 
     public static final String JWT_TOKEN = "jwt_token";
-    public static final String USER_ID = "user_id";
-    public static final String USERNAME = "username";
+    public static final String USERNAME  = "username";
 
     public void storeToken(HttpServletRequest request, String token, String username) {
         HttpSession session = request.getSession();
@@ -19,24 +18,21 @@ public class SessionManager {
 
     public String getToken(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
-        if (session == null) return null;
-        return (String) session.getAttribute(JWT_TOKEN);
+        return session != null ? (String) session.getAttribute(JWT_TOKEN) : null;
     }
 
     public String getUsername(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
-        if (session == null) return null;
-        return (String) session.getAttribute(USERNAME);
+        return session != null ? (String) session.getAttribute(USERNAME) : null;
+    }
+
+    public boolean isAuthenticated(HttpServletRequest request) {
+        String token = getToken(request);
+        return token != null && !token.isEmpty();
     }
 
     public void invalidate(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
-        if (session != null) {
-            session.invalidate();
-        }
-    }
-
-    public boolean isAuthenticated(HttpServletRequest request) {
-        return getToken(request) != null;
+        if (session != null) session.invalidate();
     }
 }
