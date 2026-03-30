@@ -1,9 +1,11 @@
 package com.kawashreh.ecommerce.frontend.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
-import lombok.NonNull;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.util.Date;
 
@@ -16,23 +18,18 @@ import java.util.Date;
 @AllArgsConstructor
 public class UserRegisterRequest {
     
-    @NonNull
     private String name;
     
-    @NonNull
     private String username;
     
-    @NonNull
     private String email;
     
-    @NonNull
+    @DateTimeFormat(pattern = "yyyy-MM-dd")
     private Date birthdate;
     
-    @NonNull
     private String phone;
     
     private String gender;
     
-    @NonNull
     private String rawPassword;
 }
