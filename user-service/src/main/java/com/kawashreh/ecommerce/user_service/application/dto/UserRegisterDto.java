@@ -12,6 +12,6 @@ public class UserRegisterDto extends UserDto {
 
 
     @NonNull
-    private String RawPassword;
+    private String rawPassword;
 
 }
