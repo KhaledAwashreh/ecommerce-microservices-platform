@@ -155,11 +155,14 @@ public class FrontendController {
         String username = sessionManager.getUsername(request);
         if (!sessionManager.isAuthenticated(request) || username == null) return "redirect:/login";
         try {
-            model.addAttribute("user", userServiceClient.getUserByUsername(username));
+            UserDto user = userServiceClient.getUserByUsername(username);
+            if (user == null) return "redirect:/login";
+            model.addAttribute("user", user);
             var addresses = addressServiceClient.getAddresses();
             model.addAttribute("addresses", addresses != null ? addresses : Collections.emptyList());
         } catch (Exception e) {
             log.error("Failed to load profile for '{}': {}", username, e.getMessage());
+            return "redirect:/login";
         }
         return "user/profile";
     }

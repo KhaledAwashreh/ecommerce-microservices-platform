@@ -204,6 +204,7 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=local
       - API_GATEWAY_BASE-URL=http://api-gateway:8765
+      - ZIPKIN_BASE_URL=http://zipkin:9411
       - EUREKA_CLIENT_ENABLED=false
     depends_on:
       api-gateway:

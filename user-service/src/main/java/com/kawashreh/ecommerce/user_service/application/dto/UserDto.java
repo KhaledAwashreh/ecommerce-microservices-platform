@@ -33,10 +33,4 @@ public class UserDto {
 
     private Gender gender;
 
-    @NonNull
-    private Instant createdAt;
-
-    @NonNull
-    private Instant updatedAt;
-
 }

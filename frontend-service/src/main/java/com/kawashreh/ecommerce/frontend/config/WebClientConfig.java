@@ -16,11 +16,11 @@ public class WebClientConfig {
     private String gatewayBaseUrl;
 
     @Bean
-    public WebClient webClient() {
+    public WebClient webClient(WebClient.Builder builder) {
         HttpClient httpClient = HttpClient.create()
                 .responseTimeout(Duration.ofSeconds(30));
 
-        return WebClient.builder()
+        return builder
                 .baseUrl(gatewayBaseUrl)
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .defaultHeader("Content-Type", "application/json")
