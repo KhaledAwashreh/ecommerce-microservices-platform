@@ -114,14 +114,23 @@ public class FrontendController {
     }
 
     // -------------------------------------------------------------------------
-    // Cart (not ready)
+    // Cart & Checkout
     // -------------------------------------------------------------------------
 
-//    @GetMapping("/cart")
-//    public String cart(Model model, HttpServletRequest request) { ... }
+    @GetMapping("/cart")
+    public String cart(Model model, HttpServletRequest request) {
+        model.addAttribute("title", "Shopping Cart");
+        if (!sessionManager.isAuthenticated(request)) return "redirect:/login";
+        model.addAttribute("cartItems", Collections.emptyList());
+        return "cart/cart";
+    }
 
-//    @PostMapping("/cart/add")
-//    public String addToCart(...) { ... }
+    @GetMapping("/checkout")
+    public String checkout(Model model, HttpServletRequest request) {
+        model.addAttribute("title", "Checkout");
+        if (!sessionManager.isAuthenticated(request)) return "redirect:/login";
+        return "cart/checkout";
+    }
 
     // -------------------------------------------------------------------------
     // Orders
@@ -201,5 +210,43 @@ public class FrontendController {
             log.error("Failed to delete address '{}': {}", addressId, e.getMessage());
         }
         return "redirect:/addresses";
+    }
+
+    // -------------------------------------------------------------------------
+    // Inventory
+    // -------------------------------------------------------------------------
+
+    @GetMapping("/inventory")
+    public String inventory(Model model, HttpServletRequest request) {
+        model.addAttribute("title", "Inventory Management");
+        if (!sessionManager.isAuthenticated(request)) return "redirect:/login";
+        model.addAttribute("inventory", Collections.emptyList());
+        return "inventory/inventory";
+    }
+
+    // -------------------------------------------------------------------------
+    // Product Search (htmx endpoint)
+    // -------------------------------------------------------------------------
+
+    @GetMapping("/products/search")
+    public String searchProducts(@RequestParam(required = false) String q, Model model, HttpServletRequest request) {
+        model.addAttribute("title", "Search Results");
+        if (q == null || q.isBlank()) {
+            model.addAttribute("products", Collections.emptyList());
+            return "product/list";
+        }
+        try {
+            var all = productServiceClient.getAllProducts();
+            var filtered = (all != null)
+                    ? all.stream()
+                         .filter(p -> p.getName() != null && p.getName().toLowerCase().contains(q.toLowerCase()))
+                         .toList()
+                    : Collections.emptyList();
+            model.addAttribute("products", filtered);
+        } catch (Exception e) {
+            log.error("Product search failed for '{}': {}", q, e.getMessage());
+            model.addAttribute("products", Collections.emptyList());
+        }
+        return "product/list";
     }
 }
