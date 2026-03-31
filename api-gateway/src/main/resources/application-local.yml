@@ -56,7 +56,7 @@ spring:
         - id: payment-service
           uri: http://payment-service:8080
           predicates:
-            - Path=/api/v1/payments/**
+            - Path=/api/v1/payment/**
           filters:
             - name: Retry
               args:

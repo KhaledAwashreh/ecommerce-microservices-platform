@@ -75,6 +75,20 @@ spring:
                 name: user-service
                 fallbackUri: forward:/fallback
 
+        - id: payment-service
+          uri: http://payment-service:8080
+          predicates:
+            - Path=/api/v1/payment/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                methods: GET,POST
+            - name: CircuitBreaker
+              args:
+                name: payment-service
+                fallbackUri: forward:/fallback
+
 server:
   port: 8765
 
@@ -100,6 +114,8 @@ resilience4j:
         baseConfig: default
       product-service:
         baseConfig: default
+      payment-service:
+        baseConfig: default
 
   retry:
     configs:
@@ -113,6 +129,8 @@ resilience4j:
       user-service:
         baseConfig: default
       product-service:
+        baseConfig: default
+      payment-service:
         baseConfig: default
 logging:
   pattern:
