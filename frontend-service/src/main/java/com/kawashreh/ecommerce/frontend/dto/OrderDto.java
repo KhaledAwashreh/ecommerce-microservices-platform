@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.NonNull;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,4 +46,17 @@ public class OrderDto {
     
     private UUID createdBy;
     private UUID updatedBy;
+
+    /**
+     * Computes total price from order items (quantity * unitPrice per item).
+     * Used by the orders template to display order totals.
+     */
+    public BigDecimal getTotalPrice() {
+        if (selectedItems == null || selectedItems.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        return selectedItems.stream()
+                .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 }
