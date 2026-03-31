@@ -12,7 +12,7 @@ import java.util.UUID;
  * Feign client for Address Service.
  * Address endpoints are exposed via user-service.
  */
-@FeignClient(name = "address-service-UI-client", url = "${api.gateway.base-url}/api/v1/address")
+@FeignClient(name = "address-service-UI-client", url = "${api.gateway.base-url}/api/v1/Address")
 public interface AddressServiceClient {
 
     @GetMapping
