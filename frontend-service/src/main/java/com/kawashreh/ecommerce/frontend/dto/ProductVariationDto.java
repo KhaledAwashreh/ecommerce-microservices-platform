@@ -7,24 +7,21 @@ import lombok.Builder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProductDto {
+public class ProductVariationDto {
     private UUID id;
-    private UUID ownerId;
+    private UUID productId;
+    private String sku;
     private String name;
-    private String description;
-    private List<CategoryDto> categories;
+    private BigDecimal price;
+    private int stockQuantity;
+    private boolean active;
+    private String thumbnailUrl;
     private Instant createdAt;
     private Instant updatedAt;
-    private String thumbnailUrl;
-    private List<ProductVariationDto> variations;
-    private BigDecimal minPrice;
-    private BigDecimal maxPrice;
-    private boolean active;
 }

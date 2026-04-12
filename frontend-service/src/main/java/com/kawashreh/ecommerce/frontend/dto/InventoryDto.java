@@ -24,4 +24,8 @@ public class InventoryDto {
     public int getAvailableQuantity() {
         return quantity - reservedQuantity;
     }
+
+    public boolean isAvailable(int requestedQuantity) {
+        return quantity >= requestedQuantity;
+    }
 }
