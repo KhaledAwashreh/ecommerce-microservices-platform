@@ -25,5 +25,5 @@ public interface AddressServiceClient {
     AddressDto createAddress(@RequestBody AddressRequest addressRequest);
 
     @DeleteMapping("/{addressId}")
-    Void deleteAddress(@PathVariable UUID addressId);
+    Void deleteAddress(@PathVariable("addressId") UUID addressId);
 }

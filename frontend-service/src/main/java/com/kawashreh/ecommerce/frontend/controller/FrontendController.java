@@ -64,7 +64,7 @@ public class FrontendController {
     }
 
     @PostMapping("/register")
-    public String register(@RequestBody UserRegisterRequest registerRequest) {
+    public String register(@ModelAttribute UserRegisterRequest registerRequest) {
         if (registerRequest.getBirthdate() == null) return "redirect:/register?error=true";
         try {
             if (userServiceClient.register(registerRequest) != null)
