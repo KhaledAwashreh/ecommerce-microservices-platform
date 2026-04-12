@@ -1,6 +1,7 @@
 package com.kawashreh.ecommerce.frontend.client;
 
 import com.kawashreh.ecommerce.frontend.dto.ProductDto;
+import com.kawashreh.ecommerce.frontend.dto.CategoryDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,14 +12,17 @@ import java.util.UUID;
 
 /**
  * Feign client for Product Service.
- * Uses Kubernetes DNS for service discovery: http://product-service:8080
+ * Uses API Gateway for service discovery.
  */
-@FeignClient(name = "product-service-UI-client", url = "${api.gateway.base-url}/api/v1/product")
+@FeignClient(name = "product-service-UI-client", url = "${api.gateway.base-url}")
 public interface ProductServiceClient {
 
-    @GetMapping
+    @GetMapping("/api/v1/product")
     List<ProductDto> getAllProducts();
 
-    @GetMapping("/{productId}")
-    ProductDto getProductById(@PathVariable UUID productId);
+    @GetMapping("/api/v1/product/{productId}")
+    ProductDto getProductById(@PathVariable("productId") UUID productId);
+
+    @GetMapping("/api/v1/categories")
+    List<CategoryDto> getCategories();
 }

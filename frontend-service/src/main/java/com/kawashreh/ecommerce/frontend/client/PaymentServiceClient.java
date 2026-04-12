@@ -15,15 +15,15 @@ import java.util.UUID;
  * Feign client for Payment Service.
  * Uses Kubernetes DNS for service discovery: http://payment-service:8080
  */
-@FeignClient(name = "payment-service-UI-client", url = "http://payment-service:8080")
+@FeignClient(name = "payment-service-UI-client", url = "${api.gateway.base-url}/api/v1/payment")
 public interface PaymentServiceClient {
 
-    @PostMapping("/api/v1/payment/process")
+    @PostMapping("/process")
     PaymentResponseDto processPayment(@RequestBody PaymentRequestDto request);
 
-    @GetMapping("/api/v1/payment/{paymentId}")
+    @GetMapping("/{paymentId}")
     PaymentResponseDto getPayment(@PathVariable UUID paymentId);
 
-    @GetMapping("/api/v1/payment/order/{orderId}")
+    @GetMapping("/order/{orderId}")
     PaymentResponseDto getPaymentByOrderId(@PathVariable UUID orderId);
 }

@@ -13,7 +13,7 @@ import java.util.UUID;
 
 /**
  * Feign client for Order Service.
- * Uses Kubernetes DNS for service discovery: http://order-service:8080
+ * Uses API Gateway for service discovery.
  */
 @FeignClient(name = "order-service-UI-client", url = "${api.gateway.base-url}/api/v1/orders")
 public interface OrderServiceClient {
@@ -24,9 +24,9 @@ public interface OrderServiceClient {
     @GetMapping
     List<OrderDto> getAllOrders();
 
-    @GetMapping("/{orderId}")
-    OrderDto getOrderById(@PathVariable UUID orderId);
+    @GetMapping("/{id}")
+    OrderDto getOrderById(@PathVariable UUID id);
 
     @GetMapping("/buyer/{buyerId}")
-    List<OrderDto> getOrdersByBuyer(@PathVariable UUID buyerId);
+    List<OrderDto> getOrdersByBuyer(@PathVariable("buyerId") UUID buyerId);
 }

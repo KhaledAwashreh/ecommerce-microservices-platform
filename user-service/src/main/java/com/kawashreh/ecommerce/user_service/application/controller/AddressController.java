@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/Address")
+@RequestMapping("/api/v1/address")
 public class AddressController {
 
     private final AddressService service;
