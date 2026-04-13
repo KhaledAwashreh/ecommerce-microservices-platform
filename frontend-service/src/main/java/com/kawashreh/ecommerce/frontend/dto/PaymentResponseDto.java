@@ -24,4 +24,17 @@ public class PaymentResponseDto {
     private String paymentGateway;
     private Instant createdAt;
     private Instant updatedAt;
+    private String failureReason;
+    
+    public boolean isSuccessful() {
+        return "SUCCESS".equals(status);
+    }
+    
+    public boolean isPending() {
+        return "PENDING".equals(status);
+    }
+    
+    public boolean isFailed() {
+        return "FAILED".equals(status);
+    }
 }
