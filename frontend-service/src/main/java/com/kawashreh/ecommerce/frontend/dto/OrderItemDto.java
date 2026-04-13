@@ -16,8 +16,11 @@ import java.util.UUID;
 public class OrderItemDto {
     private UUID id;
     private UUID productSku;
+    private String productName;
+    private String variationName;
     private int quantity;
     private BigDecimal unitPrice;
+    private BigDecimal totalPrice;
     private Instant createdAt;
     private Instant updatedAt;
     private UUID createdBy;

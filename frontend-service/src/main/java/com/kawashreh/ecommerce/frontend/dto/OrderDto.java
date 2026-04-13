@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.NonNull;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,19 +17,14 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderDto {
-    @NonNull
     private UUID id;
     
-    @NonNull
     private UUID storeId;
     
-    @NonNull
     private UUID seller;
     
-    @NonNull
     private UUID buyer;
     
-    @NonNull
     private String status;
     
     @Builder.Default
@@ -37,12 +33,15 @@ public class OrderDto {
     @Builder.Default
     private List<DiscountDto> discountsApplied = new ArrayList<>();
     
-    @NonNull
     private Instant createdAt;
     
-    @NonNull
     private Instant updatedAt;
     
     private UUID createdBy;
     private UUID updatedBy;
+    
+    private BigDecimal subtotal;
+    private BigDecimal discountTotal;
+    private BigDecimal taxTotal;
+    private BigDecimal totalAmount;
 }
