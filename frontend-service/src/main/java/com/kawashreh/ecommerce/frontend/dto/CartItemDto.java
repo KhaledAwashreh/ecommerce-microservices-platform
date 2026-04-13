@@ -21,8 +21,11 @@ public class CartItemDto {
     private String variationName;
     private int quantity;
     private BigDecimal unitPrice;
-    private BigDecimal totalPrice;
     private String thumbnailUrl;
     private Instant createdAt;
     private Instant updatedAt;
+    
+    public BigDecimal getTotalPrice() {
+        return unitPrice.multiply(BigDecimal.valueOf(quantity));
+    }
 }

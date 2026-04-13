@@ -29,4 +29,13 @@ public class CartDto {
     private Instant updatedAt;
     private UUID createdBy;
     private UUID updatedBy;
+    
+    public BigDecimal calculateSubtotal() {
+        if (cartItems == null || cartItems.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        return cartItems.stream()
+                .map(CartItemDto::getTotalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 }
