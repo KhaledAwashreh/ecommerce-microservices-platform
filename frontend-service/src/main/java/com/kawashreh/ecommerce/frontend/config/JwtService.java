@@ -22,9 +22,9 @@ public class JwtService {
 
     public String generateToken(String username) {
         return Jwts.builder()
-                .subject(username)
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expirationTime))
+                .setSubject(username)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + expirationTime))
                 .signWith(getSignKey())
                 .compact();
     }
