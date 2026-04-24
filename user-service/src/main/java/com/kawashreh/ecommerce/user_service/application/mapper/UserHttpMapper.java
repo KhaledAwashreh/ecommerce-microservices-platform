@@ -24,8 +24,6 @@ public final class UserHttpMapper {
                 .birthdate(user.getBirthdate())
                 .phone(user.getPhone())
                 .gender(user.getGender())
-                .createdAt(user.getCreatedAt())
-                .updatedAt(user.getUpdatedAt())
                 .build();
     }
 
@@ -41,8 +39,6 @@ public final class UserHttpMapper {
                 .birthdate(dto.getBirthdate())
                 .phone(dto.getPhone())
                 .gender(dto.getGender())
-                .createdAt(dto.getCreatedAt())
-                .updatedAt(dto.getUpdatedAt())
                 .build();
     }
 }

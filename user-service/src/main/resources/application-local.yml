@@ -9,7 +9,7 @@ spring:
       host: redis
       port: 6379
   datasource:
-    url: jdbc:postgresql://localhost:5433/userdb
+    url: jdbc:postgresql://localhost:5432/userdb
     username: postgres
     password: test1234
   jpa:

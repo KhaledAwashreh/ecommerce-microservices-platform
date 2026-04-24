@@ -255,6 +255,7 @@ services:
       - "3000:3000"
     environment:
       - API_GATEWAY_BASE_URL=http://api-gateway:8765
+      - ZIPKIN_BASE_URL=http://zipkin:9411
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/actuator/health"]
       interval: 30s

@@ -13,7 +13,7 @@ import java.util.UUID;
 
 /**
  * Feign client for Payment Service.
- * Uses Kubernetes DNS for service discovery: http://payment-service:8080
+ * Routes through API Gateway for auth, circuit-breaking, and retry.
  */
 @FeignClient(name = "payment-service-UI-client", url = "${api.gateway.base-url}/api/v1/payment")
 public interface PaymentServiceClient {

@@ -42,11 +42,11 @@ public class AddressController {
                 .body(address);
     }
 
-    @DeleteMapping("/{addressId}")
-    public ResponseEntity<Void> delete(@PathVariable UUID addressId) {
-        service.delete(addressId);
+    @DeleteMapping()
+    public ResponseEntity<Address> delete(@RequestParam UUID id) {
+        service.delete(id);
         return ResponseEntity
-                .noContent()
-                .build();
+                .status(HttpStatus.OK)
+                .body(null);
     }
 }

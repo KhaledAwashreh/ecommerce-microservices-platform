@@ -17,7 +17,6 @@ public class UserRegisterDto {
     private java.util.Date birthdate;
     private String phone;
     private String gender;
-    
-    @JsonProperty("RawPassword")
     private String rawPassword;
+
 }
