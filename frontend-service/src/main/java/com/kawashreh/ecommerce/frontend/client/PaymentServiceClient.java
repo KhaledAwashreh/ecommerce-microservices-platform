@@ -22,8 +22,8 @@ public interface PaymentServiceClient {
     PaymentResponseDto processPayment(@RequestBody PaymentRequestDto request);
 
     @GetMapping("/{paymentId}")
-    PaymentResponseDto getPayment(@PathVariable UUID paymentId);
+    PaymentResponseDto getPayment(@PathVariable("paymentId") UUID paymentId);
 
     @GetMapping("/order/{orderId}")
-    PaymentResponseDto getPaymentByOrderId(@PathVariable UUID orderId);
+    PaymentResponseDto getPaymentByOrderId(@PathVariable("orderId") UUID orderId);
 }

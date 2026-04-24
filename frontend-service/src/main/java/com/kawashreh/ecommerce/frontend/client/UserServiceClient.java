@@ -29,6 +29,6 @@ public interface UserServiceClient{
     @GetMapping("/{userId}")
     UserDto getUserById(@PathVariable UUID userId);
 
-    @GetMapping()
+    @GetMapping(params = "username")
     UserDto getUserByUsername(@RequestParam("username") String username);
 }

@@ -19,7 +19,7 @@ public interface AddressServiceClient {
     List<AddressDto> getAddresses();
 
     @GetMapping("/{addressId}")
-    AddressDto getAddressById(@PathVariable UUID addressId);
+    AddressDto getAddressById(@PathVariable("addressId") UUID addressId);
 
     @PostMapping
     AddressDto createAddress(@RequestBody AddressRequest addressRequest);
