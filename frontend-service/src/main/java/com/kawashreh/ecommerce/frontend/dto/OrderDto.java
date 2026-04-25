@@ -30,9 +30,6 @@ public class OrderDto {
     @Builder.Default
     private List<OrderItemDto> selectedItems = new ArrayList<>();
     
-    @Builder.Default
-    private List<DiscountDto> discountsApplied = new ArrayList<>();
-
     private Instant createdAt;
 
     private Instant updatedAt;
