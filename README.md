@@ -97,7 +97,7 @@ graph TB
 | **Product Service** | Dynamic | Spring Boot | Products, variations, inventory management |
 | **Order Service** | Dynamic | Spring Boot + Feign | Order orchestration, stock validation, cart-to-order |
 | **Payment Service** | Dynamic | Spring Boot | Payment processing (simulated gateway) |
-| **Frontend Service** | Dynamic | React + Node | Web client (portfolio showcase) |
+| **Frontend Service** | Dynamic | Spring Boot + HTMX | SSR web client (portfolio showcase) |
 
 ---
 
@@ -201,17 +201,18 @@ Order creation flow:
 Services discover each other via **Kubernetes DNS** — e.g., `http://product-service:8080`. Feign clients call by service name with Resilience4j protection:
 
 ```java
-@FeignClient(name = "product-service", url = "http://product-service:8080",
-             fallback = ProductServiceFallback.class)
+@FeignClient(name = "product-service")
 public interface ProductServiceClient {
-    @GetMapping("/api/v1/product/{sku}")
-    ProductDto retrieveProduct(@PathVariable UUID sku);
 
-    @GetMapping("/api/v1/inventory/{sku}")
-    InventoryDto retrieveInventory(@PathVariable UUID sku);
+    @GetMapping("/api/v1/product/{productId}")
+    ProductDto retrieveProduct(@PathVariable("productId") UUID productId);
 
-    @PutMapping("/api/v1/inventory/{sku}/deduct")
-    boolean deductInventory(@PathVariable UUID sku, @RequestParam int quantity);
+    @GetMapping("/api/v1/inventory/{productId}")
+    InventoryDto retrieveInventory(@PathVariable("productId") UUID productId);
+
+    @PutMapping("/api/v1/inventory/{productId}/deduct")
+    boolean deductInventory(@PathVariable("productId") UUID productId,
+                           @RequestParam int quantity);
 }
 ```
 ```
