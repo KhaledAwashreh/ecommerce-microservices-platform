@@ -10,6 +10,7 @@ import com.kawashreh.ecommerce.user_service.dataAccess.repository.UserRepository
 import com.kawashreh.ecommerce.user_service.domain.model.Account;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
+import com.kawashreh.ecommerce.user_service.exception.DuplicateEntityException;
 import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -39,13 +40,20 @@ public class UserServiceImpl implements UserService {
     @Transactional(rollbackFor = Exception.class)
     public User create(User user, String hashedPassword) {
 
+        if (repository.existsByUsername(user.getUsername())) {
+            throw new DuplicateEntityException("Username is taken");
+        }
+
+        if(repository.existsByEmail(user.getEmail())){
+            throw new DuplicateEntityException("Username with this email already exists");
+        }
+
         UserEntity ue = UserMapper.toEntity(user);
 
         AccountEntity ae = new AccountEntity();
         ae.setUser(ue);        // owning side
         ae.setHashedPassword(hashedPassword);
         ue.setAccount(ae);     // inverse side
-
         repository.save(ue);
 
         return UserMapper.toDomain(repository

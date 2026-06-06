@@ -20,4 +20,9 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
         where u.username = :username
         """)
     Optional<UserEntity> findByUsernameWithAccount(String username);
+
+    boolean existsByUsername(String username); // add this
+
+    boolean existsByEmail(String email); // add this
+
 }
