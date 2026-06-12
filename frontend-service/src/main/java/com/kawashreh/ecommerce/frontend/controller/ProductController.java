@@ -26,11 +26,6 @@ public class ProductController {
     @Autowired private SessionManager sessionManager;
     @Autowired private ProductFacade productFacade;
 
-    @GetMapping("/")
-    public String home() {
-        return "redirect:/products";
-    }
-
     @GetMapping("/products")
     public String products(Model model, HttpServletRequest request) {
         model.addAttribute("title", "All Products");
