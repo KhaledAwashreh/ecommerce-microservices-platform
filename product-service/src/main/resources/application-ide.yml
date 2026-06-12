@@ -1,0 +1,22 @@
+# IDE Profile — run product-service in IDE, everything else in Docker
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  datasource:
+    url: jdbc:postgresql://localhost:5434/productdb
+    username: postgres
+    password: postgres
+  cloud:
+    openfeign:
+      client:
+        config:
+          # product-service calls user-service through the gateway
+          user-service:
+            url: http://localhost:8765
+
+management:
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans

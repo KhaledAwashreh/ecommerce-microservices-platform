@@ -1,0 +1,11 @@
+# IDE Profile — run payment-service in IDE, everything else in Docker
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5436/paymentdb
+    username: postgres
+    password: test1234
+
+management:
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans

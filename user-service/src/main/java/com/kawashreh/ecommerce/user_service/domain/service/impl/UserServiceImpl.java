@@ -136,12 +136,14 @@ public class UserServiceImpl implements UserService {
     @Override
     public User Login(String username, String password) {
         User user = findByUsername(username);
-        Account account = findAccountByUserId(user.getId());
-        user.setAccount(account);
-
         if (user == null) {
             return null;
         }
+        Account account = findAccountByUserId(user.getId());
+        if (account == null) {
+            return null;
+        }
+        user.setAccount(account);
         return user.checkPassword(password, passwordHasher) ? user : null;
     }
 

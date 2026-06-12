@@ -88,6 +88,11 @@
 			<artifactId>spring-cloud-starter-openfeign</artifactId>
 		</dependency>
         <dependency>
+            <groupId>com.kawashreh.ecommerce</groupId>
+            <artifactId>common</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
+        <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <version>42.7.4</version>

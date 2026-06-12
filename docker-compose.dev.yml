@@ -12,6 +12,8 @@ services:
       POSTGRES_DB: productdb
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: test1234
+    ports:
+      - "5434:5432"
     volumes:
       - postgres-product-data:/var/lib/postgresql/data
     healthcheck:
@@ -29,6 +31,8 @@ services:
       POSTGRES_DB: userdb
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: test1234
+    ports:
+      - "5433:5432"
     volumes:
       - postgres-user-data:/var/lib/postgresql/data
     healthcheck:
@@ -46,6 +50,8 @@ services:
       POSTGRES_DB: paymentdb
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: test1234
+    ports:
+      - "5436:5432"
     volumes:
       - postgres-payment-data:/var/lib/postgresql/data
     healthcheck:
@@ -63,6 +69,8 @@ services:
       POSTGRES_DB: orderdb
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: test1234
+    ports:
+      - "5435:5432"
     volumes:
       - postgres-order-data:/var/lib/postgresql/data
     healthcheck:
@@ -76,6 +84,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: redis
+    ports:
+      - "6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:

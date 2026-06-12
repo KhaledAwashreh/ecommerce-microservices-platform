@@ -7,8 +7,6 @@ import com.kawashreh.ecommerce.frontend.dto.UserDto;
 import com.kawashreh.ecommerce.frontend.dto.facade.ProfileWithAddressesDto;
 import com.kawashreh.ecommerce.frontend.facade.ProfileFacade;
 import jakarta.servlet.http.HttpServletRequest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -22,8 +20,6 @@ import java.util.UUID;
 
 @Controller
 public class ProfileController {
-
-    private static final Logger log = LoggerFactory.getLogger(ProfileController.class);
 
     @Autowired private SessionManager sessionManager;
     @Autowired private ProfileFacade profileFacade;
@@ -60,11 +56,7 @@ public class ProfileController {
         if (!sessionManager.isAuthenticated(request)) {
             return "redirect:/login";
         }
-        try {
-            addressServiceClient.createAddress(addressRequest);
-        } catch (Exception e) {
-            log.error("Failed to add address: {}", e.getMessage());
-        }
+        addressServiceClient.createAddress(addressRequest);
         return "redirect:/addresses";
     }
 
@@ -73,11 +65,7 @@ public class ProfileController {
         if (!sessionManager.isAuthenticated(request)) {
             return "redirect:/login";
         }
-        try {
-            addressServiceClient.deleteAddress(addressId);
-        } catch (Exception e) {
-            log.error("Failed to delete address '{}': {}", addressId, e.getMessage());
-        }
+        addressServiceClient.deleteAddress(addressId);
         return "redirect:/addresses";
     }
 }
