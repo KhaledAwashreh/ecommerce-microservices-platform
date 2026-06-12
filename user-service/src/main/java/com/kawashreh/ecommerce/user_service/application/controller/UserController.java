@@ -1,5 +1,6 @@
 package com.kawashreh.ecommerce.user_service.application.controller;
 
+import com.kawashreh.ecommerce.common.exceptions.NoSuchElementException;
 import com.kawashreh.ecommerce.user_service.application.dto.UserDto;
 import com.kawashreh.ecommerce.user_service.application.dto.UserLoginDto;
 import com.kawashreh.ecommerce.user_service.application.dto.UserRegisterDto;
@@ -14,7 +15,6 @@ import com.kawashreh.ecommerce.user_service.constants.ApiPaths;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -86,9 +86,11 @@ public class UserController {
     public ResponseEntity<String> Login(@RequestBody UserLoginDto userDto) {
         User user = service.Login(userDto.getUsername(), userDto.getPassword());
 
-        return Objects.nonNull(user) ?
-                ResponseEntity.status(HttpStatus.ACCEPTED).body(JwtService.generateToken(user.getUsername()))
-                : ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (user == null) {
+            throw new NoSuchElementException("Invalid username or password");
+        }
+
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(JwtService.generateToken(user.getUsername()));
     }
 
 }

@@ -10,7 +10,7 @@ import com.kawashreh.ecommerce.user_service.dataAccess.repository.UserRepository
 import com.kawashreh.ecommerce.user_service.domain.model.Account;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
-import com.kawashreh.ecommerce.user_service.exception.DuplicateEntityException;
+import com.kawashreh.ecommerce.common.exceptions.DuplicateEntityException;
 import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
