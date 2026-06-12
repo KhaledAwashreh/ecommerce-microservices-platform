@@ -13,6 +13,7 @@ COPY product-service/pom.xml  product-service/pom.xml
 COPY order-service/pom.xml    order-service/pom.xml
 COPY payment-service/pom.xml  payment-service/pom.xml
 COPY frontend-service/pom.xml frontend-service/pom.xml
+COPY common/pom.xml common/pom.xml
 
 # Now Maven can see the full module structure — dependencies download correctly
 RUN mvn dependency:go-offline
