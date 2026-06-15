@@ -1,25 +1,34 @@
 package com.kawashreh.ecommerce.user_service.domain.service;
 
-import com.kawashreh.ecommerce.user_service.domain.model.Account;
-import com.kawashreh.ecommerce.user_service.domain.model.User;
+import com.kawashreh.ecommerce.user_service.domain.service.dto.UserCreateRequest;
+import com.kawashreh.ecommerce.user_service.domain.service.dto.UserResponse;
+import com.kawashreh.ecommerce.user_service.domain.service.dto.UserSearchRequest;
+import com.kawashreh.ecommerce.user_service.domain.service.dto.UserUpdateRequest;
 
 import java.util.List;
 import java.util.UUID;
 
+// TODO (investigate SpEL): Add @PreAuthorize/@PostAuthorize SpEL expressions for
+//   ownership checks (e.g., #id == authentication.principal.id) once security
+//   context is wired into the service layer, replacing manual checks.
 public interface UserService {
-    User create(User user, String hashedPassword);
+    UserResponse create(UserCreateRequest request);
 
-    List<User> getAll();
+    List<UserResponse> getAll();
 
-    User find(UUID id);
+    UserResponse find(UUID id);
 
-    User findByEmail(String email);
+    UserResponse findByEmail(String email);
 
-    User findByUsername(String username);
+    UserResponse findByUsername(String username);
 
-    void delete(UUID id);
+    void delete(UUID id, UUID requestingUserId);
 
-    User Login(String username, String password);
+    String login(String username, String password);
 
-    User changePassword(String username, String oldPassword, String newPassword) throws Exception;
+    UserResponse update(UUID id, UserUpdateRequest request);
+
+    List<UserResponse> search(UserSearchRequest request);
+
+    UserResponse changePassword(String username, String oldPassword, String newPassword);
 }
