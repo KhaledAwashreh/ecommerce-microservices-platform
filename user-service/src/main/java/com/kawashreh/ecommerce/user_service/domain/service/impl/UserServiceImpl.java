@@ -1,5 +1,7 @@
 package com.kawashreh.ecommerce.user_service.domain.service.impl;
 
+import com.kawashreh.ecommerce.common.exceptions.DuplicateEntityException;
+import com.kawashreh.ecommerce.common.exceptions.NoSuchElementException;
 import com.kawashreh.ecommerce.user_service.constants.CacheConstants;
 import com.kawashreh.ecommerce.user_service.dataAccess.mapper.AccountMapper;
 import com.kawashreh.ecommerce.user_service.dataAccess.mapper.UserMapper;
@@ -10,7 +12,10 @@ import com.kawashreh.ecommerce.user_service.dataAccess.repository.UserRepository
 import com.kawashreh.ecommerce.user_service.domain.model.Account;
 import com.kawashreh.ecommerce.user_service.domain.model.User;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
-import com.kawashreh.ecommerce.common.exceptions.DuplicateEntityException;
+import com.kawashreh.ecommerce.user_service.domain.service.dto.UserCreateRequest;
+import com.kawashreh.ecommerce.user_service.domain.service.dto.UserResponse;
+import com.kawashreh.ecommerce.user_service.domain.service.dto.UserSearchRequest;
+import com.kawashreh.ecommerce.user_service.domain.service.dto.UserUpdateRequest;
 import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -18,6 +23,7 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -38,31 +44,40 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public User create(User user, String hashedPassword) {
-
-        if (repository.existsByUsername(user.getUsername())) {
+    public UserResponse create(UserCreateRequest request) {
+        if (repository.existsByUsername(request.getUsername())) {
             throw new DuplicateEntityException("Username is taken");
         }
 
-        if(repository.existsByEmail(user.getEmail())){
-            throw new DuplicateEntityException("Username with this email already exists");
+        if (repository.existsByEmail(request.getEmail())) {
+            throw new DuplicateEntityException("User with this email already exists");
         }
+
+        User user = User.builder()
+                .name(request.getName())
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .birthdate(request.getBirthdate())
+                .phone(request.getPhone())
+                .gender(request.getGender())
+                .build();
 
         UserEntity ue = UserMapper.toEntity(user);
 
         AccountEntity ae = new AccountEntity();
-        ae.setUser(ue);        // owning side
-        ae.setHashedPassword(hashedPassword);
-        ue.setAccount(ae);     // inverse side
+        ae.setUser(ue);
+        ae.setHashedPassword(passwordHasher.encode(request.getRawPassword()));
+        ue.setAccount(ae);
+
         repository.save(ue);
 
-        return UserMapper.toDomain(repository
+        return toResponse(UserMapper.toDomain(repository
                 .findByUsername(user.getUsername())
-                .orElse(null));
+                .orElse(null)));
     }
 
     @Override
-    public List<User> getAll() {
+    public List<UserResponse> getAll() {
         List<User> users = repository.findAll()
                 .stream()
                 .map(UserMapper::toDomain)
@@ -76,7 +91,7 @@ public class UserServiceImpl implements UserService {
                 accountRepository.findByUserIdIn(userIds)
                         .stream()
                         .collect(Collectors.toMap(
-                                ae -> ae.getUser().getId(),   // entity → entity (safe)
+                                ae -> ae.getUser().getId(),
                                 ae -> {
                                     User user = UserMapper.toDomain(ae.getUser());
                                     Account account = AccountMapper.toDomain(ae);
@@ -85,35 +100,38 @@ public class UserServiceImpl implements UserService {
                                 }
                         ));
 
-
         users.forEach(u ->
                 u.setAccount(accounts.get(u.getId()))
         );
 
-        return users;
+        return users.stream()
+                .map(this::toResponse)
+                .toList();
     }
-
 
     @Cacheable(value = CacheConstants.USERS_BY_ID, key = "#id")
     @Override
-    public User find(UUID id) {
+    public UserResponse find(UUID id) {
         return repository.findById(id)
                 .map(UserMapper::toDomain)
+                .map(this::toResponse)
                 .orElse(null);
     }
 
     @Override
-    public User findByEmail(String email) {
+    public UserResponse findByEmail(String email) {
         return repository.findByEmail(email)
                 .map(UserMapper::toDomain)
+                .map(this::toResponse)
                 .orElse(null);
     }
 
     @Cacheable(value = CacheConstants.USER_BY_USERNAME, key = "#username")
     @Override
-    public User findByUsername(String username) {
+    public UserResponse findByUsername(String username) {
         return repository.findByUsernameWithAccount(username)
                 .map(UserMapper::toDomain)
+                .map(this::toResponse)
                 .orElse(null);
     }
 
@@ -122,49 +140,138 @@ public class UserServiceImpl implements UserService {
             @CacheEvict(value = CacheConstants.USERS_BY_EMAIL, key = "#username")
     })
     @Override
-    public void delete(UUID id) {
-        User user = find(id);
+    public void delete(UUID id, UUID requestingUserId) {
+        UserResponse user = find(id);
         if (user == null) {
             return;
         }
 
-        String username = user.getUsername();
+        // TODO (investigate SpEL): Replace manual ownership check with
+        //   @PreAuthorize SpEL once security context is available at service layer.
+        if (!requestingUserId.equals(id)) {
+            throw new NoSuchElementException("You can only delete your own account");
+        }
 
         repository.deleteById(id);
     }
 
     @Override
-    public User Login(String username, String password) {
-        User user = findByUsername(username);
+    public String login(String username, String password) {
+        User user = repository.findByUsernameWithAccount(username)
+                .map(UserMapper::toDomain)
+                .orElse(null);
+
         if (user == null) {
             return null;
         }
+
         Account account = findAccountByUserId(user.getId());
         if (account == null) {
             return null;
         }
+
         user.setAccount(account);
-        return user.checkPassword(password, passwordHasher) ? user : null;
+
+        if (!user.checkPassword(password, passwordHasher)) {
+            return null;
+        }
+
+        return com.kawashreh.ecommerce.user_service.infrastructure.security.JwtService.generateToken(user.getUsername());
     }
 
     @Override
-    public User changePassword(String username, String oldPassword, String newPassword) throws Exception {
-        User user = findByUsername(username);
+    public UserResponse update(UUID id, UserUpdateRequest request) {
+        // TODO (investigate SpEL): Replace manual ownership check with
+        //   @PreAuthorize SpEL once security context is available at service layer.
+        if (!request.getRequestingUserId().equals(id)) {
+            throw new NoSuchElementException("You can only edit your own profile");
+        }
+
+        UserEntity entity = repository.findById(id).orElse(null);
+        if (entity == null) {
+            return null;
+        }
+
+        if (request.getName() != null) entity.setName(request.getName());
+        if (request.getEmail() != null) entity.setEmail(request.getEmail());
+        if (request.getPhone() != null) entity.setPhone(request.getPhone());
+        if (request.getBirthdate() != null) entity.setBirthdate(request.getBirthdate());
+        if (request.getGender() != null) entity.setGender(request.getGender());
+        entity.setUpdatedAt(Instant.now());
+
+        repository.save(entity);
+        return find(id);
+    }
+
+    @Override
+    public List<UserResponse> search(UserSearchRequest request) {
+        if (request.getQuery() == null || request.getQuery().isBlank()) {
+            return getAll();
+        }
+
+        String q = request.getQuery().toLowerCase();
+        return getAll().stream()
+                .filter(u -> (u.getName() != null && u.getName().toLowerCase().contains(q))
+                        || (u.getUsername() != null && u.getUsername().toLowerCase().contains(q))
+                        || (u.getEmail() != null && u.getEmail().toLowerCase().contains(q)))
+                .toList();
+    }
+
+    @Override
+    public UserResponse changePassword(String username, String oldPassword, String newPassword) {
+        User user = repository.findByUsernameWithAccount(username)
+                .map(UserMapper::toDomain)
+                .orElse(null);
+
         if (user == null) {
             return null;
         }
+
+        Account account = findAccountByUserId(user.getId());
+        if (account == null) {
+            return null;
+        }
+
+        user.setAccount(account);
 
         if (!user.checkPassword(oldPassword, passwordHasher)) {
             return null;
         }
 
-        user.changePassword(newPassword, passwordHasher);
-        return user;
+        try {
+            user.changePassword(newPassword, passwordHasher);
+        } catch (Exception e) {
+            return null;
+        }
+
+        UserEntity entity = repository.findByUsername(username).orElse(null);
+        if (entity != null && entity.getAccount() != null) {
+            entity.getAccount().setHashedPassword(account.getHashedPassword());
+            repository.save(entity);
+        }
+
+        return find(user.getId());
     }
 
     private Account findAccountByUserId(UUID id) {
         return accountRepository.findByUserId(id)
                 .map(AccountMapper::toDomain)
                 .orElse(null);
+    }
+
+    private UserResponse toResponse(User user) {
+        if (user == null) return null;
+
+        return UserResponse.builder()
+                .id(user.getId())
+                .name(user.getName())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .birthdate(user.getBirthdate())
+                .phone(user.getPhone())
+                .gender(user.getGender())
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
+                .build();
     }
 }
