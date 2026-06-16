@@ -5,33 +5,25 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.NonNull;
 
 import java.util.Date;
+import java.util.UUID;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserRegisterDto {
+public class UserUpdateRequest {
 
-    @NonNull
+    private UUID id;
+
     private String name;
 
-    @NonNull
-    private String username;
-
-    @NonNull
     private String email;
 
-    @NonNull
-    private Date birthdate;
-
-    @NonNull
     private String phone;
 
-    private Gender gender;
+    private Date birthdate;
 
-    @NonNull
-    private String rawPassword;
+    private Gender gender;
 }
