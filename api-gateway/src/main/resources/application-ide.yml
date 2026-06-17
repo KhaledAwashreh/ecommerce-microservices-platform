@@ -1,0 +1,16 @@
+# IDE Profile — run api-gateway in IDE, infrastructure in Docker
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+USER_SERVICE_URL: http://localhost:8081
+PRODUCT_SERVICE_URL: http://localhost:8082
+ORDER_SERVICE_URL: http://localhost:8083
+PAYMENT_SERVICE_URL: http://localhost:8084
+
+management:
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans

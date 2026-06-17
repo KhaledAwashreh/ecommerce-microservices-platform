@@ -54,7 +54,11 @@ public class JwtAuthFilter implements WebFilter {
                                     log.info("Token validated for user: {}", userDetails.getUsername());
                                     UsernamePasswordAuthenticationToken authentication =
                                             new UsernamePasswordAuthenticationToken(userDetails, null, null);
-                                    return chain.filter(exchange)
+                                    ServerWebExchange mutatedExchange = exchange.mutate()
+                                            .request(r -> r.header("X-User-Name", userDetails.getUsername())
+                                                            .header("X-User-ID", userDetails.getId().toString()))
+                                            .build();
+                                    return chain.filter(mutatedExchange)
                                             .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication));
                                 }
                                 log.warn("Token validation failed for user: {}", userDetails.getUsername());
