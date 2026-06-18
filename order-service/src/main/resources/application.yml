@@ -19,6 +19,16 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  cloud:
+    openfeign:
+      client:
+        config:
+          product-service:
+            url: ${GATEWAY_URL:http://api-gateway:8765}
+          payment-service:
+            url: ${GATEWAY_URL:http://api-gateway:8765}
+          user-service:
+            url: ${GATEWAY_URL:http://api-gateway:8765}
 
 server:
   port: 8080

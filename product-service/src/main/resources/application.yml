@@ -25,6 +25,11 @@ spring:
       enabled: false
       discovery:
         enabled: false
+    openfeign:
+      client:
+        config:
+          user-service:
+            url: ${GATEWAY_URL:http://api-gateway:8765}
 
 server:
   port: 8080

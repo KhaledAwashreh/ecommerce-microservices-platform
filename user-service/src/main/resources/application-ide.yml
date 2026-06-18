@@ -1,4 +1,9 @@
 # IDE Profile — run user-service in IDE, everything else in Docker
+server:
+  port: 8081
+
+GATEWAY_URL: http://localhost:8765
+
 spring:
   data:
     redis:
