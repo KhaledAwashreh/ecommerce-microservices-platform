@@ -12,7 +12,7 @@ import java.util.UUID;
  * Feign client for Address Service.
  * Address endpoints are exposed via user-service.
  */
-@FeignClient(name = "address-service-UI-client", url = "${api.gateway.base-url}/api/v1/Address")
+@FeignClient(name = "address-service-UI-client", url = "${api.gateway.base-url}/api/v1/address")
 public interface AddressServiceClient {
 
     @GetMapping
@@ -22,8 +22,15 @@ public interface AddressServiceClient {
     AddressDto getAddressById(@PathVariable("addressId") UUID addressId);
 
     @PostMapping
-    AddressDto createAddress(@RequestBody AddressRequest addressRequest);
+    AddressDto createAddress(@RequestBody AddressRequest addressRequest,
+                            @RequestHeader("X-User-ID") UUID userId);
+
+    @PutMapping("/{addressId}")
+    AddressDto updateAddress(@PathVariable("addressId") UUID addressId,
+                             @RequestBody AddressRequest addressRequest,
+                             @RequestHeader("X-User-ID") UUID userId);
 
     @DeleteMapping("/{addressId}")
-    Void deleteAddress(@PathVariable("addressId") UUID addressId);
+    Void deleteAddress(@PathVariable("addressId") UUID addressId,
+                       @RequestHeader("X-User-ID") UUID userId);
 }
