@@ -21,7 +21,7 @@
                 <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
                     <div class="flex items-center justify-between mb-4">
                         <h2 class="text-lg font-bold">Personal Information</h2>
-                        <button class="text-sm text-blue-600 hover:underline">Edit</button>
+                        <a href="/profile/edit" class="text-sm text-blue-600 hover:underline">Edit</a>
                     </div>
                     <div th:if="${user != null}" class="space-y-2">
                         <p><span class="font-medium">Name:</span> <span th:text="${user.name}">John Doe</span></p>

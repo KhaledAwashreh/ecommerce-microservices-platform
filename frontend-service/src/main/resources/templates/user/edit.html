@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Profile - E-Commerce</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .nav-link:hover { color: #FF9900 !important; }
+        .btn-primary { background: #FF9900; color: black; }
+        .btn-primary:hover { background: #F08800; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <div th:replace="~{layout/base :: navbar}"></div>
+
+    <div class="flex-1 max-w-2xl mx-auto w-full px-4 py-6">
+        <div class="flex items-center mb-6">
+            <a href="/profile" class="text-blue-600 hover:underline text-sm">&larr; Back to Profile</a>
+        </div>
+
+        <h1 class="text-2xl font-bold mb-6">Edit Profile</h1>
+
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <form action="/profile/edit" method="post" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Full Name</label>
+                    <input type="text" name="name" th:value="${user.name}" required
+                           class="mt-1 w-full border rounded px-3 py-2">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Username</label>
+                    <input type="text" th:value="${user.username}" disabled
+                           class="mt-1 w-full border rounded px-3 py-2 bg-gray-100 text-gray-500">
+                    <p class="text-xs text-gray-500 mt-1">Username cannot be changed</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" name="email" th:value="${user.email}" required
+                           class="mt-1 w-full border rounded px-3 py-2">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Phone</label>
+                    <input type="tel" name="phone" th:value="${user.phone}" required
+                           class="mt-1 w-full border rounded px-3 py-2">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Date of Birth</label>
+                    <input type="date" name="birthdate" th:value="${#dates.format(user.birthdate, 'yyyy-MM-dd')}"
+                           class="mt-1 w-full border rounded px-3 py-2">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Gender</label>
+                    <select name="gender" class="mt-1 w-full border rounded px-3 py-2">
+                        <option value="MALE" th:selected="${user.gender == 'MALE'}">Male</option>
+                        <option value="FEMALE" th:selected="${user.gender == 'FEMALE'}">Female</option>
+                    </select>
+                </div>
+
+                <div class="flex space-x-4 pt-4">
+                    <button type="submit" class="flex-1 btn-primary py-2 rounded font-bold">Save Changes</button>
+                    <a href="/profile" class="flex-1 border py-2 rounded font-bold text-center hover:bg-gray-50">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div th:replace="~{layout/base :: footer}"></div>
+</body>
+</html>

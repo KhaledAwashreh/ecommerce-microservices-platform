@@ -30,13 +30,13 @@ public class ProfileFacade {
         try {
             user = userServiceClient.getUserByUsername(username);
         } catch (Exception e) {
-            // user stays null
+            System.out.print(e.getMessage());
         }
 
         try {
             addresses = addressServiceClient.getAddresses();
         } catch (Exception e) {
-            // addresses stays empty
+            System.out.print(e.getMessage());
         }
 
         return ProfileWithAddressesDto.builder()

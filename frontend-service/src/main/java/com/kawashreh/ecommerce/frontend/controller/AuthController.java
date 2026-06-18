@@ -39,8 +39,9 @@ public class AuthController {
     }
 
     @GetMapping("/register")
-    public String registerPage(Model model) {
+    public String registerPage(@RequestParam(required = false) String error, Model model) {
         model.addAttribute("title", "Create Account");
+        if (error != null) model.addAttribute("error", error);
         return "auth/register";
     }
 
