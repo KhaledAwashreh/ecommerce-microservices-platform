@@ -19,6 +19,7 @@ public final class AddressMapper {
                 .additionalInformation(a.getAdditionalInformation())
                 .phoneNumber(a.getPhoneNumber())
                 .street(a.getStreet())
+                .user(a.getUser() != null ? UserMapper.toEntity(a.getUser()) : null)
                 .build();
     }
 
@@ -34,7 +35,8 @@ public final class AddressMapper {
                 .setCountry(e.getCountry())
                 .setPhoneNumber(e.getPhoneNumber())
                 .setAdditionalInformation(e.getAdditionalInformation())
-                .setDefaultAddress(e.isDefaultAddress());
+                .setDefaultAddress(e.isDefaultAddress())
+                .setUser(e.getUser() != null ? UserMapper.toDomain(e.getUser()) : null);
     }
 
 }
