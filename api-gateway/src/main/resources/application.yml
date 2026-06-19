@@ -61,6 +61,20 @@ spring:
                 name: order-service
                 fallbackUri: forward:/fallback
 
+        - id: user-role-service
+          uri: ${USER_SERVICE_URL:http://user-service:8080}
+          predicates:
+            - Path=/api/v1/roles/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                methods: GET,POST
+            - name: CircuitBreaker
+              args:
+                name: user-service
+                fallbackUri: forward:/fallback
+
         - id: user-address-service
           uri: ${USER_SERVICE_URL:http://user-service:8080}
           predicates:
