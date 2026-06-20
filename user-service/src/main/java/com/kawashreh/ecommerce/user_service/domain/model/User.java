@@ -2,10 +2,7 @@ package com.kawashreh.ecommerce.user_service.domain.model;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
-import com.kawashreh.ecommerce.user_service.domain.enums.UserRole;
 import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import lombok.*;
 
 import java.io.Serializable;
@@ -45,9 +42,7 @@ public class User implements Serializable {
     @ToString.Exclude
     private List<Address> addresses = new ArrayList<>();
 
-    @Builder.Default
-    @Enumerated(EnumType.STRING)
-    private List<UserRole> roles = new ArrayList<>();
+    private Role role;
 
     // Backward compatibility fields for legacy Redis cache format
     @JsonAlias({"customer"})
@@ -113,14 +108,14 @@ public class User implements Serializable {
     }
 
     public boolean isAdmin(){
-        return roles.contains(UserRole.ADMIN);
+        return role != null && "ADMIN".equals(role.getName());
     }
 
     public boolean isCustomer(){
-        return roles.contains(UserRole.CUSTOMER);
+        return role != null && "CUSTOMER".equals(role.getName());
     }
 
     public boolean isSeller(){
-        return roles.contains(UserRole.SELLER);
+        return role != null && "SELLER".equals(role.getName());
     }
 }

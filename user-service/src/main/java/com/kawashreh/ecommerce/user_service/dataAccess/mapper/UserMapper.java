@@ -21,6 +21,7 @@ public final class UserMapper {
                 .updatedAt(d.getUpdatedAt())
                 .name(d.getName())
                 .gender(d.getGender())
+                .role(d.getRole() != null ? RoleMapper.toEntity(d.getRole()) : null)
                 .build();
 
     }
@@ -39,6 +40,7 @@ public final class UserMapper {
                 .name(e.getName())
                 .gender(e.getGender())
                 .account(e.getAccount() != null ? AccountMapper.toDomain(e.getAccount()) : null)
+                .role(e.getRole() != null ? RoleMapper.toDomain(e.getRole()) : null)
                 .build();
     }
 }
