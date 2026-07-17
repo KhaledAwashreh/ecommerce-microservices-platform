@@ -3,6 +3,7 @@ package com.kawashreh.ecommerce.product_service.application.controller;
 import com.kawashreh.ecommerce.product_service.application.dto.ProductReviewDto;
 import com.kawashreh.ecommerce.product_service.application.mapper.ProductReviewHttpMapper;
 import com.kawashreh.ecommerce.product_service.application.service.ReviewApplicationService;
+import com.kawashreh.ecommerce.product_service.constants.ApiPaths;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductReview;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductReviewService;
 import org.springframework.http.HttpStatus;
@@ -36,7 +37,7 @@ public class ProductReviewController {
         return ResponseEntity.ok(dtos);
     }
 
-    @GetMapping("/{productId}")
+    @GetMapping(ApiPaths.PRODUCT_REVIEW_BY_PRODUCT)
     public ResponseEntity<List<ProductReviewDto>> getReviewsForProduct(@PathVariable UUID productId) {
         List<ProductReviewDto> dtos = service.findByProductId(productId)
                 .stream()
@@ -46,7 +47,7 @@ public class ProductReviewController {
 
     }
 
-    @GetMapping("/{reviewId}")
+    @GetMapping(ApiPaths.PRODUCT_REVIEW_BY_ID)
     public ResponseEntity<ProductReviewDto> findById(@PathVariable UUID reviewId) {
         ProductReview review = service.find(reviewId);
         if (review == null) {

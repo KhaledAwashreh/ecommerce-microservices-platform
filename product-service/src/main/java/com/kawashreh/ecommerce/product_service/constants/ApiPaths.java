@@ -13,4 +13,8 @@ public final class ApiPaths {
     public static final String PRODUCT_VARIATION_AVAILABILITY = "/product-variation/{productVariationId}/availability";
     public static final String PRODUCT_VARIATION_DEDUCT = "/product-variation/{productVariationId}/deduct";
     public static final String PRODUCT_VARIATION_RESTORE = "/product-variation/{productVariationId}/restore";
+
+    // Product Review API
+    public static final String PRODUCT_REVIEW_BY_PRODUCT = "/product/{productId}";
+    public static final String PRODUCT_REVIEW_BY_ID = "/{reviewId}";
 }
