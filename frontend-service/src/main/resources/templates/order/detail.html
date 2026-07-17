@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:htmx="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Details - E-Commerce</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .nav-link:hover { color: #FF9900 !important; }
+        .btn-primary { background: #FF9900; color: black; }
+        .btn-primary:hover { background: #F08800; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <div th:replace="~{layout/base :: navbar}"></div>
+
+    <div class="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
+        <div class="flex items-center space-x-2 text-sm text-gray-600 mb-4">
+            <a href="/" class="hover:underline">Home</a>
+            <span>/</span>
+            <a href="/orders" class="hover:underline">Your Orders</a>
+            <span>/</span>
+            <span class="font-medium text-gray-900" th:text="${'Order #' + order.id}">Order</span>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <div class="flex items-center justify-between border-b pb-4 mb-4">
+                <div>
+                    <p class="text-sm text-gray-500">Order placed</p>
+                    <p class="font-medium" th:text="${#temporals.format(order.createdAt, 'MMM dd, yyyy')}">Jan 15, 2024</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Total</p>
+                    <p class="font-bold" th:text="${'$' + order.totalPrice}">$129.99</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Status</p>
+                    <span th:class="${'px-2 py-1 rounded text-xs font-bold ' +
+                        (order.status == 'CONFIRMED' ? 'bg-green-100 text-green-800' :
+                         order.status == 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                         'bg-yellow-100 text-yellow-800')}"
+                          th:text="${order.status}">PENDING</span>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Order #</p>
+                    <p class="font-mono text-sm" th:text="${order.id}">abc123</p>
+                </div>
+            </div>
+
+            <h2 class="text-lg font-bold mb-3">Items</h2>
+            <div class="space-y-3">
+                <div th:each="item : ${order.selectedItems}" class="flex items-center">
+                    <div class="h-16 w-16 bg-gray-200 rounded flex items-center justify-center">
+                        <span class="text-xl">📦</span>
+                    </div>
+                    <div class="ml-4 flex-1">
+                        <p class="font-medium" th:text="${'Product SKU: ' + item.productSku}">Product</p>
+                        <p class="text-sm text-gray-500" th:text="${'Qty: ' + item.quantity}">Qty: 2</p>
+                    </div>
+                    <p class="font-medium" th:text="${'$' + item.unitPrice}">$29.99</p>
+                </div>
+
+                <div th:if="${#lists.isEmpty(order.selectedItems)}" class="text-center text-gray-500 py-6">
+                    No items on this order
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-6 bg-white rounded-lg shadow-sm p-6">
+            <h2 class="text-lg font-bold mb-3">Payment</h2>
+            <div th:if="${payment != null}" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                    <p class="text-sm text-gray-500">Method</p>
+                    <p class="font-medium" th:text="${payment.paymentMethod}">CARD</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Amount</p>
+                    <p class="font-medium" th:text="${'$' + payment.amount}">$129.99</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Status</p>
+                    <span th:class="${'px-2 py-1 rounded text-xs font-bold ' +
+                        (payment.isSuccessful() ? 'bg-green-100 text-green-800' :
+                         payment.isFailed() ? 'bg-red-100 text-red-800' :
+                         'bg-yellow-100 text-yellow-800')}"
+                          th:text="${payment.status}">PENDING</span>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Transaction ID</p>
+                    <p class="font-mono text-sm" th:text="${payment.transactionId ?: 'N/A'}">txn-123</p>
+                </div>
+                <div th:if="${payment.isFailed()}" class="col-span-2 md:col-span-4">
+                    <p class="text-sm text-gray-500">Failure Reason</p>
+                    <p class="text-red-600" th:text="${payment.failureReason ?: 'Unknown error'}">Declined</p>
+                </div>
+            </div>
+            <div th:if="${payment == null}" class="text-gray-500">
+                No payment information available for this order
+            </div>
+        </div>
+
+        <div class="mt-6">
+            <a href="/orders" class="text-sm text-blue-600 hover:underline">&larr; Back to Your Orders</a>
+        </div>
+    </div>
+
+    <div th:replace="~{layout/base :: footer}"></div>
+</body>
+</html>
