@@ -137,7 +137,7 @@ public class UserServiceImpl implements UserService {
 
     @Caching(evict = {
             @CacheEvict(value = CacheConstants.USERS_BY_ID, key = "#id"),
-            @CacheEvict(value = CacheConstants.USERS_BY_EMAIL, key = "#username")
+            @CacheEvict(value = CacheConstants.USER_BY_USERNAME, allEntries = true)
     })
     @Override
     public void delete(UUID id, UUID requestingUserId) {
