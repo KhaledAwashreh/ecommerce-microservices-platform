@@ -30,7 +30,7 @@ spec:
         - name: api-gateway
           image: ghcr.io/kawashreh/ecommerce-microservices-platform/api-gateway:latest
           ports:
-            - containerPort: 8080
+            - containerPort: 8765
           env:
             - name: SPRING_DATA_REDIS_HOST
               valueFrom:
