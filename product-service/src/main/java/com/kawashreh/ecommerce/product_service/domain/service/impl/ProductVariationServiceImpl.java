@@ -41,7 +41,7 @@ public class ProductVariationServiceImpl implements ProductVariationService {
 
 
     @Caching(evict = {
-            @CacheEvict(value = CacheConstants.PRODUCT_VARIATION_BY_PRODUCT_ID, key = "#result.productId")
+            @CacheEvict(value = CacheConstants.PRODUCT_VARIATION_BY_PRODUCT_ID, allEntries = true)
     })
     @Override
     public void update(ProductVariation productVariation) {
@@ -50,7 +50,7 @@ public class ProductVariationServiceImpl implements ProductVariationService {
 
 
     @Caching(evict = {
-            @CacheEvict(value = CacheConstants.PRODUCT_VARIATION_BY_PRODUCT_ID, key = "#result.productId")
+            @CacheEvict(value = CacheConstants.PRODUCT_VARIATION_BY_PRODUCT_ID, allEntries = true)
     })
     @Override
     public void delete(UUID id) {
