@@ -78,8 +78,8 @@ services:
   api-gateway:
     container_name: api-gateway
     build:
-      context: ./api-gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: api-gateway/Dockerfile
     restart: unless-stopped
     ports:
       - "8765:8765"
@@ -106,8 +106,8 @@ services:
   user-service:
     container_name: user-service
     build:
-      context: ./user-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: user-service/Dockerfile
     restart: unless-stopped
     environment:
       - ZIPKIN_BASE_URL=http://zipkin:9411
@@ -128,8 +128,8 @@ services:
   product-service:
     container_name: product-service
     build:
-      context: ./product-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: product-service/Dockerfile
     restart: unless-stopped
     environment:
       - ZIPKIN_BASE_URL=http://zipkin:9411
@@ -150,8 +150,8 @@ services:
   order-service:
     container_name: order-service
     build:
-      context: ./order-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: order-service/Dockerfile
     restart: unless-stopped
     environment:
       - ZIPKIN_BASE_URL=http://zipkin:9411
@@ -174,8 +174,8 @@ services:
   payment-service:
     container_name: payment-service
     build:
-      context: ./payment-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: payment-service/Dockerfile
     restart: unless-stopped
     environment:
       - ZIPKIN_BASE_URL=http://zipkin:9411
@@ -196,8 +196,8 @@ services:
   frontend-service:
     container_name: frontend-service
     build:
-      context: ./frontend-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend-service/Dockerfile
     restart: unless-stopped
     ports:
       - "3000:3000"
