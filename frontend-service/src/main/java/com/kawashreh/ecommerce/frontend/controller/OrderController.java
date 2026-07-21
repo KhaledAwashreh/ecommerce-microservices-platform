@@ -19,7 +19,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Controller
 public class OrderController {
@@ -42,7 +44,13 @@ public class OrderController {
             return "redirect:/login";
         }
         List<OrderWithDetailsDto> ordersWithPayments = orderFacade.getOrdersWithPayments(user.getId());
-        model.addAttribute("orders", ordersWithPayments != null ? ordersWithPayments : Collections.emptyList());
+        List<OrderDto> orders = ordersWithPayments == null
+                ? Collections.emptyList()
+                : ordersWithPayments.stream()
+                        .map(OrderWithDetailsDto::getOrder)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
+        model.addAttribute("orders", orders);
         return "order/orders";
     }
 
