@@ -2,6 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgres-init-scripts
+  namespace: ecommerce
 data:
   v1__create__databases.sql: |
     CREATE DATABASE userdb;
