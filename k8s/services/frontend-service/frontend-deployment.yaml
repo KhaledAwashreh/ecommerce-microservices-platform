@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-service
+  namespace: ecommerce
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend-service
+  template:
+    metadata:
+      labels:
+        app: frontend-service
+    spec:
+      imagePullSecrets:
+        - name: github-container-registry
+      containers:
+        - name: frontend-service
+          image: ghcr.io/kawashreh/ecommerce-microservices-platform/frontend-service:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: API_GATEWAY_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: frontend-service-config
+                  key: API_GATEWAY_BASE_URL
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"

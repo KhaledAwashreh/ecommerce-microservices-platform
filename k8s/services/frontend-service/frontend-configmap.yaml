@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-service-config
+  namespace: ecommerce
+data:
+  API_GATEWAY_BASE_URL: http://api-gateway
