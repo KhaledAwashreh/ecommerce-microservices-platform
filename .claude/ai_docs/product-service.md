@@ -14,10 +14,10 @@ before creating a product or a review. Built on Spring Boot 3.4.12 / Java 21.
 com.kawashreh.ecommerce.product_service
 ├── ProductServiceApplication.java        # @SpringBootApplication, @EnableFeignClients, @EnableTransactionManagement
 ├── application/
-│   ├── controller/    ProductController, CategoryController, InventoryController, ProductReviewController
-│   ├── dto/            ProductDto, CategoryDto, InventoryDto, ProductReviewDto   (no ProductVariationDto — see Gotchas)
-│   ├── mapper/          ProductHttpMapper, CategoryHttpMapper, InventoryHttpMapper, ProductReviewHttpMapper (domain <-> DTO)
-│   └── service/          ProductApplicationService, ReviewApplicationService     (orchestrate domain services + UserServiceClient)
+│   ├── controller/    ProductController, CategoryController, InventoryController, ProductReviewController, ProductVariationController
+│   ├── dto/            ProductDto, CategoryDto, InventoryDto, ProductReviewDto, ProductVariationDto
+│   ├── mapper/          ProductHttpMapper, CategoryHttpMapper, InventoryHttpMapper, ProductReviewHttpMapper, ProductVariationHttpMapper (domain <-> DTO)
+│   └── service/          ProductApplicationService, ReviewApplicationService, ProductVariationApplicationService (orchestrate domain services + UserServiceClient)
 ├── constants/
 │   ├── ApiPaths.java     PRODUCT_BASE, INVENTORY_BASE + variation sub-paths. No CATEGORY/REVIEW paths (see Gotchas).
 │   └── CacheConstants.java  cache names (inconsistent casing — see Gotchas)
@@ -129,6 +129,36 @@ methods mapped` at request time — see Gotchas #1.
 No request body validation (`@Valid`/Bean Validation annotations) is used anywhere despite
 `spring-boot-starter-validation` being a declared Maven dependency.
 
+### ProductVariationController — `/api/v1/product-variation` (`ApiPaths.PRODUCT_VARIATION_BASE`)
+
+| Method | Path | Request | Response | Status | Auth |
+|---|---|---|---|---|---|
+| GET | `/api/v1/product-variation` | — | `List<ProductVariationDto>` | 200 | none |
+| GET | `/api/v1/product-variation/{productVariationId}` | — | `ProductVariationDto` | 200 / 404 | none |
+| GET | `/api/v1/product-variation/product/{productId}` | — | `List<ProductVariationDto>` | 200 | none |
+| POST | `/api/v1/product-variation` | `ProductVariationDto` (requires `productId`) | `ProductVariationDto` | 201 (body null if `productId` doesn't resolve to a product — same "success-status on failure" pattern as `ProductController`/`ProductReviewController`, see Gotchas) | none |
+| PUT | `/api/v1/product-variation/{productVariationId}` | `ProductVariationDto` | `ProductVariationDto` | 200 / 404 if the variation doesn't exist | none |
+| DELETE | `/api/v1/product-variation/{productVariationId}` | — | — | 204 (always) | none |
+
+Closes the previously dead `ProductVariationService`/`ProductVariationServiceImpl` CRUD (create,
+update, delete, find, findByProductId) to HTTP. `ProductVariationDto` exposes only the
+variation's own scalar/FK fields (`id`, `productId`, `sku`, `name`, `price`, `stockQuantity`,
+`isActive`, `thumbnailUrl`, `createdAt`, `updatedAt`); it deliberately does not expose
+`attachments` or `attributes` — see Gotchas.
+
+`ProductVariationApplicationService.createVariation` looks up the parent `Product` via
+`ProductService.find(productId)` before attaching it and saving (mirrors
+`ReviewApplicationService.createReview`'s pattern of resolving a required parent before
+persisting). `update` does not use the application service: the controller re-fetches the
+existing variation by id first, copies the incoming DTO's scalar fields onto a fresh domain
+object, and reattaches the *existing* `product` association (a PUT here cannot move a
+variation to a different product — that would need a separate, explicit operation).
+
+To avoid the same "two single-path-variable GET mappings" ambiguity documented above for
+`ProductReviewController`, `findById` uses a bare `/{productVariationId}` template while
+`findByProductId` uses a two-segment `/product/{productId}` template — the literal `product`
+segment keeps Spring's route matching unambiguous.
+
 ## Outbound dependencies
 
 - **`UserServiceClient`** (`infastructure/http/client/UserServiceClient.java`) — OpenFeign
@@ -213,9 +243,14 @@ which is very permissive (allows any base type).
   deducting 5 units from a starting quantity of 5 and asserts the final quantity is exactly
   `0` (i.e. only one deduction should succeed) — exercising the pessimistic-lock +
   conditional-`UPDATE` combination in `InventoryServiceImpl.deductStock`.
+- `src/test/java/.../application/controller/ProductReviewControllerTest.java` — `@WebMvcTest`
+  slice test (no Docker needed), regression coverage for the ambiguous-route fix (GH #1).
+- `src/test/java/.../application/controller/ProductVariationControllerTest.java` — `@WebMvcTest`
+  slice test (no Docker needed) covering the new `ProductVariationController` (GH #14): list,
+  find by id (found/404), find by product, create (201), update (200/404), delete (204).
 - No tests exist for `ProductService`, `CategoryService`, `ProductReviewService`,
-  `ProductVariationService`, any controller, any mapper, `ProductApplicationService`, or
-  `ReviewApplicationService`.
+  `ProductVariationService`, any mapper, `ProductApplicationService`,
+  `ReviewApplicationService`, or `ProductVariationApplicationService`.
 - Run: `mvn -pl product-service test` (requires a running Docker daemon for
   Testcontainers). `mvn -pl product-service -am test` to build dependent modules first.
 
@@ -256,11 +291,15 @@ which is very permissive (allows any base type).
    protection against double-restore races (two concurrent restores of the same quantity
    both succeed additively, which may or may not be desired but is inconsistent with the
    locked, guarded `deductStock` path).
-6. **High — `ProductVariationController` does not exist.** `ProductVariationService` /
-   `ProductVariationServiceImpl` (create/update/delete/find/findByProductId) are fully
-   implemented but never injected into any controller — dead, unreachable code. There is no
-   HTTP endpoint to create or edit a product variation (sku, price, stock) at all in this
-   module. There's also no `ProductVariationDto` in `application/dto`.
+6. **Fixed (GH #14) — `ProductVariationController` now exists.** `ProductVariationService` /
+   `ProductVariationServiceImpl` (create/update/delete/find/findByProductId) are wired to a
+   new `ProductVariationController` (`/api/v1/product-variation`, see HTTP API section above),
+   with a `ProductVariationDto`, `ProductVariationHttpMapper`, and
+   `ProductVariationApplicationService`. Deliberately left out of scope: no `AttributeDto`/
+   attachment editing was added — `ProductVariationDto` covers only the variation's own
+   scalar/FK fields, not the `attributes` (miswired join column, Gotcha #10) or `attachments`
+   (backed by the dead `Attachment` entity, Gotcha #12) collections, both of which were
+   already-flagged issues independent of this fix.
 7. **Medium — stale cache on review writes.** `ProductReviewServiceImpl.save` (used via
    `ReviewApplicationService.createReview`), `update`, and `delete` never evict
    `CacheConstants.PRODUCT_REVIEW_BY_PRODUCT_ID`, so `findByProductId` (cached, 10 min TTL)

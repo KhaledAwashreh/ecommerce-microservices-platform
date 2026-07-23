@@ -83,7 +83,7 @@ Two different route tables exist — the **default** (`application.yml`, active 
 |---|---|---|---|---|
 | `httpbin` | `Path=/get` | `http://httpbin.org:80` (hardcoded, external) | `AddRequestHeader=MyHeader,MyURI`, `AddRequestParameter=Param,Value` | none |
 | `user-service` | `Path=/api/v1/user/**` | `${USER_SERVICE_URL:http://user-service:8080}` | `Retry` (3, GET/POST) | CB name `user-service` → `forward:/fallback` |
-| `product-service` | `Path=/api/v1/product/**,/api/v1/productReview/**,/api/v1/categories/**,/api/v1/inventory/**` | `${PRODUCT_SERVICE_URL:http://product-service:8080}` | `Retry` (3, GET/POST) | CB name `product-service` → `forward:/fallback` |
+| `product-service` | `Path=/api/v1/product/**,/api/v1/productReview/**,/api/v1/categories/**,/api/v1/inventory/**,/api/v1/product-variation/**` | `${PRODUCT_SERVICE_URL:http://product-service:8080}` | `Retry` (3, GET/POST) | CB name `product-service` → `forward:/fallback` |
 | `order-service` | `Path=/api/v1/orders/**` | `${ORDER_SERVICE_URL:http://order-service:8080}` | `Retry` (3, GET/POST) | CB name `order-service` → `forward:/fallback` |
 | `user-role-service` | `Path=/api/v1/roles/**` | `${USER_SERVICE_URL:http://user-service:8080}` | `Retry` (3, GET/POST) | CB name `user-service` → `forward:/fallback` |
 | `user-address-service` | `Path=/api/v1/address/**` | `${USER_SERVICE_URL:http://user-service:8080}` | `Retry` (3, GET/POST) | CB name `user-service` → `forward:/fallback` |
@@ -94,7 +94,7 @@ Two different route tables exist — the **default** (`application.yml`, active 
 | Route id | Predicate path(s) | Target URI (env override) | Filters | Circuit breaker / fallback |
 |---|---|---|---|---|
 | `user-service` | `Path=/api/v1/user/**,/api/v1/address/**` | `${USER_SERVICE_URL:http://user-service:8080}` | `Retry` (3, GET/POST) | CB name `user-service` → `forward:/fallback` |
-| `product-service` | `Path=/api/v1/product/**,/api/v1/productReview/**,/api/v1/categories/**,/api/v1/inventory/**` | `${PRODUCT_SERVICE_URL:http://product-service:8080}` | `Retry` (3, GET/POST) | CB name `product-service` → `forward:/fallback` |
+| `product-service` | `Path=/api/v1/product/**,/api/v1/productReview/**,/api/v1/categories/**,/api/v1/inventory/**,/api/v1/product-variation/**` | `${PRODUCT_SERVICE_URL:http://product-service:8080}` | `Retry` (3, GET/POST) | CB name `product-service` → `forward:/fallback` |
 | `user-role-service` | `Path=/api/v1/roles/**` | `${USER_SERVICE_URL:http://user-service:8080}` | `Retry` (3, GET/POST) | CB name `user-service` → `forward:/fallback` |
 | `order-service` | `Path=/api/v1/orders/**` | `${ORDER_SERVICE_URL:http://order-service:8080}` | `Retry` (3, GET/POST) | CB name `order-service` → `forward:/fallback` |
 | `payment-service` | `Path=/api/v1/payment/**` | `${PAYMENT_SERVICE_URL:http://payment-service:8080}` | `Retry` (3, GET/POST) | CB name `payment-service` → `forward:/fallback` |

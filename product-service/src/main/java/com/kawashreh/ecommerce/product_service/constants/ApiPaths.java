@@ -17,4 +17,9 @@ public final class ApiPaths {
     // Product Review API
     public static final String PRODUCT_REVIEW_BY_PRODUCT = "/product/{productId}";
     public static final String PRODUCT_REVIEW_BY_ID = "/{reviewId}";
+
+    // Product Variation API
+    public static final String PRODUCT_VARIATION_BASE = "/api/v1/product-variation";
+    public static final String PRODUCT_VARIATION_BY_PRODUCT = "/product/{productId}";
+    public static final String PRODUCT_VARIATION_BY_ID = "/{productVariationId}";
 }
