@@ -11,6 +11,7 @@ import com.kawashreh.ecommerce.order_service.domain.model.Order;
 import com.kawashreh.ecommerce.order_service.domain.model.OrderItem;
 import com.kawashreh.ecommerce.order_service.domain.service.OrderService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,26 +35,35 @@ public class OrderServiceImpl implements OrderService {
         this.productServiceClient = productServiceClient;
     }
 
+    // NOT_SUPPORTED overrides the class-level @Transactional so that no DB transaction is
+    // held for the duration of this method. The remote Feign calls (validate/deduct) run
+    // with no ambient transaction; each repository.save() below is invoked directly on the
+    // repository bean (never via a self-invoked @Transactional helper on `this`, which
+    // would silently bypass the proxy), so Spring Data's own per-method @Transactional on
+    // SimpleJpaRepository opens and commits an independent transaction for every call.
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public Order create(Order order) {
         validateInventoryAvailability(order);
 
         var entity = OrderMapper.toEntity(order);
         entity.getSelectedItems().forEach(item -> item.setOrder(entity));
         entity.setStatus(OrderStatus.PENDING);
-        var saved = repository.save(entity);
+        var saved = repository.save(entity); // own transaction, commits immediately
 
         try {
-            updateProductInventory(order);
+            updateProductInventory(order); // remote calls only, no DB transaction held
 
             saved.setStatus(OrderStatus.CONFIRMED);
-            var confirmed = repository.save(saved);
+            var confirmed = repository.save(saved); // own transaction, commits
             logger.info("Order {} created and confirmed successfully", confirmed.getId());
             return OrderMapper.toDomain(confirmed);
         } catch (Exception e) {
+            // Seam for issue #7: restore any inventory already deducted by
+            // updateProductInventory for earlier items in this order before/around marking
+            // CANCELLED. Not implemented here - out of scope for this fix.
             saved.setStatus(OrderStatus.CANCELLED);
-            repository.save(saved);
+            repository.save(saved); // own transaction, commits and survives independently of the branch above
             logger.error("Order {} creation failed during inventory update. Order marked as CANCELLED", saved.getId(), e);
             throw new RuntimeException("Order creation failed: Unable to update inventory - distributed transaction rolled back", e);
         }
@@ -217,7 +227,11 @@ public class OrderServiceImpl implements OrderService {
         repository.deleteById(id);
     }
 
-    @Transactional(rollbackFor = Exception.class)
+    // Same NOT_SUPPORTED override as create() above, and for the same reason: suspend the
+    // class-level @Transactional so remote calls run without holding a DB transaction, and
+    // let each direct repository.save() call commit independently via the repository
+    // bean's own proxy rather than a self-invoked @Transactional method on this bean.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public Order createOrderFromCart(UUID cartId, UUID buyer) {
         logger.info("Creating order from cart: {} for buyer: {}", cartId, buyer);
 
@@ -228,18 +242,21 @@ public class OrderServiceImpl implements OrderService {
         var entity = OrderMapper.toEntity(order);
         entity.getSelectedItems().forEach(item -> item.setOrder(entity));
         entity.setStatus(OrderStatus.PENDING);
-        var saved = repository.save(entity);
+        var saved = repository.save(entity); // own transaction, commits immediately
 
         try {
-            updateProductInventory(order);
+            updateProductInventory(order); // remote calls only, no DB transaction held
 
             saved.setStatus(OrderStatus.CONFIRMED);
-            var confirmed = repository.save(saved);
+            var confirmed = repository.save(saved); // own transaction, commits
             logger.info("Order {} created from cart {} and confirmed successfully", confirmed.getId(), cartId);
             return OrderMapper.toDomain(confirmed);
         } catch (Exception e) {
+            // Seam for issue #7: restore any inventory already deducted by
+            // updateProductInventory for earlier items in this order before/around marking
+            // CANCELLED. Not implemented here - out of scope for this fix.
             saved.setStatus(OrderStatus.CANCELLED);
-            repository.save(saved);
+            repository.save(saved); // own transaction, commits and survives independently of the branch above
             logger.error("Order {} creation from cart {} failed during inventory update. Order marked as CANCELLED",
                     saved.getId(), cartId, e);
             throw new RuntimeException("Order creation from cart failed: Unable to update inventory - distributed transaction rolled back", e);
