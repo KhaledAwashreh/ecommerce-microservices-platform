@@ -23,6 +23,9 @@ public class PaymentController {
 
     @PostMapping(ApiPaths.PROCESS)
     public ResponseEntity<PaymentResponseDto> processPayment(@RequestBody PaymentRequestDto request) {
+        // request.getAmount() is intentionally not passed through: PaymentServiceImpl
+        // re-derives the authoritative amount from order-service so a client cannot
+        // dictate what it pays.
         Payment payment = paymentService.processPayment(
                 request.getOrderId(),
                 request.getBuyerId(),

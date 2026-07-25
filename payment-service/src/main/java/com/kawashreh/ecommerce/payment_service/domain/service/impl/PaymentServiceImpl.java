@@ -3,8 +3,12 @@ package com.kawashreh.ecommerce.payment_service.domain.service.impl;
 import com.kawashreh.ecommerce.payment_service.dataAccess.dao.PaymentRepository;
 import com.kawashreh.ecommerce.payment_service.dataAccess.entity.PaymentEntity;
 import com.kawashreh.ecommerce.payment_service.dataAccess.mapper.PaymentMapper;
+import com.kawashreh.ecommerce.payment_service.domain.exception.OrderServiceException;
 import com.kawashreh.ecommerce.payment_service.domain.model.Payment;
 import com.kawashreh.ecommerce.payment_service.domain.service.PaymentService;
+import com.kawashreh.ecommerce.payment_service.infrastructure.http.client.OrderServiceClient;
+import com.kawashreh.ecommerce.payment_service.infrastructure.http.dto.OrderDto;
+import com.kawashreh.ecommerce.payment_service.infrastructure.http.dto.OrderItemDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -21,9 +25,11 @@ public class PaymentServiceImpl implements PaymentService {
     private static final Logger logger = LoggerFactory.getLogger(PaymentServiceImpl.class);
 
     private final PaymentRepository paymentRepository;
+    private final OrderServiceClient orderServiceClient;
 
-    public PaymentServiceImpl(PaymentRepository paymentRepository) {
+    public PaymentServiceImpl(PaymentRepository paymentRepository, OrderServiceClient orderServiceClient) {
         this.paymentRepository = paymentRepository;
+        this.orderServiceClient = orderServiceClient;
     }
 
     @Override
@@ -31,10 +37,15 @@ public class PaymentServiceImpl implements PaymentService {
     public Payment processPayment(UUID orderId, UUID buyerId, String paymentMethod) {
         logger.info("Processing payment for order: {}, buyer: {}, method: {}", orderId, buyerId, paymentMethod);
 
+        // The caller-supplied amount (PaymentRequestDto.amount) is intentionally never
+        // read here. Trusting it would let a client dictate what it pays, so the
+        // authoritative amount is always re-derived from order-service instead.
+        BigDecimal amount = resolveOrderAmount(orderId);
+
         Payment payment = Payment.builder()
                 .orderId(orderId)
                 .buyerId(buyerId)
-                .amount(BigDecimal.ZERO) // Would be fetched from order
+                .amount(amount)
                 .paymentMethod(paymentMethod)
                 .status(Payment.PaymentStatus.COMPLETED)
                 .paymentGateway("SIMULATED")
@@ -44,9 +55,54 @@ public class PaymentServiceImpl implements PaymentService {
 
         var entity = PaymentMapper.toEntity(payment);
         var saved = paymentRepository.save(entity);
-        
+
         logger.info("Payment processed successfully: {} for order: {}", saved.getId(), orderId);
         return PaymentMapper.toDomain(saved);
+    }
+
+    /**
+     * Fetches the order from order-service and sums unitPrice * quantity across its
+     * selected items to obtain the authoritative payment amount. Order-service's
+     * Discount model currently carries no monetary value (name/code/description only),
+     * so there is no discount amount to net out here - if that ever changes, this needs
+     * to be revisited.
+     * <p>
+     * Fails loudly (throws {@link OrderServiceException}, an unchecked exception) on any
+     * lookup failure - missing order, non-2xx response, circuit open, timeout, or any
+     * other Feign error - rather than falling back to a zero/guessed amount. Since this
+     * method runs before {@code paymentRepository.save}, no payment row is persisted
+     * when it throws.
+     */
+    private BigDecimal resolveOrderAmount(UUID orderId) {
+        OrderDto order;
+        try {
+            order = orderServiceClient.retrieveOrder(orderId);
+        } catch (OrderServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.error("Failed to fetch order {} from order-service", orderId, e);
+            throw new OrderServiceException(
+                    "Unable to determine payment amount: order-service call failed for order " + orderId, e);
+        }
+
+        if (order == null) {
+            throw new OrderServiceException("Order not found: " + orderId);
+        }
+
+        if (order.getSelectedItems() == null || order.getSelectedItems().isEmpty()) {
+            throw new OrderServiceException(
+                    "Order " + orderId + " has no items; cannot determine payment amount");
+        }
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (OrderItemDto item : order.getSelectedItems()) {
+            if (item.getUnitPrice() == null) {
+                throw new OrderServiceException(
+                        "Order " + orderId + " item " + item.getId() + " has no unit price; cannot determine payment amount");
+            }
+            total = total.add(item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
+        }
+        return total;
     }
 
     @Override

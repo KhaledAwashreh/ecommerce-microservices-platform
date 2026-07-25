@@ -184,6 +184,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=test1234
       - SPRING_DATA_REDIS_HOST=redis-server
       - SPRING_DATA_REDIS_PORT=6379
+      - ORDER_SERVICE_URL=http://order-service:8080
       - EUREKA_CLIENT_ENABLED=false
     depends_on:
       postgres-server:

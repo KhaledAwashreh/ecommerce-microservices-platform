@@ -9,6 +9,15 @@ spring:
     url: jdbc:postgresql://localhost:5436/paymentdb
     username: postgres
     password: test1234
+  cloud:
+    openfeign:
+      client:
+        config:
+          # order-service's container port isn't published to the host (unlike
+          # api-gateway's), so payment-service running here in the IDE can't reach
+          # http://order-service:8080 directly - go through the gateway instead.
+          order-service:
+            url: http://localhost:8765
 
 management:
   zipkin:

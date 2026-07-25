@@ -20,6 +20,11 @@ spring:
       enabled: false
       discovery:
         enabled: false
+    openfeign:
+      client:
+        config:
+          order-service:
+            url: ${ORDER_SERVICE_URL:http://order-service:8080}
 
 server:
   port: 8080
@@ -43,3 +48,37 @@ management:
 logging:
   pattern:
     level: "%5p [#{spring.application.name}, %X{traceId:-}, %X{spanId:-}]"
+
+# -------------------------------
+# Feign Client Configuration
+# -------------------------------
+feign:
+  circuitbreaker:
+    enabled: true
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 10000
+        loggerLevel: basic
+      order-service:
+        errorDecoder: orderServiceErrorDecoder
+
+# -------------------------------
+# Resilience4j Circuit Breaker & Retry
+# -------------------------------
+resilience4j:
+  circuitbreaker:
+    instances:
+      order-service:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        waitDurationInOpenState: 5s
+        failureRateThreshold: 50
+  retry:
+    instances:
+      order-service:
+        maxAttempts: 3
+        waitDuration: 1s

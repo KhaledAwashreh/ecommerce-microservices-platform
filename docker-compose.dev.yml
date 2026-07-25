@@ -207,6 +207,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-payment:5432/paymentdb
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=test1234
+      - ORDER_SERVICE_URL=http://order-service:8080
       - ZIPKIN_BASE_URL=http://zipkin:9411
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]

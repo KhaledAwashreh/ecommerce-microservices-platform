@@ -2,7 +2,9 @@ package com.kawashreh.ecommerce.payment_service;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.openfeign.EnableFeignClients;
 
+@EnableFeignClients(basePackages = "com.kawashreh.ecommerce.payment_service")
 @SpringBootApplication
 public class PaymentServiceApplication {
 
