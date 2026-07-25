@@ -23,6 +23,13 @@ public interface CartService {
 
     List<Cart> findByStatus(CartStatus status);
 
+    /**
+     * Returns the caller's active cart, creating an empty one if none exists yet.
+     * This is the entry point HTTP callers use so they never have to pre-create a
+     * cart before adding the first item.
+     */
+    Cart getOrCreateActiveCart(UUID userId);
+
     Cart addItem(UUID cartId, CartItem item);
 
     Cart removeItem(UUID cartId, UUID itemId);

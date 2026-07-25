@@ -25,6 +25,7 @@ frontend-service/src/main/java/com/kawashreh/ecommerce/frontend/
 ├── FrontendApplication.java        # @SpringBootApplication, @EnableFeignClients(basePackages=".. .client")
 ├── client/                         # @FeignClient interfaces, one per upstream domain, all routed through the gateway
 │   ├── AddressServiceClient.java   # -> ${gateway}/api/v1/address (served by user-service)
+│   ├── CartServiceClient.java      # -> ${gateway}/api/v1/carts (order-service) — added for GH #13
 │   ├── CategoryServiceClient.java  # -> ${gateway}/api/v1/categories (product-service)
 │   ├── InventoryServiceClient.java # -> ${gateway}/api/v1/inventory (product-service)
 │   ├── OrderServiceClient.java     # -> ${gateway}/api/v1/orders (order-service)
@@ -38,14 +39,14 @@ frontend-service/src/main/java/com/kawashreh/ecommerce/frontend/
 │   └── WebClientConfig.java        # defines a WebClient @Bean — unused anywhere in the module (dead code, see Gotchas)
 ├── controller/                     # @Controller (not @RestController) classes returning Thymeleaf view names
 │   ├── AuthController.java         # /, /login, /register, /logout
-│   ├── CartController.java         # /cart, /cart/add, /cart/remove, /checkout — entirely stubbed, no backend calls
+│   ├── CartController.java         # /cart, /cart/add, /cart/remove wired to CartServiceClient (GH #13); /checkout still static
 │   ├── InventoryController.java    # /inventory, /inventory/{id}
 │   ├── OrderController.java        # /orders, /orders/{id}, POST /orders
 │   ├── ProductController.java      # /products, /products/{id}, /products/search
 │   └── ProfileController.java      # /profile, /profile/edit, /addresses/**
 ├── dto/                             # HTTP-facing DTOs shared with upstream services (plain POJOs, Lombok @Data/@Builder)
-│   ├── AddressDto, CategoryDto, InventoryDto, OrderDto, OrderItemDto, PaymentRequestDto,
-│   │   PaymentResponseDto, ProductDto, ProductVariationDto, RoleDto, UserDto
+│   ├── AddressDto, CartDto, CartItemDto, CategoryDto, InventoryDto, OrderDto, OrderItemDto,
+│   │   PaymentRequestDto, PaymentResponseDto, ProductDto, ProductVariationDto, RoleDto, UserDto
 │   ├── UserLoginDto, UserRegisterDto            # UNUSED — dead duplicates of dto/request/UserLoginRequest & UserRegisterRequest
 │   ├── facade/                      # composite view-model DTOs built by the facade layer
 │   │   ├── OrderWithDetailsDto      # {order: OrderDto, payment: PaymentResponseDto}
@@ -120,10 +121,10 @@ no Spring Security filter chain; auth is enforced ad hoc, per handler.
 | GET | `/products` | ProductController | `product/list` | Lists all products via `ProductFacade.getAllProducts()`; if unauthenticated, renders with an empty list (page itself loads for anonymous users) | No (page loads either way, but only shows products if authenticated — see Gotchas) |
 | GET | `/products/{productId}` | ProductController | `product/detail` | `ProductFacade.getProductWithDetails` | No |
 | GET | `/products/search` | ProductController | `product/list` | Full-page (not fragment) search results via `ProductFacade.searchProducts` (in-memory substring filter over `getAllProducts()`, not a backend search call) | No |
-| GET | `/cart` | CartController | `cart/cart` | Always renders an **empty** cart (`Collections.emptyList()`, hardcoded) | Yes |
-| POST | `/cart/add` | CartController | `redirect:/cart` | No-op — reads `productId`/`quantity` params but does nothing with them | Yes |
-| POST | `/cart/remove` | CartController | `redirect:/cart` | No-op | Yes |
-| GET | `/checkout` | CartController | `cart/checkout` | Static checkout form (hardcoded sample line item, hardcoded totals) | Yes |
+| GET | `/cart` | CartController | `cart/cart` | `CartServiceClient.getCartForUser(userId)` (get-or-create); userId resolved via `ProfileFacade.getUserByUsername(session username)`, same pattern as `OrderController` | Yes |
+| POST | `/cart/add` | CartController | `redirect:/cart` | Looks up the product via `ProductFacade.getProductWithDetails`, builds a `CartItemDto`, calls `CartServiceClient.addItem(userId, item)` | Yes |
+| POST | `/cart/remove` | CartController | `redirect:/cart` | `CartServiceClient.removeItem(userId, itemId)` | Yes |
+| GET | `/checkout` | CartController | `cart/checkout` | Static checkout form (hardcoded sample line item, hardcoded totals) — unchanged, still not wired to the cart (see Gotchas) | Yes |
 | GET | `/inventory` | InventoryController | `inventory/inventory` | Always renders empty inventory list — `// TODO: Implement actual inventory list - currently stubbed` | Yes |
 | GET | `/inventory/{productVariationId}` | InventoryController | `inventory/detail` | Calls `InventoryServiceClient.getInventoryByVariation`. **`inventory/detail.html` does not exist** — see Gotchas | Yes |
 | GET | `/orders` | OrderController | `order/orders` | `OrderFacade.getOrdersWithPayments(buyerId)`, buyer resolved via `ProfileFacade.getUserByUsername(session username)` | Yes |
@@ -178,6 +179,9 @@ first) and redirects back to a caller-appropriate path with `?error=<message>`.
 | `AddressServiceClient.createAddress` | `POST /api/v1/address` (header `X-User-ID`) | user-service | `ProfileController.addAddressHtmx` / `addAddress` |
 | `AddressServiceClient.updateAddress` | `PUT /api/v1/address/{id}` (header `X-User-ID`) | user-service | `ProfileController.editAddressHtmx` |
 | `AddressServiceClient.deleteAddress` | `DELETE /api/v1/address/{id}` (header `X-User-ID`) | user-service | `ProfileController.deleteAddress` |
+| `CartServiceClient.getCartForUser` | `GET /api/v1/carts/user/{userId}` | order-service | `CartController.cart` — added for GH #13 |
+| `CartServiceClient.addItem` | `POST /api/v1/carts/user/{userId}/items` | order-service | `CartController.addToCart` — added for GH #13 |
+| `CartServiceClient.removeItem` | `DELETE /api/v1/carts/user/{userId}/items/{itemId}` | order-service | `CartController.removeFromCart` — added for GH #13 |
 | `RoleServiceClient.getAll/getById/create/delete` | `/api/v1/roles/**` | user-service | **Nobody** — unused, dead code |
 | `ProductServiceClient.getAllProducts` | `GET /api/v1/product` | product-service | `ProductFacade.getAllProducts` / `searchProducts` |
 | `ProductServiceClient.getProductById` | `GET /api/v1/product/{id}` | product-service | `ProductFacade.getProductWithDetails` |
@@ -197,7 +201,8 @@ first) and redirects back to a caller-appropriate path with `?error=<message>`.
 Gateway routing was verified against `api-gateway/src/main/resources/application.yml`:
 `/api/v1/user/**`, `/api/v1/roles/**`, and `/api/v1/address/**` route to user-service;
 `/api/v1/product/**`, `/api/v1/categories/**`, and `/api/v1/inventory/**` route to
-product-service; `/api/v1/orders/**` routes to order-service; `/api/v1/payment/**` routes
+product-service; `/api/v1/orders/**` and `/api/v1/carts/**` (the latter added for GH #13,
+route id `order-cart-service`) route to order-service; `/api/v1/payment/**` routes
 to payment-service. Every frontend Feign client base path has a matching gateway route —
 no routing gaps.
 
@@ -316,24 +321,36 @@ test extended it. Running `mvn -pl frontend-service test` executes nothing.
    (`.../controller/OrderController.java:61`) returns view name `"order/detail"`, but
    only `order/orders.html` exists under `templates/order/`. Any hit on
    `GET /orders/{orderId}` throws `TemplateInputException`. Severity: **critical**.
-6. **Checkout form posts to a URL with no handler.** `cart/checkout.html:23`
-   (`<form action="/checkout/place" method="post">`) submits to `POST /checkout/place`,
-   but no controller in this module maps that path (`CartController` only maps
-   `GET /checkout`; `OrderController` maps `POST /orders`, a different path with a
-   different, JSON `@RequestBody` contract). Clicking "Place Your Order" 404s. Severity: **critical**.
-7. **Cart quantity-change form posts to a URL with no handler.** `cart/cart.html:50`
-   (`<form action="/cart/update" method="post">`, auto-submitted via
-   `onchange="this.form.submit()"`) targets `POST /cart/update`, which
-   `CartController` does not define (only `/cart/add` and `/cart/remove` exist). 404s.
-   Severity: **high**.
-8. **Cart is entirely non-functional stub, not connected to any backend.**
-   `CartController` (`.../controller/CartController.java`) injects no client/facade at
-   all; `/cart` always renders `Collections.emptyList()`; `POST /cart/add` and
-   `POST /cart/remove` read their request params and do nothing with them before
-   redirecting. There is no `CartServiceClient` and no cart DTOs. `checkout.html` and
-   `cart.html` display entirely hardcoded sample data (a "$59.98" sample line item,
-   fixed shipping/tax amounts) rather than any live state. Severity: **high** (whole
-   shopping-cart feature is decorative).
+6. **Checkout form posts to a URL with no handler — still open, deliberate seam for GH #6.**
+   `cart/checkout.html:23` (`<form action="/checkout/place" method="post">`) submits to
+   `POST /checkout/place`, but no controller in this module maps that path
+   (`CartController` only maps `GET /checkout`; `OrderController` maps `POST /orders`, a
+   different path with a different, JSON `@RequestBody` contract). Clicking "Place Your
+   Order" still 404s — GH #13 intentionally did not implement this (it depends on cart
+   list/add/remove working first, which is now the case). Severity: **critical**.
+7. **Cart quantity-change form posts to a URL with no handler — still open, deliberate
+   seam for GH #6.** `cart/cart.html:50` (`<form action="/cart/update" method="post">`,
+   auto-submitted via `onchange="this.form.submit()"`) targets `POST /cart/update`, which
+   `CartController` still does not define (only `/cart/add` and `/cart/remove` were wired
+   for GH #13). `CartService.updateItem` already exists in order-service and is reachable
+   for a future handler to call. Severity: **high**.
+8. **(Fixed for GH #13) Cart is now wired to a real backend.** `CartController` now
+   injects `CartServiceClient`, `ProfileFacade`, and `ProductFacade`; `/cart` renders the
+   caller's actual cart (get-or-create via `CartServiceClient.getCartForUser`),
+   `POST /cart/add` resolves the product via `ProductFacade` and calls
+   `CartServiceClient.addItem`, `POST /cart/remove` calls
+   `CartServiceClient.removeItem`. `cart/cart.html` was also fixed to read `item.lineTotal`
+   instead of a nonexistent `item.totalPrice`, and the `item.variationName` reference
+   (no such data exists anywhere in the chain) was removed — either would have thrown a
+   Thymeleaf property-not-found error the moment the cart held an item.
+   **Known limitation, not fixed by GH #13**: neither the real `product-service`
+   `ProductDto` nor any Feign client reachable from `frontend-service` returns a unit
+   price or SKU at the product level (only per-variation data would, and there is no
+   variation-selection UI on the product page) — `CartController.addToCart` currently
+   sends `unitPrice`/`lineTotal` as `BigDecimal.ZERO` and a placeholder
+   `productSku = product.getId().toString()`. `checkout.html` still displays hardcoded
+   sample data. Severity: **medium** (cart mechanics work end-to-end; pricing data is a
+   pre-existing gap one level up the stack).
 9. **`OrderController.createOrder` (`POST /orders`) is unreachable from any template.**
    It consumes `@RequestBody OrderDto` (JSON body), but no template in this module POSTs
    JSON to `/orders` — the only form-based checkout path (`/checkout/place`) doesn't

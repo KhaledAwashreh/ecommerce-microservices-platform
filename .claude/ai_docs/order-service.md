@@ -3,9 +3,10 @@
 ## Purpose
 
 `order-service` owns carts, orders, order items, and discounts for the e-commerce
-platform. It exposes a REST API for order CRUD and lookup (`OrderController`), and holds
-a `CartService`/`CartServiceImpl` domain layer for cart manipulation that currently has
-**no HTTP entry point** (see Gotchas). Its main orchestration responsibility is creating
+platform. It exposes a REST API for order CRUD and lookup (`OrderController`) and a
+cart list/add/remove API (`CartController`, added for GH issue #13 — quantity-update
+and cart-to-order checkout endpoints are a deliberate seam left for a follow-up change).
+Its main orchestration responsibility is creating
 an order: validate stock via `product-service` (over Feign, through the API gateway),
 persist the order as `PENDING`, deduct inventory, then flip to `CONFIRMED` — or mark the
 order `CANCELLED` if the deduction call fails. It also declares (but does not use) Feign
@@ -18,7 +19,8 @@ that no code in the module actually invokes.
 order_service/
 ├── OrderServiceApplication.java          @SpringBootApplication, @EnableFeignClients(basePackages=order_service)
 ├── application/
-│   ├── controller/OrderController.java   REST endpoints for orders (no cart controller)
+│   ├── controller/OrderController.java   REST endpoints for orders
+│   ├── controller/CartController.java    REST endpoints for cart list/add/remove (GH #13)
 │   ├── dto/                              CartDto, CartItemDto, OrderDto, OrderItemDto, DiscountDto
 │   └── mapper/                           CartHttpMapper, OrderHttpMapper (domain <-> DTO)
 ├── constants/ApiPaths.java               Order paths + external Feign path fragments
@@ -103,11 +105,25 @@ from setting an arbitrary status via `PUT /api/v1/orders/{id}` (see HTTP API / G
 
 ## HTTP API
 
-Base path: `ApiPaths.ORDER_BASE = /api/v1/orders`. All defined in
-`application/controller/OrderController.java`. There is **no cart controller** — `CartService`
-exists and is fully implemented but is not wired to any `@RestController`, so none of its
-operations (create cart, add/remove/update item, clear cart, recalc totals) are reachable
-over HTTP in this module.
+Base path: `ApiPaths.ORDER_BASE = /api/v1/orders`, defined in
+`application/controller/OrderController.java`.
+
+`CartController` (`ApiPaths.CART_BASE = /api/v1/carts`, added for GH issue #13) exposes
+list/add/remove only:
+
+| Method | Path | Request body | Response | Status codes | Notes |
+|---|---|---|---|---|---|
+| GET | `/api/v1/carts/user/{userId}` | — | `CartDto` | 200 | Get-or-create: creates an empty `ACTIVE` cart for the user if none exists yet, via `CartService.getOrCreateActiveCart` |
+| GET | `/api/v1/carts/{id}` | — | `CartDto` | 200, 404 if not found | Direct cart lookup by id, mirrors `OrderController`'s `/{id}` |
+| POST | `/api/v1/carts/user/{userId}/items` | `CartItemDto` | `CartDto` (whole cart, updated) | 201 | Get-or-creates the user's active cart, then `CartService.addItem` |
+| DELETE | `/api/v1/carts/user/{userId}/items/{itemId}` | — | `CartDto` | 200, 404 if the cart is gone | Get-or-creates the user's active cart, then `CartService.removeItem` |
+
+The calling user is identified purely by the `{userId}` path variable, exactly like
+`OrderController`'s `{buyerId}`/`{sellerId}` — this module does not read any
+gateway-propagated identity header itself (see Security). `CartService` already
+implements `updateItem`, `clearCart`, and `recalculateTotals`; none of them are wired to
+an endpoint yet — quantity-update and cart-to-order checkout are a deliberate seam left
+for a follow-up change (GH issue #6).
 
 | Method | Path | Request body | Response | Status codes | Auth |
 |---|---|---|---|---|---|
@@ -377,16 +393,20 @@ invisible from this module's code).
     *doesn't* throw, the test silently passes with no assertion executed — same pattern in
     `create_shouldFail_whenProductNotFound`), product-not-found failure path, `findByBuyer`,
     `findByStatus` (asserts a `CANCELLED` filter returns empty after a successful create).
-  - **Not covered**: `CartService`/`CartServiceImpl` (zero test coverage for cart create,
-    add/remove/update item, clear, recalc totals, or any `CartStatus` transition);
+  - **Not covered**: `CartService`/`CartServiceImpl` itself (zero test coverage for cart
+    create, add/remove/update item, clear, recalc totals, or any `CartStatus` transition —
+    `CartControllerTest`, below, mocks `CartService` so it doesn't exercise the impl);
     `OrderController` (no `@WebMvcTest`/`MockMvc` test exists — no endpoint, path
     variable, or status-code coverage); the compensating-cancel path (no test forces
     `deductInventory` to fail/return `false` to observe the `CANCELLED` transition or the
     transaction-rollback behavior documented above); `PaymentClient`/`UserServiceClient`
     (both entirely unused, so untested); Resilience4j circuit-breaker/retry behavior;
     `ProductServiceErrorDecoder`; caching (none exists to test).
-- Run: `mvn -pl order-service test` (requires a running Docker daemon for Testcontainers,
-  per root `CLAUDE.md`).
+- `src/test/java/.../application/controller/CartControllerTest.java` — `@WebMvcTest(CartController.class)`
+  slice test (no Docker needed), `CartService` mocked via `@MockitoBean`. Covers
+  get-or-create by user, get-by-id (found/404), add-item (201), remove-item (200/404).
+- Run: `mvn -pl order-service test` (the integration test requires a running Docker
+  daemon for Testcontainers, per root `CLAUDE.md`; `CartControllerTest` does not).
 
 ## Gotchas
 
@@ -402,18 +422,21 @@ invisible from this module's code).
    transaction, including the original `PENDING` insert and the `CANCELLED` update. No
    order row survives a failed creation despite the code appearing to persist a
    `CANCELLED` record. `OrderServiceImpl.java:37-60, 220-247`.
-3. **No cart HTTP endpoints** — `CartService`/`CartServiceImpl` is fully implemented but
-   has no `@RestController`. All cart functionality (create, add/remove/update item, clear,
-   recalc totals) is unreachable over HTTP in this module.
-   `order-service/src/main/java/.../application/controller/` (no `CartController.java` present).
-4. **`CartMapper.toEntity` never sets the `CartItemEntity.cart` back-reference** — unlike
-   `OrderServiceImpl.create`, which manually does `item.setOrder(entity)` before saving,
-   `CartServiceImpl.update()` calls `CartMapper.toEntity(cart)` and saves directly with no
-   equivalent back-reference wiring. Given `CartItemEntity.cart` is `nullable=false,
-   optional=false`, saving a `Cart` with existing items through `update()` risks a
-   constraint violation / persistence failure.
-   `order-service/src/main/java/.../dataAccess/mapper/CartMapper.java:10-28`,
-   `domain/service/impl/CartServiceImpl.java:146-151`.
+3. **(Fixed for GH #13)** `CartController` now exposes list/add/remove
+   (`GET /api/v1/carts/user/{userId}`, `GET /api/v1/carts/{id}`,
+   `POST /api/v1/carts/user/{userId}/items`, `DELETE /api/v1/carts/user/{userId}/items/{itemId}`).
+   `updateItem`, `clearCart`, and `recalculateTotals` are still not wired to any endpoint —
+   left as a seam for GH issue #6 (checkout / quantity-update).
+4. **(Fixed for GH #13) `CartMapper.toEntity` now sets the `CartItemEntity.cart`
+   back-reference.** It previously mapped `d.getCartItems()` straight into the builder via
+   `CartItemMapper.toEntityList`, which only maps scalar fields — no code ever called
+   `item.setCart(...)`. Since `CartItemEntity.cart` is `nullable=false, optional=false`,
+   persisting a `Cart` with any items (via `create()` or `update()`) would have thrown a
+   constraint violation the first time the cart was actually used end-to-end. The fix
+   builds the `CartEntity` first, then sets the back-reference on every mapped
+   `CartItemEntity` before attaching the list, mirroring how `OrderServiceImpl.create`
+   manually does `item.setOrder(entity)`.
+   `order-service/src/main/java/.../dataAccess/mapper/CartMapper.java:10-33`.
 5. **`PaymentClient` and `UserServiceClient` are fully dead code** — declared, configured
    in `application.yml`'s Feign client config block, but never injected or called by any
    class in `src/main`. `infrastructure/http/client/PaymentClient.java`,

@@ -38,7 +38,6 @@
                                         </div>
                                         <div class="ml-4">
                                             <p class="font-medium text-gray-900" th:text="${item.productName}">Product Name</p>
-                                            <p class="text-sm text-gray-500" th:text="${item.variationName}">Variation</p>
                                             <form action="/cart/remove" method="post" class="mt-1">
                                                 <input type="hidden" name="itemId" th:value="${item.id}">
                                                 <button type="submit" class="text-sm text-blue-600 hover:underline">Delete</button>
@@ -60,7 +59,7 @@
                                     </form>
                                 </td>
                                 <td class="px-4 py-4 text-right">
-                                    <p class="font-bold" th:text="${'$' + item.totalPrice}">$29.99</p>
+                                    <p class="font-bold" th:text="${'$' + item.lineTotal}">$29.99</p>
                                 </td>
                             </tr>
                         </tbody>

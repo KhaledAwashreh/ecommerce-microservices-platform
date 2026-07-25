@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -75,6 +76,29 @@ public class CartServiceImpl implements CartService {
                 .stream()
                 .map(CartMapper::toDomain)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public Cart getOrCreateActiveCart(UUID userId) {
+        return cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE)
+                .map(CartMapper::toDomain)
+                .orElseGet(() -> createActiveCart(userId));
+    }
+
+    private Cart createActiveCart(UUID userId) {
+        var cart = Cart.builder()
+                .userId(userId)
+                .status(CartStatus.ACTIVE)
+                .cartItems(new ArrayList<>())
+                .subtotal(BigDecimal.ZERO)
+                .discountTotal(BigDecimal.ZERO)
+                .taxTotal(BigDecimal.ZERO)
+                .shippingTotal(BigDecimal.ZERO)
+                .totalPrice(BigDecimal.ZERO)
+                .build();
+        var saved = cartRepository.save(CartMapper.toEntity(cart));
+        return CartMapper.toDomain(saved);
     }
 
     @Override

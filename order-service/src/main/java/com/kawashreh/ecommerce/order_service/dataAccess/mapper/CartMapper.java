@@ -9,12 +9,11 @@ public final class CartMapper {
 
     public static CartEntity toEntity(Cart d) {
         if (d == null) return null;
-        return CartEntity.builder()
+        var entity = CartEntity.builder()
                 .id(d.getId())
                 .userId(d.getUserId())
                 .sessionId(d.getSessionId())
                 .status(d.getStatus())
-                .cartItems(CartItemMapper.toEntityList(d.getCartItems()))
                 .subtotal(d.getSubtotal())
                 .discountTotal(d.getDiscountTotal())
                 .taxTotal(d.getTaxTotal())
@@ -25,6 +24,17 @@ public final class CartMapper {
                 .createdBy(d.getCreatedBy())
                 .updatedBy(d.getUpdatedBy())
                 .build();
+
+        // CartItemEntity.cart is the owning, non-nullable FK side (nullable = false,
+        // optional = false). CartItemMapper.toEntityList only maps scalar fields, so
+        // the back-reference must be wired here before the item list is attached,
+        // otherwise saving a cart with existing items throws a constraint violation.
+        var items = CartItemMapper.toEntityList(d.getCartItems());
+        if (items != null) {
+            items.forEach(item -> item.setCart(entity));
+            entity.setCartItems(items);
+        }
+        return entity;
     }
 
     public static Cart toDomain(CartEntity e) {

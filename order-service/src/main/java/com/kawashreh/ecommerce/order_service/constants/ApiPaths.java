@@ -14,6 +14,12 @@ public final class ApiPaths {
     public static final String ORDER_BY_SELLER_AND_STORE = "/seller/{sellerId}/store/{storeId}";
     public static final String ORDER_BY_BUYER_AND_STATUS = "/buyer/{buyerId}/status/{status}";
 
+    // Cart API
+    public static final String CART_BASE = "/api/v1/carts";
+    public static final String CART_BY_USER = "/user/{userId}";
+    public static final String CART_ITEMS_BY_USER = "/user/{userId}/items";
+    public static final String CART_ITEM_BY_USER = "/user/{userId}/items/{itemId}";
+
     // External service API paths (for Feign clients)
     public static final String PRODUCT_BASE = "/api/v1/product";
     public static final String PRODUCT_BY_ID = "/{productId}";
