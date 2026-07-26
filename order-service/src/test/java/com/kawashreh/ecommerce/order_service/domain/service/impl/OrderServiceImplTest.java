@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -37,6 +38,11 @@ import static org.mockito.Mockito.when;
  * Pure Mockito unit tests for the issue #8 fix: {@code create}/{@code createOrderFromCart}
  * must persist a PENDING order, run the remote inventory-deduction call with no DB
  * transaction held, then persist either CONFIRMED or CANCELLED as an independent write.
+ *
+ * <p>Also covers the issue #7 fix: on partial-deduction failure, exactly the items already
+ * deducted must be restored via {@code ProductServiceClient.restoreInventory} (not all
+ * items, not none), and a failure in the restore call itself must never mask the original
+ * inventory-update failure that the caller sees.</p>
  *
  * These tests run WITHOUT Docker/Testcontainers and WITHOUT a Spring context, so they
  * cannot observe real transaction commit/rollback semantics (that requires a
@@ -91,6 +97,32 @@ class OrderServiceImplTest {
                                 .productSku(productVariationId)
                                 .quantity(quantity)
                                 .unitPrice(BigDecimal.valueOf(99.99))
+                                .build()
+                )))
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+    }
+
+    /**
+     * Two-item order, used by the issue #7 partial-deduction/restore tests below - a
+     * single-item order can never exercise "some items deducted, one fails" behavior.
+     */
+    private Order multiItemOrder(UUID sku1, int qty1, UUID sku2, int qty2) {
+        return Order.builder()
+                .buyer(buyerId)
+                .seller(sellerId)
+                .storeId(storeId)
+                .selectedItems(new ArrayList<>(List.of(
+                        OrderItem.builder()
+                                .productSku(sku1)
+                                .quantity(qty1)
+                                .unitPrice(BigDecimal.valueOf(9.99))
+                                .build(),
+                        OrderItem.builder()
+                                .productSku(sku2)
+                                .quantity(qty2)
+                                .unitPrice(BigDecimal.valueOf(19.99))
                                 .build()
                 )))
                 .createdAt(Instant.now())
@@ -155,6 +187,54 @@ class OrderServiceImplTest {
                 .hasMessageContaining("Order creation failed");
 
         verify(repository, times(2)).save(any(OrderEntity.class));
+        assertThat(savedStatuses).containsExactly(OrderStatus.PENDING, OrderStatus.CANCELLED);
+    }
+
+    @Test
+    void create_restoresOnlyTheItemsActuallyDeducted_whenALaterItemFailsToDeduct() {
+        // Issue #7: item 1 deducts successfully, item 2 fails. Only item 1's deduction
+        // must be compensated - not item 2 (never deducted), not a blanket restore of the
+        // whole order.
+        UUID sku1 = UUID.randomUUID();
+        UUID sku2 = UUID.randomUUID();
+        stubHappyPathValidation(100);
+        List<OrderStatus> savedStatuses = stubSaveToReturnSameEntityAndRecordStatuses();
+        when(productServiceClient.deductInventory(eq(sku1), eq(2))).thenReturn(true);
+        when(productServiceClient.deductInventory(eq(sku2), eq(3))).thenReturn(false);
+
+        Order order = multiItemOrder(sku1, 2, sku2, 3);
+
+        assertThatThrownBy(() -> orderService.create(order))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Order creation failed");
+
+        verify(productServiceClient, times(1)).restoreInventory(eq(sku1), eq(2));
+        verify(productServiceClient, never()).restoreInventory(eq(sku2), anyInt());
+        assertThat(savedStatuses).containsExactly(OrderStatus.PENDING, OrderStatus.CANCELLED);
+    }
+
+    @Test
+    void create_stillThrowsOriginalFailure_whenTheRestoreCallItselfFails() {
+        // Issue #7: the compensating restoreInventory call throwing must not mask or
+        // replace the original inventory-update failure - the caller must still see the
+        // original cause, and the order must still end up CANCELLED.
+        UUID sku1 = UUID.randomUUID();
+        UUID sku2 = UUID.randomUUID();
+        stubHappyPathValidation(100);
+        List<OrderStatus> savedStatuses = stubSaveToReturnSameEntityAndRecordStatuses();
+        when(productServiceClient.deductInventory(eq(sku1), eq(2))).thenReturn(true);
+        when(productServiceClient.deductInventory(eq(sku2), eq(3))).thenReturn(false);
+        when(productServiceClient.restoreInventory(eq(sku1), eq(2)))
+                .thenThrow(new RuntimeException("restore-service-unreachable"));
+
+        Order order = multiItemOrder(sku1, 2, sku2, 3);
+
+        assertThatThrownBy(() -> orderService.create(order))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Order creation failed")
+                .hasMessageNotContaining("restore-service-unreachable");
+
+        verify(productServiceClient, times(1)).restoreInventory(eq(sku1), eq(2));
         assertThat(savedStatuses).containsExactly(OrderStatus.PENDING, OrderStatus.CANCELLED);
     }
 
