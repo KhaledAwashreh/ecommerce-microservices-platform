@@ -11,6 +11,7 @@ import com.kawashreh.ecommerce.payment_service.infrastructure.http.dto.OrderDto;
 import com.kawashreh.ecommerce.payment_service.infrastructure.http.dto.OrderItemDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,9 +34,22 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    @Transactional
     public Payment processPayment(UUID orderId, UUID buyerId, String paymentMethod) {
         logger.info("Processing payment for order: {}, buyer: {}, method: {}", orderId, buyerId, paymentMethod);
+
+        // Idempotency fast path: a payment already exists for this order (client retry,
+        // double-click, or a gateway-level retry replaying the same request). Return the
+        // existing row as-is and skip the order-service round trip entirely - re-deriving
+        // the amount would be pointless work and, if order-service is unavailable, would
+        // turn a harmless retry into an avoidable OrderServiceException. Partial payments
+        // per order are not an intended concept today (see PaymentEntity's unique
+        // constraint on order_id), so "one payment per order" is the right read of a
+        // repeat call, not an error.
+        Payment existing = findExistingPayment(orderId);
+        if (existing != null) {
+            logger.info("Payment already exists for order {}: returning existing payment {}", orderId, existing.getId());
+            return existing;
+        }
 
         // The caller-supplied amount (PaymentRequestDto.amount) is intentionally never
         // read here. Trusting it would let a client dictate what it pays, so the
@@ -54,10 +68,40 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
 
         var entity = PaymentMapper.toEntity(payment);
-        var saved = paymentRepository.save(entity);
+
+        // No @Transactional spans the check-then-insert above: each repository call gets
+        // its own transaction. That matters here - saveAndFlush forces the INSERT (and
+        // therefore a unique-constraint violation on order_id) to happen synchronously on
+        // this line, inside its own transaction, which then rolls back cleanly on failure.
+        // If this were all one outer transaction instead, Postgres would mark it aborted
+        // after the constraint violation, and the fallback findByOrderId lookup below would
+        // itself fail instead of finding the winning row.
+        PaymentEntity saved;
+        try {
+            saved = paymentRepository.saveAndFlush(entity);
+        } catch (DataIntegrityViolationException e) {
+            // Lost the race: another request for the same orderId committed first and the
+            // unique constraint on order_id (PaymentEntity) is what actually stopped this
+            // second insert - the findByOrderId check above only narrows the window, it
+            // doesn't close it. Return the winner's payment instead of surfacing a 500.
+            logger.warn("Concurrent payment insert detected for order {}; returning existing payment instead of failing", orderId);
+            Payment winner = findExistingPayment(orderId);
+            if (winner == null) {
+                // Should not happen - the constraint only fires if a row exists - but don't
+                // swallow the error if it somehow does.
+                throw e;
+            }
+            return winner;
+        }
 
         logger.info("Payment processed successfully: {} for order: {}", saved.getId(), orderId);
         return PaymentMapper.toDomain(saved);
+    }
+
+    private Payment findExistingPayment(UUID orderId) {
+        return paymentRepository.findByOrderId(orderId)
+                .map(PaymentMapper::toDomain)
+                .orElse(null);
     }
 
     /**

@@ -4,10 +4,15 @@
 
 Records payments against orders and exposes a CRUD-ish HTTP API for processing, retrieving,
 and refunding them. There is no real payment gateway integration: `PaymentServiceImpl`
-always creates a payment with `amount = BigDecimal.ZERO` and `status = COMPLETED`, so
-"processing" is not simulated in any meaningful sense (no success/failure branching, no
-randomness, no gateway call). Consumed by `order-service` via a Feign client
-(`PaymentClient`), which is itself routed through the API gateway.
+unconditionally sets `status = COMPLETED`, so "processing" is not simulated in any
+meaningful sense (no success/failure branching, no randomness, no real gateway call). The
+`amount` **is** authoritative, though: `processPayment` re-derives it from order-service
+(via `OrderServiceClient`, a Feign client) instead of trusting the caller — fixed in issue
+#10; previously it was hardcoded to `BigDecimal.ZERO`. `processPayment` is also idempotent
+per `orderId` (issue #11): a repeat call for an order that already has a payment returns the
+existing row instead of creating a second one, and a DB-level unique constraint stops
+concurrent duplicates that race past the in-process check. Consumed by `order-service` via a
+Feign client (`PaymentClient`), which is itself routed through the API gateway.
 
 ## Package layout
 
@@ -22,18 +27,26 @@ payment-service/src/main/java/com/kawashreh/ecommerce/payment_service/
 ├── constants/ApiPaths.java                 # BASE_PATH + relative route fragments
 ├── dataAccess/
 │   ├── dao/PaymentRepository.java          # Spring Data JPA repo
-│   ├── entity/PaymentEntity.java           # @Entity, table "payment"
+│   ├── entity/PaymentEntity.java           # @Entity, table "payment", unique on order_id
 │   └── mapper/PaymentMapper.java           # PaymentEntity <-> Payment (domain)
 ├── domain/
+│   ├── exception/OrderServiceException.java# thrown when the order-service lookup fails (#10)
 │   ├── model/Payment.java                  # domain POJO + PaymentStatus enum
 │   ├── service/PaymentService.java         # interface
 │   └── service/impl/PaymentServiceImpl.java# only implementation, "SIMULATED" gateway
+└── infrastructure/
+    ├── config/FeignClientConfig.java       # @EnableFeignClients
+    └── http/
+        ├── client/OrderServiceClient.java  # @FeignClient("order-service"), retrieveOrder(id)
+        ├── client/OrderServiceErrorDecoder.java
+        └── dto/OrderDto.java, OrderItemDto.java  # Feign response shapes
 ```
 
-No `infrastructure/` package exists in this module — despite `spring-cloud-starter-openfeign`
-and `spring-cloud-starter-loadbalancer` being on the classpath (see pom.xml), payment-service
-declares no `@FeignClient` and no `@EnableFeignClients`. It is a pure inbound REST + JPA
-service; it calls nothing else itself.
+As of issue #10, payment-service does declare a `@FeignClient` (`OrderServiceClient`) and an
+`infrastructure/` package, wired via `FeignClientConfig`'s `@EnableFeignClients`. It is no
+longer a pure inbound-only service: `PaymentServiceImpl.processPayment` calls out to
+order-service to resolve the authoritative payment amount before persisting (see Outbound
+dependencies).
 
 ## Domain model
 
@@ -44,7 +57,7 @@ service; it calls nothing else itself.
 | `id` | `UUID` | |
 | `orderId` | `UUID` | |
 | `buyerId` | `UUID` | |
-| `amount` | `BigDecimal` | Always `BigDecimal.ZERO` in practice — see Gotchas |
+| `amount` | `BigDecimal` | Derived by `PaymentServiceImpl.resolveOrderAmount` from order-service's item unit prices × quantities (issue #10); the caller-supplied `PaymentRequestDto.amount` is always ignored — see Gotchas |
 | `paymentMethod` | `String` | free text, no enum/validation |
 | `status` | `Payment.PaymentStatus` | enum: `PENDING, PROCESSING, COMPLETED, FAILED, REFUNDED, CANCELLED` |
 | `transactionId` | `String` | never populated anywhere in the module — always `null` |
@@ -66,16 +79,37 @@ via `Enum.valueOf`.
   - `BaseIntegrationTest` also force-overrides `spring.jpa.hibernate.ddl-auto` to
     `create-drop` via `@DynamicPropertySource`.
 - Columns: `id` (PK, `@GeneratedValue`, default strategy = `GenerationType.AUTO`), `order_id`
-  (not null), `buyer_id` (not null), `amount` (not null), `payment_method`, `status` (not
-  null, `EnumType.STRING`), `transaction_id`, `payment_gateway`, `created_at`
-  (`@CreationTimestamp`), `updated_at` (`@UpdateTimestamp`).
+  (not null, **unique** — `uk_payment_order_id`, issue #11), `buyer_id` (not null), `amount`
+  (not null), `payment_method`, `status` (not null, `EnumType.STRING`), `transaction_id`,
+  `payment_gateway`, `created_at` (`@CreationTimestamp`), `updated_at` (`@UpdateTimestamp`).
 - `PaymentRepository extends JpaRepository<PaymentEntity, UUID>`:
-  - `findByOrderId(UUID orderId): Optional<PaymentEntity>` — used by
-    `getPaymentByOrderId`. **Not** used to prevent duplicate payments in `processPayment`
-    (no idempotency check — see Gotchas).
+  - `findByOrderId(UUID orderId): Optional<PaymentEntity>` — used by `getPaymentByOrderId`
+    **and**, as of issue #11, by `processPayment` as an idempotency fast-path check (before
+    the order-service lookup) and again as the fallback lookup after a unique-constraint
+    violation on a concurrent insert.
   - `findByTransactionId(String transactionId): Optional<PaymentEntity>` — declared but never
     called anywhere in the module (dead code); moot anyway since `transactionId` is never set.
-- No unique constraint on `order_id`, so multiple `PaymentEntity` rows can exist per order.
+- **Unique constraint on `order_id`** (issue #11): `PaymentEntity`'s `@Table` declares
+  `uniqueConstraints = @UniqueConstraint(name = "uk_payment_order_id", columnNames =
+  "order_id")`. Since this module has no Flyway/Liquibase, the constraint is applied the same
+  way the rest of the schema is — Hibernate `ddl-auto: update` is expected to issue the
+  `ALTER TABLE ... ADD CONSTRAINT` at startup.
+  **Unverified, and worth checking against any long-lived database.** `hibernate.hbm2ddl.halt_on_error`
+  defaults to `false` and is not set here, so if that `ALTER TABLE` fails — which it will on any
+  database that already contains duplicate `order_id` rows, exactly the state this bug produced
+  before the fix — Hibernate logs the failure and boots anyway, leaving no constraint and no
+  startup error. Confirm the constraint exists (`\d payment` in psql) rather than assuming it.
+  When present, this is what actually stops two concurrent `processPayment`
+  calls for the same order from both inserting; the `findByOrderId` check in the service layer
+  only narrows the race window, it can't close it by itself. `processPayment` uses
+  `paymentRepository.saveAndFlush(...)` (not plain `save`) so the constraint violation
+  surfaces synchronously as a `DataIntegrityViolationException` at the call site instead of
+  being deferred to a later flush/commit where it could no longer be caught; on catching it,
+  the service re-queries `findByOrderId` and returns the winning row rather than a 500. No
+  `@Transactional` spans the check-then-insert in `processPayment` — each repository call gets
+  its own transaction, which matters on Postgres: if the insert and the fallback lookup shared
+  one transaction, the constraint violation would abort that whole transaction and the
+  fallback lookup would fail too.
 
 ## HTTP API
 
@@ -87,7 +121,7 @@ Base path: `ApiPaths.BASE_PATH = "/api/v1/payment"` (singular — matches the ga
 
 | Method | Path (`BASE_PATH` + …) | Request | Response | Status codes | Auth |
 |---|---|---|---|---|---|
-| POST | `/process` | `PaymentRequestDto` (JSON body: `orderId`, `buyerId`, `amount`, `paymentMethod`) | `PaymentResponseDto` | 200 always (no error branch in controller/service) | None enforced in this module — JWT is validated upstream at the gateway (`architecture.md`), payment-service trusts the caller |
+| POST | `/process` | `PaymentRequestDto` (JSON body: `orderId`, `buyerId`, `amount`, `paymentMethod`) | `PaymentResponseDto` (existing payment if one already exists for `orderId` — issue #11) | 200 on success; an unhandled `OrderServiceException` from the order-service lookup (issue #10) surfaces as Spring's default 500 body — this module has no `GlobalExceptionHandler` (root `CLAUDE.md`) | None enforced in this module — JWT is validated upstream at the gateway (`architecture.md`), payment-service trusts the caller |
 | GET | `/{paymentId}` | path var `paymentId: UUID` | `PaymentResponseDto` or empty body | 200, 404 if not found | None |
 | GET | `/order/{orderId}` | path var `orderId: UUID` | `PaymentResponseDto` or empty body | 200, 404 if not found | None |
 | POST | `/{paymentId}/refund` | path var `paymentId: UUID` | `Boolean` (`true`/`false`) | 200 always (`true` if payment found and set to `REFUNDED`, `false` if not found) | None |
@@ -97,16 +131,23 @@ Notes:
   are distinguishable to Spring's path matcher only because `/order/...` has a literal
   first segment; both are registered as `@GetMapping` under the same controller.
 - `processPayment` ignores `PaymentRequestDto.amount` entirely — see Gotchas.
+- Calling `POST /process` twice for the same `orderId` no longer creates a second row
+  (issue #11): the repeat call short-circuits on `findByOrderId` and returns the original
+  payment, without re-calling order-service. Concurrent requests that both pass that check
+  are resolved by the DB-level unique constraint on `order_id` (see Persistence).
 - `refundPayment` does not validate the payment's current status before flipping it to
   `REFUNDED` (e.g. a `PENDING` or already-`REFUNDED` payment can be "refunded" again).
 
 ## Outbound dependencies
 
-None. Despite `spring-cloud-starter-openfeign`, `spring-cloud-starter-loadbalancer`, and
-`resilience4j-retry` being declared in `pom.xml`, and `com.stripe:stripe-java:24.0.0` being
-present as a dependency, the module contains no Feign client, no `@EnableFeignClients`, no
-retry annotation, and no reference to the Stripe SDK anywhere under `src/main`. These
-dependencies are dead weight (see Gotchas).
+As of issue #10, payment-service has one outbound dependency: `OrderServiceClient`
+(`infrastructure/http/client/OrderServiceClient.java`, `@FeignClient(name =
+"order-service")`), which calls `GET {ApiPaths.ORDER_BASE}{ApiPaths.ORDER_BY_ID}` to fetch
+the order and derive the payment amount from its selected items. It is wrapped in a
+Resilience4j circuit breaker and retry (config name `order-service`, `application.yml`) and
+a custom `OrderServiceErrorDecoder`. `com.stripe:stripe-java:24.0.0` remains a declared but
+unused dependency — no reference to the Stripe SDK exists anywhere under `src/main` (see
+Gotchas).
 
 payment-service is itself an inbound dependency of `order-service`
 (`order-service/.../infrastructure/http/client/PaymentClient.java`, `@FeignClient(name =
@@ -148,27 +189,35 @@ unauthenticated.
 
 ## Tests
 
-`payment-service/src/test/java/.../BaseIntegrationTest.java` is the only test file in the
-module. It is an **abstract** base class (`@SpringBootTest @Testcontainers
-@ActiveProfiles("test")`) that spins up a `postgres:16-alpine` Testcontainer and wires
-`spring.datasource.*` + forces `ddl-auto=create-drop` via `@DynamicPropertySource`. **No
-concrete test class extends it and no `@Test`-annotated method exists anywhere in the
-module** — running `mvn -pl payment-service test` executes zero tests. The Docker daemon
-requirement documented in the root `CLAUDE.md` ("Integration tests use TestContainers")
-does not currently exercise anything for this module.
+`payment-service/src/test/java/.../BaseIntegrationTest.java` is an **abstract** base class
+(`@SpringBootTest @Testcontainers @ActiveProfiles("test")`) that spins up a
+`postgres:16-alpine` Testcontainer and wires `spring.datasource.*` + forces
+`ddl-auto=create-drop` via `@DynamicPropertySource`. **No concrete test class extends it** —
+the Docker-dependent path documented in the root `CLAUDE.md` ("Integration tests use
+TestContainers") still exercises nothing for this module.
 
-To run (produces "no tests found"): `mvn -pl payment-service test`
+`domain/service/impl/PaymentServiceImplTest.java` (added alongside issues #10 and #11) is a
+plain-Mockito unit test of `PaymentServiceImpl.processPayment` — no Spring context, no
+Docker/Testcontainers needed. It covers: amount derivation from order items and
+`OrderServiceException` on a missing order / empty items / missing unit price / Feign
+failure (#10); and the idempotency fast-path, the concurrent-insert unique-constraint race
+(caught and resolved to the winning row), and the edge case where the constraint fires but no
+row can be found afterwards (#11).
+
+To run: `mvn -pl payment-service test` (9 tests, all in `PaymentServiceImplTest`)
 
 ## Gotchas
 
-1. **`amount` is silently discarded.** `PaymentRequestDto.amount` is read by nobody:
-   `PaymentController.processPayment` (`application/controller/PaymentController.java:26-30`)
-   calls `paymentService.processPayment(orderId, buyerId, paymentMethod)` — the 3-arg
-   `PaymentService` interface (`domain/service/PaymentService.java:9`) has no `amount`
-   parameter at all. `PaymentServiceImpl.processPayment`
-   (`domain/service/impl/PaymentServiceImpl.java:37`) hardcodes
-   `.amount(BigDecimal.ZERO) // Would be fetched from order`. Every payment ever created by
-   this module has `amount = 0`, regardless of what the client (order-service) sends.
+1. **`amount` is intentionally discarded — by design, since issue #10.**
+   `PaymentRequestDto.amount` is still read by nobody: `PaymentController.processPayment`
+   (`application/controller/PaymentController.java`) never passes it through, and the 3-arg
+   `PaymentService` interface (`domain/service/PaymentService.java`) has no `amount`
+   parameter. This is deliberate now rather than a bug: `PaymentServiceImpl.processPayment`
+   calls `resolveOrderAmount(orderId)`, which fetches the order via `OrderServiceClient` and
+   sums `unitPrice * quantity` across its `selectedItems`, so a client can no longer dictate
+   what it pays. `resolveOrderAmount` throws `OrderServiceException` (unchecked) if the order
+   is missing, has no items, has an item with no unit price, or the Feign call fails for any
+   reason — no payment row is persisted when it throws.
 2. **No simulated gateway logic exists.** The task brief asks what determines success vs.
    failure in the "simulated gateway" — there is none. `PaymentServiceImpl.processPayment`
    unconditionally sets `status = Payment.PaymentStatus.COMPLETED` and
@@ -182,22 +231,33 @@ To run (produces "no tests found"): `mvn -pl payment-service test`
    the database and in every `PaymentResponseDto`.
    `PaymentRepository.findByTransactionId` (`dataAccess/dao/PaymentRepository.java:15`) is
    therefore permanently dead code — nothing ever populates a value it could look up.
-4. **No idempotency on `processPayment`.** `PaymentServiceImpl.processPayment`
-   (`domain/service/impl/PaymentServiceImpl.java:31-50`) never checks
-   `paymentRepository.findByOrderId(orderId)` before inserting. Calling `POST
-   /api/v1/payment/process` twice for the same `orderId` (e.g. a client retry) creates two
-   separate `payment` rows with no unique constraint on `order_id` to stop it.
+4. **Idempotent on `orderId` — fixed in issue #11.** `PaymentServiceImpl.processPayment` now
+   calls `paymentRepository.findByOrderId(orderId)` before doing anything else — before even
+   the order-service lookup — and returns the existing payment unchanged if one exists. A
+   client retry, a double-click, or the gateway's configured retry no longer creates a second
+   `payment` row. Because the fast-path check alone is race-prone under concurrent requests,
+   `PaymentEntity` also declares a DB-level unique constraint (`uk_payment_order_id` on
+   `order_id`). If two requests race past the fast-path check, `saveAndFlush` (not plain
+   `save`) makes the constraint violation surface synchronously as a
+   `DataIntegrityViolationException`, which `processPayment` catches and resolves by
+   re-querying `findByOrderId` and returning the winning row instead of a 500. Semantic
+   choice: a repeat call returns the existing payment rather than being rejected as a
+   conflict — partial/split payments per order aren't a concept this module supports today
+   (one row per `orderId`, enforced by the constraint), so returning what the client's
+   original request would have returned is the more useful idempotent behavior. If partial
+   payments are ever intended, this needs an explicit idempotency key instead of keying off
+   `orderId` alone.
 5. **No request validation.** `PaymentRequestDto` (`application/dto/PaymentRequestDto.java`)
    has no Bean Validation annotations (`@NotNull`, `@Positive`, etc.) despite
    `spring-boot-starter-validation` being a declared dependency (`pom.xml:41`), and
    `PaymentController.processPayment` does not annotate the parameter with `@Valid`. A
    `null` `orderId`/`buyerId`/`paymentMethod` or a negative `amount` is accepted without
    error (amount is discarded anyway, per item 1).
-6. **Dead/unused dependencies in `pom.xml`.** `spring-cloud-starter-loadbalancer`,
-   `spring-cloud-starter-openfeign`, `resilience4j-retry`, and `com.stripe:stripe-java`
-   (`pom.xml:48-52, 59-65, 76-80`) are declared but nothing under `src/main` uses Feign,
-   load-balanced `RestTemplate`/`WebClient`, `@Retry`, or the Stripe SDK. This module makes
-   no outbound calls at all.
+6. **`com.stripe:stripe-java` is still a dead dependency.** Unlike
+   `spring-cloud-starter-loadbalancer`, `spring-cloud-starter-openfeign`, and
+   `resilience4j-retry` — all now exercised by `OrderServiceClient` and its circuit
+   breaker/retry config (`application.yml`, issue #10) — nothing under `src/main` references
+   the Stripe SDK anywhere. It remains declared but unused in `pom.xml`.
 7. **Two parallel `PaymentStatus` enums.** `Payment.PaymentStatus`
    (`domain/model/Payment.java:38-45`) and `PaymentEntity.PaymentStatus`
    (`dataAccess/entity/PaymentEntity.java:57-59`) are separately declared with identical
@@ -205,13 +265,13 @@ To run (produces "no tests found"): `mvn -pl payment-service test`
    enum's value set without the matching edit to the other fails at runtime with
    `IllegalArgumentException`, not at compile time.
 8. **`refundPayment` has no state-machine guard.**
-   `PaymentServiceImpl.refundPayment` (`domain/service/impl/PaymentServiceImpl.java:69-81`)
+   `PaymentServiceImpl.refundPayment` (`domain/service/impl/PaymentServiceImpl.java:168-181`)
    sets any found payment's status to `REFUNDED` unconditionally — a `PENDING`,
    `FAILED`, or already-`REFUNDED` payment can be "refunded" and the caller gets `true` back
    with no indication anything unusual happened.
 9. **`createdAt`/`updatedAt` set on the domain object are thrown away.**
    `PaymentServiceImpl.processPayment` sets `.createdAt(Instant.now()).updatedAt(Instant.now())`
-   on the `Payment` builder (`domain/service/impl/PaymentServiceImpl.java:41-42`), but
+   on the `Payment` builder (`domain/service/impl/PaymentServiceImpl.java:66-67`), but
    `PaymentMapper.toEntity` (`dataAccess/mapper/PaymentMapper.java:29-42`) never copies those
    fields onto `PaymentEntity` — they're re-derived by Hibernate's `@CreationTimestamp`/
    `@UpdateTimestamp` instead. Functionally harmless (values end up nearly identical) but the
@@ -219,8 +279,10 @@ To run (produces "no tests found"): `mvn -pl payment-service test`
 10. **No auth/authorization in this module.** See Security section — any direct caller that
     can reach `payment-service:8080` (bypassing the gateway) can process, view, or refund any
     payment for any order/buyer with no credential check.
-11. **Zero executable tests.** `BaseIntegrationTest.java` is abstract and unused by any
-    concrete test class — `mvn -pl payment-service test` runs nothing (see Tests section).
+11. **Integration-test path still exercises nothing.** `BaseIntegrationTest.java` is abstract
+    and unused by any concrete test class, so the Testcontainers-based integration path
+    documented in the root `CLAUDE.md` runs nothing for this module. Unit coverage of
+    `processPayment` exists instead via `PaymentServiceImplTest` (see Tests section).
 12. **Misleading Dockerfile comment.** `Dockerfile:34` claims the port is dynamically
     assigned via `server.port=0`, which is only true for the `test` profile; the image's
     actual runtime config (`application.yml`) fixes `server.port: 8080`.

@@ -17,7 +17,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-@Table(name = "payment")
+@Table(name = "payment", uniqueConstraints = @UniqueConstraint(name = "uk_payment_order_id", columnNames = "order_id"))
 public class PaymentEntity {
 
     @Id
