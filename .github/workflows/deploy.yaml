@@ -36,6 +36,19 @@ jobs:
             echo "tag=latest" >> $GITHUB_OUTPUT
           fi
 
+      - name: Verify required secrets
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+          if [ -z "$POSTGRES_PASSWORD" ]; then
+            echo "::error::POSTGRES_PASSWORD is not set."
+            echo "Refusing to deploy. The Create Postgres secret step applies this"
+            echo "value unconditionally, so an unset secret would overwrite the"
+            echo "cluster's existing postgres-secret with an empty password and"
+            echo "break database auth for every service."
+            exit 1
+          fi
+
       - name: Authenticate to Kubernetes
         uses: azure/k8s-set-context@v4
         with:
@@ -53,10 +66,12 @@ jobs:
           kubectl apply -f k8s/rbac/rolebinding.yaml
 
       - name: Create Postgres secret
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
           kubectl create secret generic postgres-secret \
             --namespace ecommerce \
-            --from-literal=POSTGRES_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}" \
+            --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Apply infrastructure manifests (Postgres, Redis)
