@@ -2,6 +2,7 @@ package com.kawashreh.ecommerce.payment_service.domain.service.impl;
 
 import com.kawashreh.ecommerce.payment_service.dataAccess.dao.PaymentRepository;
 import com.kawashreh.ecommerce.payment_service.dataAccess.entity.PaymentEntity;
+import com.kawashreh.ecommerce.payment_service.domain.exception.InvalidPaymentStateException;
 import com.kawashreh.ecommerce.payment_service.domain.exception.OrderServiceException;
 import com.kawashreh.ecommerce.payment_service.domain.model.Payment;
 import com.kawashreh.ecommerce.payment_service.infrastructure.http.client.OrderServiceClient;
@@ -10,6 +11,8 @@ import com.kawashreh.ecommerce.payment_service.infrastructure.http.dto.OrderItem
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -241,5 +244,82 @@ class PaymentServiceImplTest {
 
         assertThatThrownBy(() -> paymentService.processPayment(orderId, buyerId, "CREDIT_CARD"))
                 .isSameAs(violation);
+    }
+
+    // --- Issue #12: refund state guard ---------------------------------------------------
+
+    @Test
+    void refundPayment_refundsACompletedPayment_andReturnsTrue() {
+        UUID paymentId = UUID.randomUUID();
+        PaymentEntity entity = PaymentEntity.builder()
+                .id(paymentId)
+                .orderId(orderId)
+                .buyerId(buyerId)
+                .amount(new BigDecimal("20.00"))
+                .paymentMethod("CREDIT_CARD")
+                .status(PaymentEntity.PaymentStatus.COMPLETED)
+                .paymentGateway("SIMULATED")
+                .build();
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(entity));
+
+        boolean result = paymentService.refundPayment(paymentId);
+
+        assertThat(result).isTrue();
+        ArgumentCaptor<PaymentEntity> captor = ArgumentCaptor.forClass(PaymentEntity.class);
+        verify(paymentRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(PaymentEntity.PaymentStatus.REFUNDED);
+    }
+
+    @Test
+    void refundPayment_returnsFalse_whenPaymentDoesNotExist() {
+        UUID paymentId = UUID.randomUUID();
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.empty());
+
+        boolean result = paymentService.refundPayment(paymentId);
+
+        assertThat(result).isFalse();
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void refundPayment_rejectsASecondRefund_onAnAlreadyRefundedPayment() {
+        UUID paymentId = UUID.randomUUID();
+        PaymentEntity entity = PaymentEntity.builder()
+                .id(paymentId)
+                .orderId(orderId)
+                .buyerId(buyerId)
+                .amount(new BigDecimal("20.00"))
+                .paymentMethod("CREDIT_CARD")
+                .status(PaymentEntity.PaymentStatus.REFUNDED)
+                .paymentGateway("SIMULATED")
+                .build();
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> paymentService.refundPayment(paymentId))
+                .isInstanceOf(InvalidPaymentStateException.class)
+                .hasMessageContaining(paymentId.toString());
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PaymentEntity.PaymentStatus.class, names = {"COMPLETED"}, mode = EnumSource.Mode.EXCLUDE)
+    void refundPayment_rejectsRefund_whenPaymentIsNotCompleted(PaymentEntity.PaymentStatus status) {
+        UUID paymentId = UUID.randomUUID();
+        PaymentEntity entity = PaymentEntity.builder()
+                .id(paymentId)
+                .orderId(orderId)
+                .buyerId(buyerId)
+                .amount(new BigDecimal("20.00"))
+                .paymentMethod("CREDIT_CARD")
+                .status(status)
+                .paymentGateway("SIMULATED")
+                .build();
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> paymentService.refundPayment(paymentId))
+                .isInstanceOf(InvalidPaymentStateException.class);
+
+        verify(paymentRepository, never()).save(any());
     }
 }

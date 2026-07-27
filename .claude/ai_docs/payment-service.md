@@ -11,8 +11,11 @@ meaningful sense (no success/failure branching, no randomness, no real gateway c
 #10; previously it was hardcoded to `BigDecimal.ZERO`. `processPayment` is also idempotent
 per `orderId` (issue #11): a repeat call for an order that already has a payment returns the
 existing row instead of creating a second one, and a DB-level unique constraint stops
-concurrent duplicates that race past the in-process check. Consumed by `order-service` via a
-Feign client (`PaymentClient`), which is itself routed through the API gateway.
+concurrent duplicates that race past the in-process check. `refundPayment` enforces a status
+precondition (issue #12): only a `COMPLETED` payment can be refunded, so a second refund or a
+refund of a non-`COMPLETED` payment is rejected (`409`) instead of silently reported as
+successful. Consumed by `order-service` via a Feign client (`PaymentClient`), which is itself
+routed through the API gateway.
 
 ## Package layout
 
@@ -31,6 +34,7 @@ payment-service/src/main/java/com/kawashreh/ecommerce/payment_service/
 │   └── mapper/PaymentMapper.java           # PaymentEntity <-> Payment (domain)
 ├── domain/
 │   ├── exception/OrderServiceException.java# thrown when the order-service lookup fails (#10)
+│   ├── exception/InvalidPaymentStateException.java # thrown by refundPayment on an illegal status transition (#12)
 │   ├── model/Payment.java                  # domain POJO + PaymentStatus enum
 │   ├── service/PaymentService.java         # interface
 │   └── service/impl/PaymentServiceImpl.java# only implementation, "SIMULATED" gateway
@@ -59,7 +63,7 @@ dependencies).
 | `buyerId` | `UUID` | |
 | `amount` | `BigDecimal` | Derived by `PaymentServiceImpl.resolveOrderAmount` from order-service's item unit prices × quantities (issue #10); the caller-supplied `PaymentRequestDto.amount` is always ignored — see Gotchas |
 | `paymentMethod` | `String` | free text, no enum/validation |
-| `status` | `Payment.PaymentStatus` | enum: `PENDING, PROCESSING, COMPLETED, FAILED, REFUNDED, CANCELLED` |
+| `status` | `Payment.PaymentStatus` | enum: `PENDING, PROCESSING, COMPLETED, FAILED, REFUNDED, CANCELLED`. The only transition the code ever performs is `COMPLETED -> REFUNDED`, enforced by `refundPayment` (issue #12) — see Gotchas item 8 |
 | `transactionId` | `String` | never populated anywhere in the module — always `null` |
 | `paymentGateway` | `String` | hardcoded to the literal `"SIMULATED"` in `PaymentServiceImpl.processPayment` |
 | `createdAt` / `updatedAt` | `Instant` | set manually in the domain builder before save, but overwritten by Hibernate `@CreationTimestamp`/`@UpdateTimestamp` since `PaymentMapper.toEntity` never copies them onto the entity (see Gotchas) |
@@ -124,7 +128,7 @@ Base path: `ApiPaths.BASE_PATH = "/api/v1/payment"` (singular — matches the ga
 | POST | `/process` | `PaymentRequestDto` (JSON body: `orderId`, `buyerId`, `amount`, `paymentMethod`) | `PaymentResponseDto` (existing payment if one already exists for `orderId` — issue #11) | 200 on success; an unhandled `OrderServiceException` from the order-service lookup (issue #10) surfaces as Spring's default 500 body — this module has no `GlobalExceptionHandler` (root `CLAUDE.md`) | None enforced in this module — JWT is validated upstream at the gateway (`architecture.md`), payment-service trusts the caller |
 | GET | `/{paymentId}` | path var `paymentId: UUID` | `PaymentResponseDto` or empty body | 200, 404 if not found | None |
 | GET | `/order/{orderId}` | path var `orderId: UUID` | `PaymentResponseDto` or empty body | 200, 404 if not found | None |
-| POST | `/{paymentId}/refund` | path var `paymentId: UUID` | `Boolean` (`true`/`false`) | 200 always (`true` if payment found and set to `REFUNDED`, `false` if not found) | None |
+| POST | `/{paymentId}/refund` | path var `paymentId: UUID` | `Boolean` (`true`/`false`) | 200 (`true` if payment found and refunded, `false` if not found); 409 if the payment exists but is not `COMPLETED` (including one already `REFUNDED`) — issue #12 | None |
 
 Notes:
 - `ApiPaths.PAYMENT_BY_ID = "/{paymentId}"` and `ApiPaths.PAYMENT_BY_ORDER = "/order/{orderId}"`
@@ -135,8 +139,14 @@ Notes:
   (issue #11): the repeat call short-circuits on `findByOrderId` and returns the original
   payment, without re-calling order-service. Concurrent requests that both pass that check
   are resolved by the DB-level unique constraint on `order_id` (see Persistence).
-- `refundPayment` does not validate the payment's current status before flipping it to
-  `REFUNDED` (e.g. a `PENDING` or already-`REFUNDED` payment can be "refunded" again).
+- `refundPayment` now enforces a status precondition (issue #12): only a `COMPLETED`
+  payment can be refunded. Any other current status — `PENDING`, `PROCESSING`, `FAILED`,
+  `CANCELLED`, or an already-`REFUNDED` payment — throws `InvalidPaymentStateException`
+  (`domain/exception/InvalidPaymentStateException.java`, unchecked), which
+  `PaymentController.refundPayment` catches locally and maps to `409 CONFLICT` (body
+  `false`). A payment that doesn't exist still returns `false`/200, unchanged from before —
+  that's a different case ("not found") from an illegal transition ("found, but not
+  eligible"), and only the latter changed in this fix.
 
 ## Outbound dependencies
 
@@ -196,15 +206,18 @@ unauthenticated.
 the Docker-dependent path documented in the root `CLAUDE.md` ("Integration tests use
 TestContainers") still exercises nothing for this module.
 
-`domain/service/impl/PaymentServiceImplTest.java` (added alongside issues #10 and #11) is a
-plain-Mockito unit test of `PaymentServiceImpl.processPayment` — no Spring context, no
-Docker/Testcontainers needed. It covers: amount derivation from order items and
+`domain/service/impl/PaymentServiceImplTest.java` (added alongside issues #10 and #11,
+extended for #12) is a plain-Mockito unit test of `PaymentServiceImpl` — no Spring context,
+no Docker/Testcontainers needed. It covers: amount derivation from order items and
 `OrderServiceException` on a missing order / empty items / missing unit price / Feign
-failure (#10); and the idempotency fast-path, the concurrent-insert unique-constraint race
+failure (#10); the idempotency fast-path, the concurrent-insert unique-constraint race
 (caught and resolved to the winning row), and the edge case where the constraint fires but no
-row can be found afterwards (#11).
+row can be found afterwards (#11); and `refundPayment`'s status guard (#12) — a successful
+refund from `COMPLETED`, `false` on an unknown `paymentId`, and `InvalidPaymentStateException`
+on every other status via a parameterized test over `PaymentEntity.PaymentStatus` (excluding
+`COMPLETED`), plus an explicit already-`REFUNDED` case.
 
-To run: `mvn -pl payment-service test` (9 tests, all in `PaymentServiceImplTest`)
+To run: `mvn -pl payment-service test` (17 tests, all in `PaymentServiceImplTest`)
 
 ## Gotchas
 
@@ -225,7 +238,14 @@ To run: `mvn -pl payment-service test` (9 tests, all in `PaymentServiceImplTest`
    randomness, no failure path, no `PaymentStatus.FAILED`/`PENDING`/`PROCESSING` is ever
    produced by `processPayment`. `FAILED`, `PENDING`, `PROCESSING`, `CANCELLED` are unreachable
    dead enum values from this code path (only `COMPLETED` and, via `refundPayment`,
-   `REFUNDED` are ever written).
+   `REFUNDED` are ever written) — still true after issue #12; `refundPayment` now *checks*
+   for these statuses (to reject a refund) but nothing in this module ever *writes* them.
+   Making them reachable would mean giving `processPayment` real success/failure branching
+   (e.g. simulated random failure, or an explicit `PROCESSING` state before `COMPLETED`) —
+   that's a change to `processPayment`'s behavior, not to `refundPayment`'s guard, and is
+   genuinely separate from issue #12. Recommendation: track it as its own issue if the dead
+   statuses need to be addressed; #12 only had to make `refundPayment` correctly *reject*
+   payments in those statuses, which it now does regardless of whether they're reachable.
 3. **`transactionId` is never generated.** Neither `PaymentServiceImpl` nor `PaymentMapper`
    ever sets `Payment.transactionId` / `PaymentEntity.transaction_id`. It is always `null` in
    the database and in every `PaymentResponseDto`.
@@ -264,11 +284,17 @@ To run: `mvn -pl payment-service test` (9 tests, all in `PaymentServiceImplTest`
    values, bridged only by `Enum.valueOf(name())` in `PaymentMapper`. Any future edit to one
    enum's value set without the matching edit to the other fails at runtime with
    `IllegalArgumentException`, not at compile time.
-8. **`refundPayment` has no state-machine guard.**
-   `PaymentServiceImpl.refundPayment` (`domain/service/impl/PaymentServiceImpl.java:168-181`)
-   sets any found payment's status to `REFUNDED` unconditionally — a `PENDING`,
-   `FAILED`, or already-`REFUNDED` payment can be "refunded" and the caller gets `true` back
-   with no indication anything unusual happened.
+8. **`refundPayment` now enforces a state guard — fixed in issue #12.**
+   `PaymentServiceImpl.refundPayment` requires the payment to be `COMPLETED`; every other
+   status (`PENDING`, `PROCESSING`, `FAILED`, `CANCELLED`, or an already-`REFUNDED` payment)
+   throws `InvalidPaymentStateException` instead of silently transitioning and reporting
+   `true`. A missing payment is unchanged — still `false`, not an exception, since that's a
+   "not found" case rather than an illegal transition on an existing entity. The
+   controller catches `InvalidPaymentStateException` locally (no module-wide
+   `GlobalExceptionHandler` was added — payment-service still has none, per root
+   `CLAUDE.md`) and maps it to `409 CONFLICT`; any other unexpected exception from this
+   endpoint still falls through to Spring's default 500 body, same as the rest of this
+   module.
 9. **`createdAt`/`updatedAt` set on the domain object are thrown away.**
    `PaymentServiceImpl.processPayment` sets `.createdAt(Instant.now()).updatedAt(Instant.now())`
    on the `Payment` builder (`domain/service/impl/PaymentServiceImpl.java:66-67`), but

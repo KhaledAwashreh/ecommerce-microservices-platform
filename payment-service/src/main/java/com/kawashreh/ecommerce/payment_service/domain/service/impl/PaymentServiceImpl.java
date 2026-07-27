@@ -3,6 +3,7 @@ package com.kawashreh.ecommerce.payment_service.domain.service.impl;
 import com.kawashreh.ecommerce.payment_service.dataAccess.dao.PaymentRepository;
 import com.kawashreh.ecommerce.payment_service.dataAccess.entity.PaymentEntity;
 import com.kawashreh.ecommerce.payment_service.dataAccess.mapper.PaymentMapper;
+import com.kawashreh.ecommerce.payment_service.domain.exception.InvalidPaymentStateException;
 import com.kawashreh.ecommerce.payment_service.domain.exception.OrderServiceException;
 import com.kawashreh.ecommerce.payment_service.domain.model.Payment;
 import com.kawashreh.ecommerce.payment_service.domain.service.PaymentService;
@@ -165,18 +166,44 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElse(null);
     }
 
+    /**
+     * Legal transition enforced here: {@code COMPLETED -> REFUNDED}, and nothing else.
+     * {@code PENDING}, {@code PROCESSING}, {@code FAILED}, and {@code CANCELLED} payments
+     * cannot be refunded (there is nothing completed to reverse), and an already-{@code
+     * REFUNDED} payment cannot be refunded again - a second call is rejected via {@link
+     * InvalidPaymentStateException} rather than silently reporting success. A missing
+     * payment (unknown {@code paymentId}) is a separate case from an illegal transition and
+     * is still signalled by returning {@code false}, unchanged from before this fix.
+     */
     @Override
     @Transactional
     public boolean refundPayment(UUID paymentId) {
         logger.info("Processing refund for payment: {}", paymentId);
-        
-        return paymentRepository.findById(paymentId)
-                .map(entity -> {
-                    entity.setStatus(PaymentEntity.PaymentStatus.REFUNDED);
-                    paymentRepository.save(entity);
-                    logger.info("Payment {} refunded successfully", paymentId);
-                    return true;
-                })
-                .orElse(false);
+
+        PaymentEntity entity = paymentRepository.findById(paymentId).orElse(null);
+        if (entity == null) {
+            logger.info("Refund requested for unknown payment: {}", paymentId);
+            return false;
+        }
+
+        assertRefundable(entity);
+
+        entity.setStatus(PaymentEntity.PaymentStatus.REFUNDED);
+        paymentRepository.save(entity);
+        logger.info("Payment {} refunded successfully", paymentId);
+        return true;
+    }
+
+    /**
+     * Only a {@code COMPLETED} payment is eligible for refund. Every other status - including
+     * {@code REFUNDED} itself - throws, so a second refund attempt is rejected instead of
+     * being reported as a (no-op) success.
+     */
+    private static void assertRefundable(PaymentEntity entity) {
+        if (entity.getStatus() != PaymentEntity.PaymentStatus.COMPLETED) {
+            throw new InvalidPaymentStateException(
+                    "Payment " + entity.getId() + " cannot be refunded: current status is "
+                            + entity.getStatus() + ", but only COMPLETED payments are eligible for refund");
+        }
     }
 }
