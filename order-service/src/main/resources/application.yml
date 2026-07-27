@@ -23,12 +23,17 @@ spring:
     openfeign:
       client:
         config:
+          # Service-to-service calls go direct by service name, not through the
+          # gateway. The gateway's JwtAuthFilter requires a bearer token, and
+          # order-service has no interceptor to attach one, so routing these
+          # through it yields 401. This matches k8s/services/order-service/
+          # order-configmap.yaml, which already overrides to direct DNS.
           product-service:
-            url: ${GATEWAY_URL:http://api-gateway:8765}
+            url: ${PRODUCT_SERVICE_URL:http://product-service:8080}
           payment-service:
-            url: ${GATEWAY_URL:http://api-gateway:8765}
+            url: ${PAYMENT_SERVICE_URL:http://payment-service:8080}
           user-service:
-            url: ${GATEWAY_URL:http://api-gateway:8765}
+            url: ${USER_SERVICE_URL:http://user-service:8080}
 
 server:
   port: 8080

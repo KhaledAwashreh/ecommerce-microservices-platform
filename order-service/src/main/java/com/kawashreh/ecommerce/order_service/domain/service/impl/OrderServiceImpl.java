@@ -4,8 +4,10 @@ import com.kawashreh.ecommerce.order_service.dataAccess.mapper.OrderMapper;
 import com.kawashreh.ecommerce.order_service.dataAccess.repository.OrderRepository;
 import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
 import com.kawashreh.ecommerce.order_service.domain.exception.InsufficientStockException;
+import com.kawashreh.ecommerce.order_service.infrastructure.http.client.PaymentClient;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceClient;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.InventoryDto;
+import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.PaymentDto;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.ProductDto;
 import com.kawashreh.ecommerce.order_service.domain.model.Order;
 import com.kawashreh.ecommerce.order_service.domain.model.OrderItem;
@@ -27,12 +29,22 @@ public class OrderServiceImpl implements OrderService {
 
     private static final Logger logger = LoggerFactory.getLogger(OrderServiceImpl.class);
 
+    // Issue #9: Order domain model carries no payment-method field today (frontend's
+    // checkout form collects one, but never threads it through to order-service - see
+    // ai_docs/order-service.md). Adding that field is a schema/DTO change across module
+    // boundaries and out of scope for wiring payment orchestration itself, so a fixed
+    // placeholder is sent instead; payment-service treats paymentMethod as free text with
+    // no validation/branching on it.
+    private static final String DEFAULT_PAYMENT_METHOD = "CARD";
+
     private final OrderRepository repository;
     private final ProductServiceClient productServiceClient;
+    private final PaymentClient paymentClient;
 
-    public OrderServiceImpl(OrderRepository repository, ProductServiceClient productServiceClient) {
+    public OrderServiceImpl(OrderRepository repository, ProductServiceClient productServiceClient, PaymentClient paymentClient) {
         this.repository = repository;
         this.productServiceClient = productServiceClient;
+        this.paymentClient = paymentClient;
     }
 
     // NOT_SUPPORTED overrides the class-level @Transactional so that no DB transaction is
@@ -55,14 +67,47 @@ public class OrderServiceImpl implements OrderService {
         // so that on partial failure we compensate EXACTLY the items that were actually
         // deducted - not the whole order, not a guess.
         List<OrderItem> deductedItems = new ArrayList<>();
+        // Issue #9: tracks whether invokePayment returned successfully (buyer was actually
+        // charged) so the catch block below can tell "failed before any charge happened"
+        // (safe to restore inventory and cancel) apart from "charge succeeded, but the
+        // CONFIRMED save itself then failed" (must NOT restore inventory or silently
+        // cancel - see the branch below).
+        boolean paymentCompleted = false;
         try {
             updateProductInventory(order, deductedItems); // remote calls only, no DB transaction held
+
+            // Issue #9: order-service orchestrates payment using the previously-unused
+            // PaymentClient. `saved` was already committed as PENDING in its own
+            // transaction above, so payment-service's callback to GET
+            // /api/v1/orders/{id} (issue #10, to derive the authoritative amount) reads a
+            // row that is already durable - no circular-call deadlock/404 here.
+            invokePayment(saved.getId(), saved.getBuyer());
+            paymentCompleted = true;
 
             saved.setStatus(OrderStatus.CONFIRMED);
             var confirmed = repository.save(saved); // own transaction, commits
             logger.info("Order {} created and confirmed successfully", confirmed.getId());
             return OrderMapper.toDomain(confirmed);
         } catch (Exception e) {
+            if (paymentCompleted) {
+                // Issue #9: the buyer was already charged (invokePayment returned
+                // successfully) and only the subsequent CONFIRMED save failed. Restoring
+                // inventory here would be wrong - the goods were legitimately sold and
+                // paid for - and silently falling through to the CANCELLED branch below
+                // would produce a charged-but-cancelled order, the worst possible outcome.
+                // There is no automatic recovery available from this method for a local DB
+                // write failing right after an external charge already succeeded, so this
+                // is surfaced as loudly as possible for manual reconciliation instead of
+                // silently compensating the wrong side.
+                logger.error("CRITICAL: payment for order {} completed successfully but the order could not be " +
+                                "persisted as CONFIRMED afterward - inventory was NOT restored (goods were " +
+                                "legitimately sold) and the order was NOT marked CANCELLED - requires immediate " +
+                                "manual reconciliation to avoid a charged-but-unconfirmed order",
+                        saved.getId(), e);
+                throw new RuntimeException("Order confirmation failed after payment succeeded for order " +
+                        saved.getId() + " - manual reconciliation required", e);
+            }
+
             // Issue #7 fix: restore exactly the inventory already deducted for this order
             // before marking it CANCELLED. restoreDeductedInventory never throws - a failed
             // restore is logged for manual reconciliation and must never mask or replace the
@@ -70,8 +115,53 @@ public class OrderServiceImpl implements OrderService {
             restoreDeductedInventory(deductedItems, saved.getId());
             saved.setStatus(OrderStatus.CANCELLED);
             repository.save(saved); // own transaction, commits and survives independently of the branch above
-            logger.error("Order {} creation failed during inventory update. Order marked as CANCELLED", saved.getId(), e);
-            throw new RuntimeException("Order creation failed: Unable to update inventory - distributed transaction rolled back", e);
+            logger.error("Order {} creation failed before payment completed. Order marked as CANCELLED", saved.getId(), e);
+            throw new RuntimeException("Order creation failed: distributed transaction rolled back", e);
+        }
+    }
+
+    /**
+     * Issue #9: invokes payment-service via the previously-dead {@link PaymentClient} as
+     * part of order creation. Runs with no DB transaction held (same as
+     * {@link #updateProductInventory}), after inventory has been deducted and before the
+     * order is flipped to CONFIRMED, so a payment failure lands in the exact same
+     * catch/compensate block as an inventory-deduction failure in {@link #create}.
+     *
+     * <p>Idempotency note (issue #11): {@code PaymentClient.processPayment} is idempotent
+     * per {@code orderId} on payment-service's side - a repeat call for an order that
+     * already has a payment returns the existing (already-COMPLETED) row instead of
+     * charging twice. That makes it safe to call this again for the same order id (e.g. if
+     * a future retry policy were added to the payment-service Feign client, which today it
+     * is not - see ai_docs). It does not, by itself, protect against the case where this
+     * call times out after payment-service already completed the charge server-side but
+     * the response never reached order-service: from here that is indistinguishable from
+     * "payment never happened" and falls through to the restore/cancel path below. That is
+     * an inherent limitation of synchronous orchestration without a saga/outbox, the same
+     * class of gap already documented for the inventory-deduction call.
+     *
+     * @throws RuntimeException wrapping the original cause if the Feign call fails, returns
+     *                          {@code null}, or reports a non-COMPLETED status.
+     */
+    private void invokePayment(UUID orderId, UUID buyerId) {
+        try {
+            PaymentDto request = PaymentDto.builder()
+                    .orderId(orderId)
+                    .buyerId(buyerId)
+                    .paymentMethod(DEFAULT_PAYMENT_METHOD)
+                    .build();
+
+            PaymentDto response = paymentClient.processPayment(request);
+
+            if (response == null || response.getStatus() != PaymentDto.PaymentStatus.COMPLETED) {
+                throw new RuntimeException("Payment was not completed for order " + orderId +
+                        " - status: " + (response == null ? "null response" : response.getStatus()));
+            }
+
+            logger.info("Payment {} completed for order {}", response.getId(), orderId);
+        } catch (Exception e) {
+            logger.error("Payment failed for order {}. Order transaction will be rolled back.", orderId, e);
+            throw new RuntimeException("Payment failed for order " + orderId +
+                    " - distributed transaction will be rolled back", e);
         }
     }
 

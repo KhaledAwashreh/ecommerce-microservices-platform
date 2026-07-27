@@ -5,8 +5,10 @@ import com.kawashreh.ecommerce.order_service.dataAccess.repository.OrderReposito
 import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
 import com.kawashreh.ecommerce.order_service.domain.model.Order;
 import com.kawashreh.ecommerce.order_service.domain.model.OrderItem;
+import com.kawashreh.ecommerce.order_service.infrastructure.http.client.PaymentClient;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceClient;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.InventoryDto;
+import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.PaymentDto;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.ProductDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -70,6 +72,9 @@ class OrderServiceImplTest {
 
     @Mock
     private ProductServiceClient productServiceClient;
+
+    @Mock
+    private PaymentClient paymentClient;
 
     @InjectMocks
     private OrderServiceImpl orderService;
@@ -143,6 +148,25 @@ class OrderServiceImplTest {
     }
 
     /**
+     * Issue #9: stubs PaymentClient.processPayment to report a COMPLETED payment, the only
+     * status payment-service ever actually produces (per ai_docs). Needed by any test whose
+     * order gets far enough to reach the payment step (i.e. inventory deduction succeeds).
+     */
+    private void stubHappyPathPayment() {
+        when(paymentClient.processPayment(any(PaymentDto.class))).thenAnswer(invocation -> {
+            PaymentDto request = invocation.getArgument(0);
+            return PaymentDto.builder()
+                    .id(UUID.randomUUID())
+                    .orderId(request.getOrderId())
+                    .buyerId(request.getBuyerId())
+                    .paymentMethod(request.getPaymentMethod())
+                    .status(PaymentDto.PaymentStatus.COMPLETED)
+                    .paymentGateway("SIMULATED")
+                    .build();
+        });
+    }
+
+    /**
      * Echoes back whatever OrderEntity is passed to save() (like a real repository would
      * for an unmanaged entity) and records the status AT THE MOMENT OF THE CALL. This is
      * necessary because the production code mutates and reuses the same `saved` entity
@@ -164,6 +188,7 @@ class OrderServiceImplTest {
     @Test
     void create_savesPendingThenConfirmed_whenInventoryDeductionSucceeds() {
         stubHappyPathValidation(10);
+        stubHappyPathPayment();
         List<OrderStatus> savedStatuses = stubSaveToReturnSameEntityAndRecordStatuses();
         when(productServiceClient.deductInventory(any(UUID.class), anyInt())).thenReturn(true);
 
@@ -172,6 +197,55 @@ class OrderServiceImplTest {
         assertThat(result.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
         verify(repository, times(2)).save(any(OrderEntity.class));
         assertThat(savedStatuses).containsExactly(OrderStatus.PENDING, OrderStatus.CONFIRMED);
+        verify(paymentClient, times(1)).processPayment(any(PaymentDto.class));
+    }
+
+    @Test
+    void create_restoresDeductedInventoryAndCancels_whenPaymentFails() {
+        // Issue #9: inventory deduction succeeds, but payment-service fails (e.g. Feign
+        // error/timeout/circuit open). This must go down the exact same compensation path
+        // as an inventory-deduction failure: restore the deducted stock and mark the order
+        // CANCELLED, never leave stock deducted with no successful charge.
+        stubHappyPathValidation(10);
+        List<OrderStatus> savedStatuses = stubSaveToReturnSameEntityAndRecordStatuses();
+        when(productServiceClient.deductInventory(any(UUID.class), anyInt())).thenReturn(true);
+        when(paymentClient.processPayment(any(PaymentDto.class)))
+                .thenThrow(new RuntimeException("payment-service-unreachable"));
+
+        Order order = sampleOrder(2);
+
+        assertThatThrownBy(() -> orderService.create(order))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Order creation failed");
+
+        verify(productServiceClient, times(1)).restoreInventory(eq(productVariationId), eq(2));
+        verify(repository, times(2)).save(any(OrderEntity.class));
+        assertThat(savedStatuses).containsExactly(OrderStatus.PENDING, OrderStatus.CANCELLED);
+    }
+
+    @Test
+    void create_doesNotRestoreInventoryOrCancel_whenConfirmedSaveFailsAfterPaymentSucceeds() {
+        // Issue #9: payment has already succeeded (buyer charged) by the time the CONFIRMED
+        // save itself throws. Restoring inventory here would undo a legitimate sale, and
+        // marking the order CANCELLED would produce a charged-but-cancelled order - the
+        // worst outcome per the issue brief - so neither must happen; the failure must
+        // instead surface loudly for manual reconciliation.
+        stubHappyPathValidation(10);
+        stubHappyPathPayment();
+        when(productServiceClient.deductInventory(any(UUID.class), anyInt())).thenReturn(true);
+        when(repository.save(any(OrderEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0)) // 1st call: PENDING insert succeeds
+                .thenThrow(new RuntimeException("db-unreachable"));  // 2nd call: CONFIRMED save fails
+
+        Order order = sampleOrder(2);
+
+        assertThatThrownBy(() -> orderService.create(order))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("manual reconciliation required");
+
+        verify(paymentClient, times(1)).processPayment(any(PaymentDto.class));
+        verify(productServiceClient, never()).restoreInventory(any(UUID.class), anyInt());
+        verify(repository, times(2)).save(any(OrderEntity.class));
     }
 
     @Test
