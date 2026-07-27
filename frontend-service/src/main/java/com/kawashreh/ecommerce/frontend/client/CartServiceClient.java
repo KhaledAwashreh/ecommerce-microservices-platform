@@ -2,11 +2,13 @@ package com.kawashreh.ecommerce.frontend.client;
 
 import com.kawashreh.ecommerce.frontend.dto.CartDto;
 import com.kawashreh.ecommerce.frontend.dto.CartItemDto;
+import com.kawashreh.ecommerce.frontend.dto.request.CartItemUpdateRequest;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.UUID;
@@ -26,4 +28,11 @@ public interface CartServiceClient {
 
     @DeleteMapping("/user/{userId}/items/{itemId}")
     CartDto removeItem(@PathVariable("userId") UUID userId, @PathVariable("itemId") UUID itemId);
+
+    @PutMapping("/user/{userId}/items/{itemId}")
+    CartDto updateItem(@PathVariable("userId") UUID userId, @PathVariable("itemId") UUID itemId,
+                        @RequestBody CartItemUpdateRequest request);
+
+    @DeleteMapping("/user/{userId}")
+    CartDto clearCart(@PathVariable("userId") UUID userId);
 }

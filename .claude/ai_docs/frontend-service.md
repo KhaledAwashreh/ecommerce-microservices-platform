@@ -25,7 +25,7 @@ frontend-service/src/main/java/com/kawashreh/ecommerce/frontend/
 ├── FrontendApplication.java        # @SpringBootApplication, @EnableFeignClients(basePackages=".. .client")
 ├── client/                         # @FeignClient interfaces, one per upstream domain, all routed through the gateway
 │   ├── AddressServiceClient.java   # -> ${gateway}/api/v1/address (served by user-service)
-│   ├── CartServiceClient.java      # -> ${gateway}/api/v1/carts (order-service) — added for GH #13
+│   ├── CartServiceClient.java      # -> ${gateway}/api/v1/carts (order-service) — list/add/remove added for GH #13; updateItem/clearCart added for GH #6
 │   ├── CategoryServiceClient.java  # -> ${gateway}/api/v1/categories (product-service)
 │   ├── InventoryServiceClient.java # -> ${gateway}/api/v1/inventory (product-service)
 │   ├── OrderServiceClient.java     # -> ${gateway}/api/v1/orders (order-service)
@@ -39,7 +39,7 @@ frontend-service/src/main/java/com/kawashreh/ecommerce/frontend/
 │   └── WebClientConfig.java        # defines a WebClient @Bean — unused anywhere in the module (dead code, see Gotchas)
 ├── controller/                     # @Controller (not @RestController) classes returning Thymeleaf view names
 │   ├── AuthController.java         # /, /login, /register, /logout
-│   ├── CartController.java         # /cart, /cart/add, /cart/remove wired to CartServiceClient (GH #13); /checkout still static
+│   ├── CartController.java         # /cart, /cart/add, /cart/remove wired to CartServiceClient (GH #13); /cart/update and /checkout/place wired for GH #6 (checkout creates an order via OrderFacade, then clears the cart)
 │   ├── InventoryController.java    # /inventory, /inventory/{id}
 │   ├── OrderController.java        # /orders, /orders/{id}, POST /orders
 │   ├── ProductController.java      # /products, /products/{id}, /products/search
@@ -124,7 +124,9 @@ no Spring Security filter chain; auth is enforced ad hoc, per handler.
 | GET | `/cart` | CartController | `cart/cart` | `CartServiceClient.getCartForUser(userId)` (get-or-create); userId resolved via `ProfileFacade.getUserByUsername(session username)`, same pattern as `OrderController` | Yes |
 | POST | `/cart/add` | CartController | `redirect:/cart` | Looks up the product via `ProductFacade.getProductWithDetails`, builds a `CartItemDto`, calls `CartServiceClient.addItem(userId, item)` | Yes |
 | POST | `/cart/remove` | CartController | `redirect:/cart` | `CartServiceClient.removeItem(userId, itemId)` | Yes |
-| GET | `/checkout` | CartController | `cart/checkout` | Static checkout form (hardcoded sample line item, hardcoded totals) — unchanged, still not wired to the cart (see Gotchas) | Yes |
+| POST | `/cart/update` | CartController | `redirect:/cart` (or `redirect:/cart?error=...` via `GlobalExceptionHandler` on Feign failure) | `CartServiceClient.updateItem(userId, itemId, CartItemUpdateRequest)` — wired for GH #6 | Yes |
+| GET | `/checkout` | CartController | `cart/checkout` | Static checkout form (hardcoded sample line item, hardcoded totals — the form itself is unchanged; only its submit target now has a handler, see Gotchas) — reads `error` query param into the model | Yes |
+| POST | `/checkout/place` | CartController | `redirect:/orders/{id}` on success, `redirect:/checkout?error=...` on failure | Builds an `OrderDto` from the caller's cart items and calls `OrderFacade.createOrder` (order-service's plain `POST /api/v1/orders`, **not** `createOrderFromCart` — see order-service ai_doc, that method is dead/broken). Clears the cart via `CartServiceClient.clearCart` on success. Does **not** call payment-service — payment orchestration is GH #9, a deliberate seam. Wired for GH #6 | Yes |
 | GET | `/inventory` | InventoryController | `inventory/inventory` | Always renders empty inventory list — `// TODO: Implement actual inventory list - currently stubbed` | Yes |
 | GET | `/inventory/{productVariationId}` | InventoryController | `inventory/detail` | Calls `InventoryServiceClient.getInventoryByVariation`. **`inventory/detail.html` does not exist** — see Gotchas | Yes |
 | GET | `/orders` | OrderController | `order/orders` | `OrderFacade.getOrdersWithPayments(buyerId)`, buyer resolved via `ProfileFacade.getUserByUsername(session username)` | Yes |
@@ -182,6 +184,8 @@ first) and redirects back to a caller-appropriate path with `?error=<message>`.
 | `CartServiceClient.getCartForUser` | `GET /api/v1/carts/user/{userId}` | order-service | `CartController.cart` — added for GH #13 |
 | `CartServiceClient.addItem` | `POST /api/v1/carts/user/{userId}/items` | order-service | `CartController.addToCart` — added for GH #13 |
 | `CartServiceClient.removeItem` | `DELETE /api/v1/carts/user/{userId}/items/{itemId}` | order-service | `CartController.removeFromCart` — added for GH #13 |
+| `CartServiceClient.updateItem` | `PUT /api/v1/carts/user/{userId}/items/{itemId}` | order-service | `CartController.updateCartItem` — added for GH #6 |
+| `CartServiceClient.clearCart` | `DELETE /api/v1/carts/user/{userId}` | order-service | `CartController.placeOrder`, called after a successful checkout — added for GH #6 |
 | `RoleServiceClient.getAll/getById/create/delete` | `/api/v1/roles/**` | user-service | **Nobody** — unused, dead code |
 | `ProductServiceClient.getAllProducts` | `GET /api/v1/product` | product-service | `ProductFacade.getAllProducts` / `searchProducts` |
 | `ProductServiceClient.getProductById` | `GET /api/v1/product/{id}` | product-service | `ProductFacade.getProductWithDetails` |
@@ -190,7 +194,7 @@ first) and redirects back to a caller-appropriate path with `?error=<message>`.
 | `InventoryServiceClient.getInventoryByVariation` | `GET /api/v1/inventory/product-variation/{id}` | product-service | `InventoryController.inventoryDetail` |
 | `InventoryServiceClient.checkAvailability` | `GET /api/v1/inventory/product-variation/{id}/availability` | product-service | **Nobody** — unused |
 | `InventoryServiceClient.deductStock` / `restoreStock` | `PUT /api/v1/inventory/product-variation/{id}/deduct`/`/restore` | product-service | **Nobody** — unused |
-| `OrderServiceClient.createOrder` | `POST /api/v1/orders` | order-service | `OrderFacade.createOrder`, called from `OrderController.createOrder` — but no template posts to `/orders` (see Gotchas) |
+| `OrderServiceClient.createOrder` | `POST /api/v1/orders` | order-service | `OrderFacade.createOrder`, called from `CartController.placeOrder` (`POST /checkout/place`, wired for GH #6) and from the still-unreachable `OrderController.createOrder` (see Gotchas) |
 | `OrderServiceClient.getAllOrders` | `GET /api/v1/orders` | order-service | **Nobody** — unused |
 | `OrderServiceClient.getOrderById` | `GET /api/v1/orders/{id}` | order-service | `OrderFacade.getOrderWithPayment` |
 | `OrderServiceClient.getOrdersByBuyer` | `GET /api/v1/orders/buyer/{buyerId}` | order-service | `OrderFacade.getOrdersByBuyer` / `getOrdersWithPayments` |
@@ -278,15 +282,21 @@ None. No `CacheConfig`, no `@Cacheable` annotations, no Redis dependency in this
 
 ## Tests
 
-**There are effectively no tests in this module.** `src/test/java/.../BaseIntegrationTest.java`
-is an abstract `@SpringBootTest` + `@Testcontainers` base class (spins up a
-`PostgreSQLContainer`, wires `spring.datasource.*` and `spring.jpa.hibernate.ddl-auto`
-dynamically) — but **no test class in the module extends it**, and no other test class
-exists anywhere under `frontend-service/src/test`. There are zero `@Test` methods.
-`src/test/resources/application-test.yml` (a `test` profile datasource + JPA config) is
-likewise unreferenced by any actual test. Since the module has no JPA starter and no
-entities at all (see Persistence), this scaffolding could not exercise anything even if a
-test extended it. Running `mvn -pl frontend-service test` executes nothing.
+Two plain-Mockito unit test classes exist under
+`src/test/java/.../controller/` — `OrderControllerTest` (regression coverage for the
+`order/orders.html` nesting bug, see Gotchas) and `CartControllerTest` (added for GH #6:
+covers `/cart/update` and `/checkout/place`, including the empty-cart, order-creation-failed,
+and unparseable-product-SKU failure paths). Both use `@ExtendWith(MockitoExtension.class)`
+with `@Mock`/`@InjectMocks` — no Spring context, no Docker, run via plain `mvn test`.
+
+`src/test/java/.../BaseIntegrationTest.java` is an abstract `@SpringBootTest` +
+`@Testcontainers` base class (spins up a `PostgreSQLContainer`, wires
+`spring.datasource.*` and `spring.jpa.hibernate.ddl-auto` dynamically) — but **no test
+class in the module extends it**. `src/test/resources/application-test.yml` (a `test`
+profile datasource + JPA config) is likewise unreferenced by any actual test. Since the
+module has no JPA starter and no entities at all (see Persistence), this scaffolding
+could not exercise anything even if a test extended it — dead test scaffolding, distinct
+from the two real test classes above.
 
 ## Gotchas
 
@@ -321,19 +331,34 @@ test extended it. Running `mvn -pl frontend-service test` executes nothing.
    (`.../controller/OrderController.java:61`) returns view name `"order/detail"`, but
    only `order/orders.html` exists under `templates/order/`. Any hit on
    `GET /orders/{orderId}` throws `TemplateInputException`. Severity: **critical**.
-6. **Checkout form posts to a URL with no handler — still open, deliberate seam for GH #6.**
-   `cart/checkout.html:23` (`<form action="/checkout/place" method="post">`) submits to
-   `POST /checkout/place`, but no controller in this module maps that path
-   (`CartController` only maps `GET /checkout`; `OrderController` maps `POST /orders`, a
-   different path with a different, JSON `@RequestBody` contract). Clicking "Place Your
-   Order" still 404s — GH #13 intentionally did not implement this (it depends on cart
-   list/add/remove working first, which is now the case). Severity: **critical**.
-7. **Cart quantity-change form posts to a URL with no handler — still open, deliberate
-   seam for GH #6.** `cart/cart.html:50` (`<form action="/cart/update" method="post">`,
-   auto-submitted via `onchange="this.form.submit()"`) targets `POST /cart/update`, which
-   `CartController` still does not define (only `/cart/add` and `/cart/remove` were wired
-   for GH #13). `CartService.updateItem` already exists in order-service and is reachable
-   for a future handler to call. Severity: **high**.
+6. **(Fixed for GH #6) Checkout form now has a handler.**
+   `cart/checkout.html:23` (`<form action="/checkout/place" method="post">`) now maps to
+   `CartController.placeOrder` (`@PostMapping("/checkout/place")`). It reads the form's
+   `addressId`/`paymentMethod` fields (both `required = false` — `checkout.html` doesn't
+   guarantee `paymentMethod` is selected, and `addressId`'s only real option is a
+   hardcoded, non-UUID `value="1")`, but uses neither: the `Order` domain model has no
+   shipping-address field, and payment invocation is explicitly out of scope (GH #9). The
+   handler builds an `OrderDto` from the caller's cart items and calls
+   `OrderFacade.createOrder` (order-service's plain create path), then clears the cart via
+   `CartServiceClient.clearCart` on success and redirects to `/orders/{id}`. On any
+   failure (empty cart, unparseable cart item, order-service rejecting the request) it
+   redirects to `/checkout?error=...` instead of letting an exception reach
+   `GlobalExceptionHandler` — necessary because `resolveRedirectPath`'s `ACTION_VERBS`
+   heuristic doesn't recognize `"place"` as the last path segment, so an uncaught
+   exception here would redirect to a GET on `/checkout/place`, which has no `@GetMapping`
+   and would 404.
+7. **(Fixed for GH #6) Cart quantity-change form now has a handler.**
+   `cart/cart.html:50` (`<form action="/cart/update" method="post">`, auto-submitted via
+   `onchange="this.form.submit()"`) now maps to `CartController.updateCartItem`
+   (`@PostMapping("/cart/update")`), which calls the new
+   `CartServiceClient.updateItem(userId, itemId, CartItemUpdateRequest)` ->
+   `PUT /api/v1/carts/user/{userId}/items/{itemId}` on order-service. Unlike the checkout
+   handler, this one does **not** wrap the Feign call in its own try/catch — a failure
+   propagates to `GlobalExceptionHandler`, whose `ACTION_VERBS` set already contains
+   `"update"`, so it redirects to `/cart?error=...` correctly (both `/cart` and
+   `/checkout` GET handlers now read the `error` query param into the model, and both
+   templates render it in a red banner, matching the pattern already used by
+   `auth/login.html`/`auth/register.html`).
 8. **(Fixed for GH #13) Cart is now wired to a real backend.** `CartController` now
    injects `CartServiceClient`, `ProfileFacade`, and `ProductFacade`; `/cart` renders the
    caller's actual cart (get-or-create via `CartServiceClient.getCartForUser`),
@@ -351,12 +376,12 @@ test extended it. Running `mvn -pl frontend-service test` executes nothing.
    `productSku = product.getId().toString()`. `checkout.html` still displays hardcoded
    sample data. Severity: **medium** (cart mechanics work end-to-end; pricing data is a
    pre-existing gap one level up the stack).
-9. **`OrderController.createOrder` (`POST /orders`) is unreachable from any template.**
-   It consumes `@RequestBody OrderDto` (JSON body), but no template in this module POSTs
-   JSON to `/orders` — the only form-based checkout path (`/checkout/place`) doesn't
-   exist as a handler (see #6). This makes `OrderFacade.createOrder` /
-   `OrderServiceClient.createOrder` effectively dead from the UI, reachable only via a
-   raw JSON HTTP client. Severity: **medium**.
+9. **`OrderController.createOrder` (`POST /orders`) is still unreachable from any
+   template** — it consumes `@RequestBody OrderDto` (JSON body) and no template POSTs
+   JSON to `/orders`. `OrderFacade.createOrder` itself is no longer dead, though: GH #6's
+   `CartController.placeOrder` calls it directly (Java-to-Java, not through this
+   controller) to implement checkout. Severity: **low** (dead controller method, but the
+   facade/client path it duplicates is now exercised elsewhere).
 10. **`PaymentServiceClient.processPayment` is never called anywhere.** Nothing in
     `OrderFacade`, `OrderController`, or the checkout templates initiates a payment —
     checkout has no code path that calls the payment service to actually charge/process
@@ -457,3 +482,18 @@ test extended it. Running `mvn -pl frontend-service test` executes nothing.
     `// TODO: Convert to event-based pattern...` comments in `ProfileController.java`
     (lines 112-115, 148-149) mark the two handlers (`addAddressHtmx`, `editAddressHtmx`)
     that still need the change. Not a bug — an acknowledged, unimplemented refactor.
+26. **order-service's `OrderDto`/`OrderItemDto` mark several fields `@NonNull`
+    (Lombok), including `id` — any future caller that posts to `POST /api/v1/orders` with
+    those fields absent/null will get an `HttpMessageNotReadableException` (400) from
+    Jackson invoking the Lombok-generated setter with `null`, not a validation error.
+    Neither this module nor order-service sets
+    `spring.jackson.default-property-inclusion`, so Jackson serializes nulls by default —
+    a frontend DTO with an unset field silently becomes `"field": null` on the wire.
+    `CartController.buildOrderFromCart` (GH #6) populates every `@NonNull` field
+    explicitly for this reason, including generating a client-side `id` (`UUID.randomUUID()`)
+    for the order and every order item, even though the id is conceptually server-assigned
+    — `OrderEntity.id` uses `@GeneratedValue(strategy = GenerationType.UUID)`, which
+    accepts a pre-set id and still inserts a new row, so this works but is a slightly odd
+    contract. Any other future caller of this endpoint needs the same treatment.
+    `order-service/.../application/dto/OrderDto.java`,
+    `order-service/.../application/dto/OrderItemDto.java`.

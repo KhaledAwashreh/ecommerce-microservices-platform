@@ -2,6 +2,7 @@ package com.kawashreh.ecommerce.order_service.application.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kawashreh.ecommerce.order_service.application.dto.CartItemDto;
+import com.kawashreh.ecommerce.order_service.application.dto.CartItemUpdateRequest;
 import com.kawashreh.ecommerce.order_service.domain.enums.CartStatus;
 import com.kawashreh.ecommerce.order_service.domain.model.Cart;
 import com.kawashreh.ecommerce.order_service.domain.model.CartItem;
@@ -16,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -24,6 +26,7 @@ import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -146,6 +149,67 @@ class CartControllerTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void updateItem_shouldRecomputeLineTotalAndRecalculateTotals_whenItemExists() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID cartId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        Cart cart = activeCartWithItem(cartId, userId, itemId, BigDecimal.TEN);
+        Cart recalculated = activeCart(cartId, userId);
+
+        given(cartService.getOrCreateActiveCart(userId)).willReturn(cart);
+        given(cartService.updateItem(eq(cartId), any(CartItem.class))).willReturn(cart);
+        given(cartService.recalculateTotals(cartId)).willReturn(recalculated);
+
+        mockMvc.perform(put("/api/v1/carts/user/{userId}/items/{itemId}", userId, itemId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CartItemUpdateRequest(3))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(cartId.toString()));
+    }
+
+    @Test
+    void updateItem_shouldReturn404_whenItemNotInCart() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID cartId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        Cart cart = activeCart(cartId, userId);
+
+        given(cartService.getOrCreateActiveCart(userId)).willReturn(cart);
+
+        mockMvc.perform(put("/api/v1/carts/user/{userId}/items/{itemId}", userId, itemId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CartItemUpdateRequest(3))))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateItem_shouldReturn400_whenQuantityIsNotPositive() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+
+        mockMvc.perform(put("/api/v1/carts/user/{userId}/items/{itemId}", userId, itemId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CartItemUpdateRequest(0))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void clearCart_shouldReturnEmptiedCart() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID cartId = UUID.randomUUID();
+        Cart cart = activeCart(cartId, userId);
+        Cart cleared = activeCart(cartId, userId);
+
+        given(cartService.getOrCreateActiveCart(userId)).willReturn(cart);
+        given(cartService.clearCart(cartId)).willReturn(cleared);
+
+        mockMvc.perform(delete("/api/v1/carts/user/{userId}", userId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(cartId.toString()))
+                .andExpect(jsonPath("$.cartItems").isEmpty());
+    }
+
     private Cart activeCart(UUID id, UUID userId) {
         Instant now = Instant.now();
         return Cart.builder()
@@ -161,5 +225,27 @@ class CartControllerTest {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
+    }
+
+    private Cart activeCartWithItem(UUID cartId, UUID userId, UUID itemId, BigDecimal unitPrice) {
+        Instant now = Instant.now();
+        CartItem item = CartItem.builder()
+                .id(itemId)
+                .cartId(cartId)
+                .productId(UUID.randomUUID())
+                .storeId(UUID.randomUUID())
+                .productSku("sku-123")
+                .productName("Widget")
+                .quantity(1)
+                .unitPrice(unitPrice)
+                .lineTotal(unitPrice)
+                .currency("USD")
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+
+        Cart cart = activeCart(cartId, userId);
+        cart.setCartItems(List.of(item));
+        return cart;
     }
 }

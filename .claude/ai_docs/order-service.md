@@ -3,10 +3,13 @@
 ## Purpose
 
 `order-service` owns carts, orders, order items, and discounts for the e-commerce
-platform. It exposes a REST API for order CRUD and lookup (`OrderController`) and a
-cart list/add/remove API (`CartController`, added for GH issue #13 — quantity-update
-and cart-to-order checkout endpoints are a deliberate seam left for a follow-up change).
-Its main orchestration responsibility is creating
+platform. It exposes a REST API for order CRUD and lookup (`OrderController`) and a cart
+API (`CartController`): list/add/remove were added for GH #13; quantity-update
+(`PUT .../items/{itemId}`) and clear-cart (`DELETE .../user/{userId}`, called by
+frontend-service right after a successful checkout) were added for GH #6, closing that
+seam. Checkout itself (cart -> order) is still orchestrated from frontend-service, not
+here — this module only exposes the plain order-create endpoint that the checkout
+handler calls. Its main orchestration responsibility is creating
 an order: validate stock via `product-service` (over Feign, through the API gateway),
 persist the order as `PENDING`, deduct inventory, then flip to `CONFIRMED` — or mark the
 order `CANCELLED` if the deduction call fails. It also declares (but does not use) Feign
@@ -20,8 +23,8 @@ order_service/
 ├── OrderServiceApplication.java          @SpringBootApplication, @EnableFeignClients(basePackages=order_service)
 ├── application/
 │   ├── controller/OrderController.java   REST endpoints for orders
-│   ├── controller/CartController.java    REST endpoints for cart list/add/remove (GH #13)
-│   ├── dto/                              CartDto, CartItemDto, OrderDto, OrderItemDto, DiscountDto
+│   ├── controller/CartController.java    REST endpoints for cart list/add/remove (GH #13) + update/clear (GH #6)
+│   ├── dto/                              CartDto, CartItemDto, CartItemUpdateRequest, OrderDto, OrderItemDto, DiscountDto
 │   └── mapper/                           CartHttpMapper, OrderHttpMapper (domain <-> DTO)
 ├── constants/ApiPaths.java               Order paths + external Feign path fragments
 ├── dataAccess/
@@ -108,22 +111,23 @@ from setting an arbitrary status via `PUT /api/v1/orders/{id}` (see HTTP API / G
 Base path: `ApiPaths.ORDER_BASE = /api/v1/orders`, defined in
 `application/controller/OrderController.java`.
 
-`CartController` (`ApiPaths.CART_BASE = /api/v1/carts`, added for GH issue #13) exposes
-list/add/remove only:
+`CartController` (`ApiPaths.CART_BASE = /api/v1/carts`):
 
 | Method | Path | Request body | Response | Status codes | Notes |
 |---|---|---|---|---|---|
-| GET | `/api/v1/carts/user/{userId}` | — | `CartDto` | 200 | Get-or-create: creates an empty `ACTIVE` cart for the user if none exists yet, via `CartService.getOrCreateActiveCart` |
-| GET | `/api/v1/carts/{id}` | — | `CartDto` | 200, 404 if not found | Direct cart lookup by id, mirrors `OrderController`'s `/{id}` |
-| POST | `/api/v1/carts/user/{userId}/items` | `CartItemDto` | `CartDto` (whole cart, updated) | 201 | Get-or-creates the user's active cart, then `CartService.addItem` |
-| DELETE | `/api/v1/carts/user/{userId}/items/{itemId}` | — | `CartDto` | 200, 404 if the cart is gone | Get-or-creates the user's active cart, then `CartService.removeItem` |
+| GET | `/api/v1/carts/user/{userId}` | — | `CartDto` | 200 | Get-or-create: creates an empty `ACTIVE` cart for the user if none exists yet, via `CartService.getOrCreateActiveCart`. Added for GH #13. |
+| GET | `/api/v1/carts/{id}` | — | `CartDto` | 200, 404 if not found | Direct cart lookup by id, mirrors `OrderController`'s `/{id}`. Added for GH #13. |
+| POST | `/api/v1/carts/user/{userId}/items` | `CartItemDto` | `CartDto` (whole cart, updated) | 201 | Get-or-creates the user's active cart, then `CartService.addItem`. Added for GH #13. |
+| DELETE | `/api/v1/carts/user/{userId}/items/{itemId}` | — | `CartDto` | 200, 404 if the cart is gone | Get-or-creates the user's active cart, then `CartService.removeItem`. Added for GH #13. |
+| PUT | `/api/v1/carts/user/{userId}/items/{itemId}` | `CartItemUpdateRequest` (`{quantity}`) | `CartDto` | 200, 400 if `quantity < 1`, 404 if the item isn't in the user's active cart | Added for GH #6. Recomputes `lineTotal` from the item's existing `unitPrice` before calling `CartService.updateItem` (which only overwrites `quantity`/`lineTotal` verbatim), then calls `CartService.recalculateTotals` so the response cart total is in sync. |
+| DELETE | `/api/v1/carts/user/{userId}` | — | `CartDto` (now empty) | 200 | Added for GH #6. Calls `CartService.clearCart` — empties items and zeroes totals, but the cart stays `ACTIVE` (no code path in this module ever transitions a cart to `CONVERTED`). Called by frontend-service's checkout handler right after a successful order create, so the same cart can't be checked out twice. |
 
 The calling user is identified purely by the `{userId}` path variable, exactly like
 `OrderController`'s `{buyerId}`/`{sellerId}` — this module does not read any
-gateway-propagated identity header itself (see Security). `CartService` already
-implements `updateItem`, `clearCart`, and `recalculateTotals`; none of them are wired to
-an endpoint yet — quantity-update and cart-to-order checkout are a deliberate seam left
-for a follow-up change (GH issue #6).
+gateway-propagated identity header itself (see Security). `CartService.recalculateTotals`
+is now wired (see above); it only recomputes `subtotal` from cart item `lineTotal`s, not
+`discountTotal`/`taxTotal`/`shippingTotal`/`totalPrice` — those remain whatever they were
+(a pre-existing partial implementation, not extended here).
 
 | Method | Path | Request body | Response | Status codes | Auth |
 |---|---|---|---|---|---|
@@ -256,7 +260,7 @@ at all (transaction rolled back per above) — a genuine distributed-transaction
 code's own comments ("distributed transaction rolled back") acknowledge without actually
 solving.
 
-### `createOrderFromCart` (dead/unreachable public method)
+### `createOrderFromCart` (dead/unreachable public method — investigated and rejected for GH #6)
 
 `OrderServiceImpl.createOrderFromCart(UUID cartId, UUID buyer)` duplicates the entire
 `create()` orchestration but sources the `Order` from `convertCartToOrder`, which **does
@@ -274,6 +278,14 @@ reached because — wait: `validateInventoryAvailability` throws
 point if actually called. This method and `convertCartToOrder` are dead, broken, and
 disconnected from `CartService`/`CartRepository`/`CartItemRepository` (none are injected
 into `OrderServiceImpl`).
+
+**GH #6 confirmed this is still true and did not use it.** Checkout (frontend-service's
+`CartController.placeOrder`) builds a fully-populated `OrderDto` from the cart's items
+itself and calls the plain `POST /api/v1/orders` (`OrderController.createOrder` ->
+`OrderService.create`) instead — the only order-creation path that is actually reachable
+over HTTP. `createOrderFromCart` was left exactly as-is (not fixed, not wired to the
+interface, not deleted) — fixing it was out of scope for GH #6, which only needed *a*
+working create path, and the plain one already existed and worked.
 
 ## Outbound dependencies (Feign clients)
 
@@ -381,8 +393,8 @@ invisible from this module's code).
 
 ## Tests
 
-- `src/test/java/.../OrderServiceIntegrationTest.java` — the only test class in the
-  module. `@SpringBootTest` + `@Testcontainers` + `@ActiveProfiles("test")`, backed by a
+- `src/test/java/.../OrderServiceIntegrationTest.java` — requires Docker.
+  `@SpringBootTest` + `@Testcontainers` + `@ActiveProfiles("test")`, backed by a
   real `PostgreSQLContainer` (`postgres:16-alpine`) wired via `@DynamicPropertySource`
   (overrides datasource URL/credentials and forces `ddl-auto=create-drop`).
   `ProductServiceClient` is a `@MockitoBean` (mocked Feign client) — no real HTTP call to
@@ -402,11 +414,18 @@ invisible from this module's code).
     transaction-rollback behavior documented above); `PaymentClient`/`UserServiceClient`
     (both entirely unused, so untested); Resilience4j circuit-breaker/retry behavior;
     `ProductServiceErrorDecoder`; caching (none exists to test).
+- `src/test/java/.../domain/service/impl/OrderServiceImplTest.java` — plain
+  Mockito unit test (no Docker needed) covering `OrderServiceImpl.create`'s
+  success/failure branches directly (repository and `ProductServiceClient` mocked).
 - `src/test/java/.../application/controller/CartControllerTest.java` — `@WebMvcTest(CartController.class)`
   slice test (no Docker needed), `CartService` mocked via `@MockitoBean`. Covers
-  get-or-create by user, get-by-id (found/404), add-item (201), remove-item (200/404).
+  get-or-create by user, get-by-id (found/404), add-item (201), remove-item (200/404) —
+  added for GH #13 — plus update-item (200 with recalculated totals, 404 when the item
+  isn't in the cart, 400 for non-positive quantity) and clear-cart (200, empty result) —
+  added for GH #6.
 - Run: `mvn -pl order-service test` (the integration test requires a running Docker
-  daemon for Testcontainers, per root `CLAUDE.md`; `CartControllerTest` does not).
+  daemon for Testcontainers, per root `CLAUDE.md`; `OrderServiceImplTest` and
+  `CartControllerTest` do not).
 
 ## Gotchas
 
@@ -422,11 +441,14 @@ invisible from this module's code).
    transaction, including the original `PENDING` insert and the `CANCELLED` update. No
    order row survives a failed creation despite the code appearing to persist a
    `CANCELLED` record. `OrderServiceImpl.java:37-60, 220-247`.
-3. **(Fixed for GH #13)** `CartController` now exposes list/add/remove
+3. **(Fixed for GH #13, extended for GH #6)** `CartController` exposes list/add/remove
    (`GET /api/v1/carts/user/{userId}`, `GET /api/v1/carts/{id}`,
-   `POST /api/v1/carts/user/{userId}/items`, `DELETE /api/v1/carts/user/{userId}/items/{itemId}`).
-   `updateItem`, `clearCart`, and `recalculateTotals` are still not wired to any endpoint —
-   left as a seam for GH issue #6 (checkout / quantity-update).
+   `POST /api/v1/carts/user/{userId}/items`, `DELETE /api/v1/carts/user/{userId}/items/{itemId}`,
+   all GH #13) plus quantity-update and clear-cart
+   (`PUT /api/v1/carts/user/{userId}/items/{itemId}`, `DELETE /api/v1/carts/user/{userId}`,
+   both GH #6). `CartService.recalculateTotals` is now called from the update-item
+   endpoint; cart-to-order checkout itself is still orchestrated by frontend-service, not
+   this module (see `createOrderFromCart`, below).
 4. **(Fixed for GH #13) `CartMapper.toEntity` now sets the `CartItemEntity.cart`
    back-reference.** It previously mapped `d.getCartItems()` straight into the builder via
    `CartItemMapper.toEntityList`, which only maps scalar fields — no code ever called
@@ -450,6 +472,7 @@ invisible from this module's code).
    cart's items (`selectedItems` stays empty), so calling it would always immediately fail
    `validateInventoryAvailability`'s empty-list check. `CartRepository`/`CartItemRepository`
    are not injected into `OrderServiceImpl` at all. `OrderServiceImpl.java:220-263`.
+   Investigated for GH #6 and deliberately not used — see "createOrderFromCart" above.
 8. **Redundant duplicate Feign calls to `retrieveProduct`** — called once in
    `validateInventoryAvailability` and again in `updateProductInventory` for the same item,
    purely to log the product id a second time. `OrderServiceImpl.java:69, 117`.
