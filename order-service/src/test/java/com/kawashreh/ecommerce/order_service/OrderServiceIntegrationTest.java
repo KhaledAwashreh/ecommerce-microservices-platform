@@ -5,8 +5,10 @@ import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
 import com.kawashreh.ecommerce.order_service.domain.model.Order;
 import com.kawashreh.ecommerce.order_service.domain.model.OrderItem;
 import com.kawashreh.ecommerce.order_service.domain.service.OrderService;
+import com.kawashreh.ecommerce.order_service.infrastructure.http.client.PaymentClient;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceClient;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.InventoryDto;
+import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.PaymentDto;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.ProductDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,6 +61,12 @@ class OrderServiceIntegrationTest {
     @MockitoBean
     private ProductServiceClient productServiceClient;
 
+    // create() invokes payment as of issue #9. There is no payment-service in this
+    // test's container set, so without this the Feign call fails with
+    // UnknownHostException and every order is rolled back.
+    @MockitoBean
+    private PaymentClient paymentClient;
+
     private UUID productVariationId;
     private UUID buyerId;
     private UUID sellerId;
@@ -93,6 +101,17 @@ class OrderServiceIntegrationTest {
                 .thenReturn(true);
         when(productServiceClient.deductInventory(eq(productVariationId), any(Integer.class)))
                 .thenReturn(true);
+
+        when(paymentClient.processPayment(any(PaymentDto.class))).thenAnswer(invocation -> {
+            PaymentDto request = invocation.getArgument(0);
+            return PaymentDto.builder()
+                    .id(UUID.randomUUID())
+                    .orderId(request.getOrderId())
+                    .buyerId(request.getBuyerId())
+                    .paymentMethod(request.getPaymentMethod())
+                    .status(PaymentDto.PaymentStatus.COMPLETED)
+                    .build();
+        });
     }
 
     @Test
