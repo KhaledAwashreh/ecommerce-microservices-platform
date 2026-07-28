@@ -311,40 +311,51 @@ working create path, and the plain one already existed and worked.
   gateway) — a real behavioral difference between the Docker Compose/local profile and
   the Kubernetes deployment, not just a URL substitution.
 - **Failure handling**:
-  - `feign.circuitbreaker.enabled: true` (`application.yml`) routes Feign calls through
-    Resilience4j.
+  - `spring.cloud.openfeign.circuitbreaker.enabled: true` (`application.yml`) routes Feign
+    calls through Resilience4j. This setting previously lived under a top-level `feign:`
+    key, which Spring Cloud OpenFeign stopped reading as of 4.0 (see issue #57) — it bound
+    to nothing and every Feign-level circuit-breaker/timeout/error-decoder setting was
+    silently dead until it was moved to the `spring.cloud.openfeign.*` prefix it now uses.
   - `resilience4j.circuitbreaker.instances.product-service`: `slidingWindowSize: 10`,
     `minimumNumberOfCalls: 5`, `permittedNumberOfCallsInHalfOpenState: 3`,
     `waitDurationInOpenState: 5s`, `failureRateThreshold: 50`. No circuit breaker instance
-    is configured for `payment-service` or `user-service` (moot, since neither client is
-    ever called).
+    is configured for `payment-service` or `user-service`.
   - `resilience4j.retry.instances.product-service`: `maxAttempts: 3`, `waitDuration: 1s`.
     No retry instance configured for the other two clients.
   - No `@CircuitBreaker`/`@Retry` annotations appear anywhere in `src/main` — the
     Resilience4j config applies automatically at the Feign-client level because
-    `feign.circuitbreaker.enabled=true` wraps every Feign client method, keyed by the
-    `@FeignClient` name (`product-service`). There is no fallback method/class configured,
-    so an open circuit or exhausted retries on `product-service` simply propagates the
-    underlying (or a `CallNotPermittedException`) exception up through
+    `spring.cloud.openfeign.circuitbreaker.enabled=true` wraps every Feign client method,
+    keyed by the `@FeignClient` name (`product-service`). There is no fallback method/class
+    configured, so an open circuit or exhausted retries on `product-service` simply
+    propagates the underlying (or a `CallNotPermittedException`) exception up through
     `validateInventoryAvailability`'s catch-all, rewrapped as `IllegalArgumentException`.
-  - `feign.client.config.default`: `connectTimeout: 5000`, `readTimeout: 10000`,
-    `loggerLevel: basic`. `feign.client.config.product-service.errorDecoder:
-    productServiceErrorDecoder` wires `ProductServiceErrorDecoder`
-    (`infrastructure/http/client/ProductServiceErrorDecoder.java`) only for the
-    `product-service` client.
+    Verified live: with Docker running, `OrderServiceIntegrationTest` boots a real Spring
+    context with this config bound and passes — confirming the property now actually binds,
+    though no test forces a downstream failure to observe the breaker open in practice.
+  - `spring.cloud.openfeign.client.config.default`: `connectTimeout: 5000`,
+    `readTimeout: 10000`, `loggerLevel: basic`.
+    `spring.cloud.openfeign.client.config.product-service.errorDecoder:
+    com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceErrorDecoder`
+    wires `ProductServiceErrorDecoder` only for the `product-service` client. This must be
+    the fully-qualified class name, not a Spring bean name — `FeignClientFactoryBean`
+    resolves this property via `Class<ErrorDecoder>` binding (`getBean(class)` falling back
+    to `BeanUtils.instantiateClass(class)`), so a bean name here silently fails to bind and
+    previously crashed the application context at startup once the prefix bug (#57) was
+    fixed without also correcting this value.
   - `ProductServiceErrorDecoder` maps HTTP 404/400/503 (and a default case for everything
     else) to `ProductServiceException` with a status code and message. It does **not**
-    apply to `PaymentClient` or `UserServiceClient` (unused anyway, and not configured with
-    any error decoder — they'd fall back to Feign's `ErrorDecoder.Default`).
+    apply to `PaymentClient` or `UserServiceClient`, which are not configured with any error
+    decoder — they'd fall back to Feign's `ErrorDecoder.Default`.
   - `extractProductIdFromMethodKey` in `ProductServiceErrorDecoder` always returns the
     literal string `"unknown"` — it does not actually parse the method key despite the
     comment claiming it's "for logging purposes"; the resulting `ProductServiceException`
     always carries `productId = "unknown"`.
-  - `FeignClientConfig` (`infrastructure/config/FeignClientConfig.java`) registers
-    `feignLoggerLevel()` (BASIC) and the `productServiceErrorDecoder` bean globally, but is
-    not referenced via `@FeignClient(configuration = ...)` on any client — it relies on
-    Spring Cloud OpenFeign's default context picking up beans by name/type, combined with
-    the YAML `errorDecoder: productServiceErrorDecoder` reference.
+  - `FeignClientConfig` (`infrastructure/config/FeignClientConfig.java`) registers only
+    `feignLoggerLevel()` (BASIC). It previously also declared a `productServiceErrorDecoder`
+    `@Bean`, but that bean was never referenced via `@FeignClient(configuration = ...)` or
+    `@EnableFeignClients(defaultConfiguration = ...)` on any client, and once the YAML
+    property held the decoder's fully-qualified class name directly, the bean was dead code
+    and was removed.
 
 ## Configuration
 
@@ -358,9 +369,9 @@ working create path, and the plain one already existed and worked.
 | `spring.jpa.show-sql` | `true` | `application.yml`, `application-test.yml` | |
 | `spring.data.redis.host` / `port` | `localhost:6379` (base default), `redis:6379` (`-local` profile — see Gotchas), `redis-server:6379` (k8s) | `application.yml`, `application-local.yml`, configmap | |
 | `GATEWAY_URL` | `http://api-gateway:8765` (base default) | `application.yml`; `application-ide.yml` sets literal `http://localhost:8765` | |
-| `feign.circuitbreaker.enabled` | `true` | `application.yml` | |
-| `feign.client.config.default.connectTimeout` / `readTimeout` | `5000` / `10000` (ms) | `application.yml` | k8s configmap's embedded `application.yml` overrides `readTimeout` to `5000` for its own `default` client config block. |
-| `feign.client.config.product-service.errorDecoder` | `productServiceErrorDecoder` | `application.yml` | |
+| `spring.cloud.openfeign.circuitbreaker.enabled` | `true` | `application.yml` | Was a dead top-level `feign.circuitbreaker.enabled` until #57. |
+| `spring.cloud.openfeign.client.config.default.connectTimeout` / `readTimeout` | `5000` / `10000` (ms) | `application.yml` | k8s configmap's embedded `application.yml` overrides `readTimeout` to `5000` for its own `default` client config block. |
+| `spring.cloud.openfeign.client.config.product-service.errorDecoder` | `com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceErrorDecoder` | `application.yml` | Must be a fully-qualified class name, not a bean name — see Outbound dependencies. |
 | `resilience4j.circuitbreaker.instances.product-service.*` | see Outbound dependencies | `application.yml` | |
 | `resilience4j.retry.instances.product-service.*` | see Outbound dependencies | `application.yml` | |
 | `management.zipkin.tracing.endpoint` | `http://zipkin:9411/api/v2/spans` (base), `http://localhost:9411/...` (`-ide`) | `application.yml`, `application-ide.yml`, `application-local.yml` | |

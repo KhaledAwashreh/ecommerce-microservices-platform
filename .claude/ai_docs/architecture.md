@@ -228,11 +228,16 @@ services: response caching per `CacheConstants`).
   `waitDurationInOpenState: 5s`, `failureRateThreshold: 50`.
 - `resilience4j.retry.instances.product-service`: `maxAttempts: 3`, `waitDuration: 1s`.
 - Only the `product-service` Feign client has circuit-breaking configured; `PaymentClient` and
-  `UserServiceClient` have none (moot for `PaymentClient` since it is unused).
-- `feign.circuitbreaker.enabled: true` turns on Feign's own Resilience4j integration;
-  `feign.client.config.product-service.errorDecoder: productServiceErrorDecoder` wires
-  `ProductServiceErrorDecoder` to translate Feign HTTP failures (404/400/503) into
-  `ProductServiceException`.
+  `UserServiceClient` have none.
+- `spring.cloud.openfeign.circuitbreaker.enabled: true` turns on Feign's own Resilience4j
+  integration (this and the properties below lived under a dead top-level `feign:` key until
+  issue #57, which found Spring Cloud OpenFeign stopped reading that prefix as of 4.0);
+  `spring.cloud.openfeign.client.config.product-service.errorDecoder:
+  com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceErrorDecoder`
+  wires `ProductServiceErrorDecoder` to translate Feign HTTP failures (404/400/503) into
+  `ProductServiceException`. This must be the decoder's fully-qualified class name, not a
+  Spring bean name — the earlier bean-name value silently failed to bind once the prefix was
+  corrected, crashing the application context at startup, until it was fixed to the FQCN.
 
 No other service (`product-service`, `payment-service`, `user-service`) configures
 Resilience4j — they are called, not callers, except `product-service`'s own
