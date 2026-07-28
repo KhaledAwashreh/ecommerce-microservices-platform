@@ -21,10 +21,17 @@ spring:
       discovery:
         enabled: false
     openfeign:
+      circuitbreaker:
+        enabled: true
       client:
         config:
+          default:
+            connectTimeout: 5000
+            readTimeout: 10000
+            loggerLevel: basic
           order-service:
             url: ${ORDER_SERVICE_URL:http://order-service:8080}
+            errorDecoder: com.kawashreh.ecommerce.payment_service.infrastructure.http.client.OrderServiceErrorDecoder
 
 server:
   port: 8080
@@ -48,21 +55,6 @@ management:
 logging:
   pattern:
     level: "%5p [#{spring.application.name}, %X{traceId:-}, %X{spanId:-}]"
-
-# -------------------------------
-# Feign Client Configuration
-# -------------------------------
-feign:
-  circuitbreaker:
-    enabled: true
-  client:
-    config:
-      default:
-        connectTimeout: 5000
-        readTimeout: 10000
-        loggerLevel: basic
-      order-service:
-        errorDecoder: orderServiceErrorDecoder
 
 # -------------------------------
 # Resilience4j Circuit Breaker & Retry

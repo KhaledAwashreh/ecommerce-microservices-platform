@@ -21,8 +21,14 @@ spring:
         format_sql: true
   cloud:
     openfeign:
+      circuitbreaker:
+        enabled: true
       client:
         config:
+          default:
+            connectTimeout: 5000
+            readTimeout: 10000
+            loggerLevel: basic
           # Service-to-service calls go direct by service name, not through the
           # gateway. The gateway's JwtAuthFilter requires a bearer token, and
           # order-service has no interceptor to attach one, so routing these
@@ -30,6 +36,7 @@ spring:
           # order-configmap.yaml, which already overrides to direct DNS.
           product-service:
             url: ${PRODUCT_SERVICE_URL:http://product-service:8080}
+            errorDecoder: com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceErrorDecoder
           payment-service:
             url: ${PAYMENT_SERVICE_URL:http://payment-service:8080}
           user-service:
@@ -42,21 +49,6 @@ management:
   zipkin:
     tracing:
       endpoint: ${ZIPKIN_BASE_URL:http://zipkin:9411}/api/v2/spans
-
-# -------------------------------
-# Feign Client Configuration
-# -------------------------------
-feign:
-  circuitbreaker:
-    enabled: true
-  client:
-    config:
-      default:
-        connectTimeout: 5000
-        readTimeout: 10000
-        loggerLevel: basic
-      product-service:
-        errorDecoder: productServiceErrorDecoder
 
 # -------------------------------
 # Resilience4j Circuit Breaker & Retry
