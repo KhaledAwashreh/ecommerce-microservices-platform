@@ -24,7 +24,7 @@ Gotchas).
 frontend-service/src/main/java/com/kawashreh/ecommerce/frontend/
 ├── FrontendApplication.java        # @SpringBootApplication, @EnableFeignClients(basePackages=".. .client")
 ├── client/                         # @FeignClient interfaces, one per upstream domain, all routed through the gateway
-│   ├── AddressServiceClient.java   # -> ${gateway}/api/v1/address (served by user-service)
+│   ├── AddressServiceClient.java   # -> ${gateway}/api/v1/address (served by user-service) — searchAddresses(userId) added for GH #58, scoped to one user (unlike getAddresses(), which returns every address for every user)
 │   ├── CartServiceClient.java      # -> ${gateway}/api/v1/carts (order-service) — list/add/remove added for GH #13; updateItem/clearCart added for GH #6
 │   ├── CategoryServiceClient.java  # -> ${gateway}/api/v1/categories (product-service)
 │   ├── InventoryServiceClient.java # -> ${gateway}/api/v1/inventory (product-service)
@@ -39,7 +39,7 @@ frontend-service/src/main/java/com/kawashreh/ecommerce/frontend/
 │   └── WebClientConfig.java        # defines a WebClient @Bean — unused anywhere in the module (dead code, see Gotchas)
 ├── controller/                     # @Controller (not @RestController) classes returning Thymeleaf view names
 │   ├── AuthController.java         # /, /login, /register, /logout
-│   ├── CartController.java         # /cart, /cart/add, /cart/remove wired to CartServiceClient (GH #13); /cart/update and /checkout/place wired for GH #6 (checkout creates an order via OrderFacade, then clears the cart)
+│   ├── CartController.java         # /cart, /cart/add, /cart/remove wired to CartServiceClient (GH #13); /cart/update and /checkout/place wired for GH #6 (checkout creates an order via OrderFacade, then clears the cart); GH #58 made /checkout and /checkout/place resolve and validate a real shipping address instead of discarding it
 │   ├── InventoryController.java    # /inventory, /inventory/{id}
 │   ├── OrderController.java        # /orders, /orders/{id}, POST /orders
 │   ├── ProductController.java      # /products, /products/{id}, /products/search
@@ -125,8 +125,8 @@ no Spring Security filter chain; auth is enforced ad hoc, per handler.
 | POST | `/cart/add` | CartController | `redirect:/cart` | Looks up the product via `ProductFacade.getProductWithDetails`, builds a `CartItemDto`, calls `CartServiceClient.addItem(userId, item)` | Yes |
 | POST | `/cart/remove` | CartController | `redirect:/cart` | `CartServiceClient.removeItem(userId, itemId)` | Yes |
 | POST | `/cart/update` | CartController | `redirect:/cart` (or `redirect:/cart?error=...` via `GlobalExceptionHandler` on Feign failure) | `CartServiceClient.updateItem(userId, itemId, CartItemUpdateRequest)` — wired for GH #6 | Yes |
-| GET | `/checkout` | CartController | `cart/checkout` | Static checkout form (hardcoded sample line item, hardcoded totals — the form itself is unchanged; only its submit target now has a handler, see Gotchas) — reads `error` query param into the model | Yes |
-| POST | `/checkout/place` | CartController | `redirect:/orders/{id}` on success, `redirect:/checkout?error=...` on failure | Builds an `OrderDto` from the caller's cart items and calls `OrderFacade.createOrder` (order-service's plain `POST /api/v1/orders`, **not** `createOrderFromCart` — see order-service ai_doc, that method is dead/broken). Clears the cart via `CartServiceClient.clearCart` on success. Does **not** call payment-service — payment orchestration is GH #9, a deliberate seam. Wired for GH #6 | Yes |
+| GET | `/checkout` | CartController | `cart/checkout` | Checkout form — line items/totals are still hardcoded sample data (unrelated pre-existing gap, see Gotchas), but the shipping-address `<select>` is now populated from `ProfileFacade.getAddressesForUser(userId)` (GH #58), which resolves `userId` the same way `/cart` does. Reads `error` query param into the model | Yes |
+| POST | `/checkout/place` | CartController | `redirect:/orders/{id}` on success, `redirect:/checkout?error=...` on failure | Builds an `OrderDto` from the caller's cart items and calls `OrderFacade.createOrder` (order-service's plain `POST /api/v1/orders`, **not** `createOrderFromCart` — see order-service ai_doc, that method is dead/broken). Clears the cart via `CartServiceClient.clearCart` on success. Does **not** call payment-service — payment orchestration is GH #9, a deliberate seam; `paymentMethod` is still accepted-but-unused, now with an explicit comment at the point it's read explaining that payment-service is being redesigned separately. GH #58: `addressId` is parsed as a `UUID`, rejected with `redirect:/checkout?error=...` if null/blank/unparseable, checked against `ProfileFacade.getAddressesForUser(userId)` (rejected the same way if it doesn't belong to the caller), and threaded through to order-service as `OrderDto.shippingAddressId`. Wired for GH #6, address handling added for GH #58 | Yes |
 | GET | `/inventory` | InventoryController | `inventory/inventory` | Always renders empty inventory list — `// TODO: Implement actual inventory list - currently stubbed` | Yes |
 | GET | `/inventory/{productVariationId}` | InventoryController | `inventory/detail` | Calls `InventoryServiceClient.getInventoryByVariation`. **`inventory/detail.html` does not exist** — see Gotchas | Yes |
 | GET | `/orders` | OrderController | `order/orders` | `OrderFacade.getOrdersWithPayments(buyerId)`, buyer resolved via `ProfileFacade.getUserByUsername(session username)` | Yes |
@@ -176,7 +176,8 @@ first) and redirects back to a caller-appropriate path with `?error=<message>`.
 | `UserServiceClient.getUserById` | `GET /api/v1/user/{userId}` | user-service | `ProfileFacade.getUserById` (facade method itself is unused externally — see Gotchas) |
 | `UserServiceClient.getUserByUsername` | `GET /api/v1/user?username=` | user-service | `ProfileFacade.getUserByUsername` / `getProfileWithAddresses` — used by OrderController, ProfileController |
 | `UserServiceClient.updateUser` | `PUT /api/v1/user/{userId}` (header `X-User-ID`) | user-service | `ProfileController.updateProfile` |
-| `AddressServiceClient.getAddresses` | `GET /api/v1/address` | user-service | `ProfileFacade.getAllAddresses` / `getProfileWithAddresses` |
+| `AddressServiceClient.getAddresses` | `GET /api/v1/address` | user-service | `ProfileFacade.getAllAddresses` / `getProfileWithAddresses` — **returns every address for every user**, not scoped to the caller (see user-service ai_doc); do not use this for anything ownership-sensitive |
+| `AddressServiceClient.searchAddresses` | `GET /api/v1/address/search?userId=` | user-service | `ProfileFacade.getAddressesForUser` — added for GH #58. Server-side scoped to one user (user-service's `AddressController.search`/`AddressServiceImpl.search` already supported `userId`; only the frontend Feign client method was missing). Used by `CartController` both to populate the checkout address selector and to validate that a submitted `addressId` actually belongs to the caller |
 | `AddressServiceClient.getAddressById` | `GET /api/v1/address/{id}` | user-service | `ProfileController.addressModal` |
 | `AddressServiceClient.createAddress` | `POST /api/v1/address` (header `X-User-ID`) | user-service | `ProfileController.addAddressHtmx` / `addAddress` |
 | `AddressServiceClient.updateAddress` | `PUT /api/v1/address/{id}` (header `X-User-ID`) | user-service | `ProfileController.editAddressHtmx` |
@@ -286,8 +287,20 @@ Two plain-Mockito unit test classes exist under
 `src/test/java/.../controller/` — `OrderControllerTest` (regression coverage for the
 `order/orders.html` nesting bug, see Gotchas) and `CartControllerTest` (added for GH #6:
 covers `/cart/update` and `/checkout/place`, including the empty-cart, order-creation-failed,
-and unparseable-product-SKU failure paths). Both use `@ExtendWith(MockitoExtension.class)`
-with `@Mock`/`@InjectMocks` — no Spring context, no Docker, run via plain `mvn test`.
+and unparseable-product-SKU failure paths). GH #58 extended `CartControllerTest` with
+`ProfileFacade.getAddressesForUser` stubbing on every `placeOrder` test that reaches past
+address validation, plus new cases for null/blank/unparseable `addressId` and an address
+that doesn't belong to the caller (each asserted to redirect to `/checkout?error=...`
+without calling `OrderFacade.createOrder`), and the success-path test now also asserts the
+submitted `OrderDto.shippingAddressId` matches the owned address used in the test. Both
+test classes use `@ExtendWith(MockitoExtension.class)` with `@Mock`/`@InjectMocks` — no
+Spring context, no Docker, run via plain `mvn test`.
+
+Note on this environment: this repo's pinned Mockito/ByteBuddy version does not support
+JDK 25 (`Byte Buddy could not instrument all classes within the mock's type hierarchy` /
+"Java 25 (69) is not supported"). Running these tests requires `JAVA_HOME` pointed at a
+JDK 21 install (e.g. `C:\Program Files\Java\jdk-21` if present); this is an environment
+tooling mismatch, not something GH #58 introduced or fixed.
 
 `src/test/java/.../BaseIntegrationTest.java` is an abstract `@SpringBootTest` +
 `@Testcontainers` base class (spins up a `PostgreSQLContainer`, wires
@@ -331,22 +344,33 @@ from the two real test classes above.
    (`.../controller/OrderController.java:61`) returns view name `"order/detail"`, but
    only `order/orders.html` exists under `templates/order/`. Any hit on
    `GET /orders/{orderId}` throws `TemplateInputException`. Severity: **critical**.
-6. **(Fixed for GH #6) Checkout form now has a handler.**
-   `cart/checkout.html:23` (`<form action="/checkout/place" method="post">`) now maps to
-   `CartController.placeOrder` (`@PostMapping("/checkout/place")`). It reads the form's
-   `addressId`/`paymentMethod` fields (both `required = false` — `checkout.html` doesn't
-   guarantee `paymentMethod` is selected, and `addressId`'s only real option is a
-   hardcoded, non-UUID `value="1")`, but uses neither: the `Order` domain model has no
-   shipping-address field, and payment invocation is explicitly out of scope (GH #9). The
-   handler builds an `OrderDto` from the caller's cart items and calls
-   `OrderFacade.createOrder` (order-service's plain create path), then clears the cart via
-   `CartServiceClient.clearCart` on success and redirects to `/orders/{id}`. On any
-   failure (empty cart, unparseable cart item, order-service rejecting the request) it
-   redirects to `/checkout?error=...` instead of letting an exception reach
-   `GlobalExceptionHandler` — necessary because `resolveRedirectPath`'s `ACTION_VERBS`
-   heuristic doesn't recognize `"place"` as the last path segment, so an uncaught
-   exception here would redirect to a GET on `/checkout/place`, which has no `@GetMapping`
-   and would 404.
+6. **(Fixed for GH #6, address handling fixed for GH #58) Checkout form now has a handler,
+   and now threads a real shipping address through.**
+   `cart/checkout.html:23` (`<form action="/checkout/place" method="post">`) maps to
+   `CartController.placeOrder` (`@PostMapping("/checkout/place")`). Until GH #58,
+   `checkout.html`'s address `<select>` offered a single hardcoded, non-UUID
+   `value="1"` option, and the handler read `addressId`/`paymentMethod` but used neither —
+   an order could be placed with no shipping address at all and no error shown. That is
+   fixed for `addressId`: the `<select>` is now populated from
+   `ProfileFacade.getAddressesForUser(userId)` (real `AddressDto.id` UUIDs), and
+   `placeOrder` parses the submitted value as a `UUID`, redirects to
+   `/checkout?error=...` if it's null/blank/unparseable, re-fetches the caller's own
+   addresses and redirects the same way if the id isn't among them (never trusts the
+   submitted id), and otherwise threads it through `buildOrderFromCart` onto
+   `OrderDto.shippingAddressId` (see order-service ai_doc for the corresponding
+   domain/entity/DTO field). `paymentMethod` remains **intentionally** unused — it is
+   accepted (payment-service is being redesigned separately, per the owner) with an
+   inline comment at the parameter declaration explaining why, but is still not
+   persisted or forwarded anywhere; payment invocation itself is still GH #9's separate
+   concern. The handler builds the rest of the `OrderDto` from the caller's cart items and
+   calls `OrderFacade.createOrder` (order-service's plain create path), then clears the
+   cart via `CartServiceClient.clearCart` on success and redirects to `/orders/{id}`. On
+   any failure (no/invalid/not-owned address, empty cart, unparseable cart item,
+   order-service rejecting the request) it redirects to `/checkout?error=...` instead of
+   letting an exception reach `GlobalExceptionHandler` — necessary because
+   `resolveRedirectPath`'s `ACTION_VERBS` heuristic doesn't recognize `"place"` as the
+   last path segment, so an uncaught exception here would redirect to a GET on
+   `/checkout/place`, which has no `@GetMapping` and would 404.
 7. **(Fixed for GH #6) Cart quantity-change form now has a handler.**
    `cart/cart.html:50` (`<form action="/cart/update" method="post">`, auto-submitted via
    `onchange="this.form.submit()"`) now maps to `CartController.updateCartItem`

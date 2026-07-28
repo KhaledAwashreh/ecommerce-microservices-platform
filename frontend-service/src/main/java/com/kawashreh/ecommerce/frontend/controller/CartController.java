@@ -2,6 +2,7 @@ package com.kawashreh.ecommerce.frontend.controller;
 
 import com.kawashreh.ecommerce.frontend.client.CartServiceClient;
 import com.kawashreh.ecommerce.frontend.config.SessionManager;
+import com.kawashreh.ecommerce.frontend.dto.AddressDto;
 import com.kawashreh.ecommerce.frontend.dto.CartDto;
 import com.kawashreh.ecommerce.frontend.dto.CartItemDto;
 import com.kawashreh.ecommerce.frontend.dto.OrderDto;
@@ -151,6 +152,14 @@ public class CartController {
         if (!sessionManager.isAuthenticated(request)) {
             return "redirect:/login";
         }
+        UUID userId = resolveUserId(request);
+        if (userId == null) {
+            return "redirect:/login";
+        }
+
+        // GH #58: populates the address selector with the caller's real saved addresses
+        // (previously a hardcoded, non-UUID value="1" option).
+        model.addAttribute("addresses", profileFacade.getAddressesForUser(userId));
         return "cart/checkout";
     }
 
@@ -161,13 +170,14 @@ public class CartController {
      * orchestration is a separate follow-up (GH #9) and is deliberately left untouched
      * here so that seam stays clean.
      * <p>
-     * {@code addressId}/{@code paymentMethod} are accepted because {@code checkout.html}
-     * submits them, but neither is used: the order domain model has no shipping-address
-     * field, and payment is out of scope for this handler.
+     * GH #58: {@code addressId} is now parsed as a real UUID, checked against the
+     * caller's own saved addresses (never trusted blindly), and threaded through to
+     * order-service's {@code shippingAddressId} field. {@code paymentMethod} remains
+     * accepted-but-unused - see the inline comment where it's read, below.
      */
     @PostMapping("/checkout/place")
     public String placeOrder(@RequestParam(required = false) String addressId,
-                              @RequestParam(required = false) String paymentMethod,
+                              @RequestParam(required = false) String paymentMethod, // GH #58: intentionally not wired up yet - payment-service is being redesigned separately, so this is accepted but neither persisted nor forwarded anywhere pending that redesign.
                               HttpServletRequest request) {
         if (!sessionManager.isAuthenticated(request)) {
             return "redirect:/login";
@@ -175,6 +185,25 @@ public class CartController {
         UUID userId = resolveUserId(request);
         if (userId == null) {
             return "redirect:/login";
+        }
+
+        if (addressId == null || addressId.isBlank()) {
+            return "redirect:/checkout?error=" + encode("Please select a shipping address");
+        }
+
+        UUID shippingAddressId;
+        try {
+            shippingAddressId = UUID.fromString(addressId);
+        } catch (IllegalArgumentException e) {
+            return "redirect:/checkout?error=" + encode("Invalid shipping address selected");
+        }
+
+        List<AddressDto> ownedAddresses = profileFacade.getAddressesForUser(userId);
+        boolean addressBelongsToCaller = ownedAddresses.stream()
+                .anyMatch(a -> shippingAddressId.equals(a.getId()));
+        if (!addressBelongsToCaller) {
+            log.warn("User {} attempted checkout with address {} that is not their own", userId, shippingAddressId);
+            return "redirect:/checkout?error=" + encode("Select a valid shipping address");
         }
 
         try {
@@ -185,7 +214,7 @@ public class CartController {
 
             OrderDto orderToCreate;
             try {
-                orderToCreate = buildOrderFromCart(cart, userId);
+                orderToCreate = buildOrderFromCart(cart, userId, shippingAddressId);
             } catch (Exception e) {
                 log.error("Failed to build order from cart {} for user {}: {}", cart.getId(), userId, e.getMessage());
                 return "redirect:/checkout?error=" + encode("Unable to process items in your cart");
@@ -220,7 +249,7 @@ public class CartController {
      * this platform has no multi-seller order splitting today. Not a regression from
      * this change; out of scope for GH #6.
      */
-    private OrderDto buildOrderFromCart(CartDto cart, UUID userId) {
+    private OrderDto buildOrderFromCart(CartDto cart, UUID userId, UUID shippingAddressId) {
         Instant now = Instant.now();
         List<OrderItemDto> items = new ArrayList<>();
         for (CartItemDto item : cart.getCartItems()) {
@@ -242,6 +271,7 @@ public class CartController {
                 .storeId(storeId)
                 .seller(storeId)
                 .buyer(userId)
+                .shippingAddressId(shippingAddressId)
                 .status("PENDING")
                 .selectedItems(items)
                 .createdAt(now)

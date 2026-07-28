@@ -53,7 +53,7 @@ follows the repo convention (`dataAccess`, not `dataaccess`/`infastructure`).
 |---|---|---|---|
 | `Cart` | `CartEntity` (`@Table("cart")`) | `id, userId, createdBy, updatedBy, sessionId, status, cartItems, subtotal, discountTotal, taxTotal, shippingTotal, totalPrice, createdAt, updatedAt` | Domain model has `createdBy`/`updatedBy`; entity has them too. `@Component`-annotated domain POJO (see Gotchas). |
 | `CartItem` | `CartItemEntity` (`@Table("cart_item")`) | `id, cartId, productId, productVariantId, storeId, productSku, productName, quantity, unitPrice, lineTotal, currency, createdAt, updatedAt` | Entity `cart` FK is `optional=false`/`nullable=false`; domain model only carries `cartId` (a UUID), not the parent reference. |
-| `Order` | `OrderEntity` (`@Table("\"order\"")`, quoted because `order` is a SQL keyword) | `id, storeId, seller, buyer, status, selectedItems, discountsApplied, createdAt, updatedAt, createdBy, updatedBy` | `selectedItems`/`discountsApplied` setters are hand-written (Lombok `@Setter(AccessLevel.NONE)` + custom methods) to defensively copy into new `ArrayList`s. |
+| `Order` | `OrderEntity` (`@Table("\"order\"")`, quoted because `order` is a SQL keyword) | `id, storeId, seller, buyer, shippingAddressId, status, selectedItems, discountsApplied, createdAt, updatedAt, createdBy, updatedBy` | `selectedItems`/`discountsApplied` setters are hand-written (Lombok `@Setter(AccessLevel.NONE)` + custom methods) to defensively copy into new `ArrayList`s. `shippingAddressId` (GH #58) is a plain nullable `UUID` column (`shipping_address_id`) referencing an address owned by `user-service` — order-service does **not** validate that the id exists or belongs to the buyer; that check happens entirely in `frontend-service`'s `CartController` before the create call is made (see frontend-service ai_doc). Wired through `dataAccess/mapper/OrderMapper` (entity <-> domain) and `application/mapper/OrderHttpMapper` (domain <-> `OrderDto`), same pattern as every other scalar field on `Order`. Not `@NonNull` on `OrderDto` (unlike `buyer`/`seller`/`storeId`), so existing/other callers that don't supply one (e.g. the dead `createOrderFromCart`/`convertCartToOrder` path) are unaffected. |
 | `OrderItem` | `OrderItemEntity` (`@Table("order_item")`) | `id, orderId, productSku, quantity, unitPrice, createdAt, updatedAt, createdBy, updatedBy` | `productSku` is typed `UUID`, not a SKU string — see Gotchas. |
 | `Discount` | `DiscountEntity` (`@Table("discount")`) | `id, name, code (unique), description, createdAt, updatedAt, createdBy, updatedBy` | Joined to `Order` via `order_discount` join table (`@ManyToMany`, cascade `PERSIST`/`MERGE`). |
 
@@ -143,6 +143,11 @@ is now wired (see above); it only recomputes `subtotal` from cart item `lineTota
 | GET | `/api/v1/orders/buyer/{buyerId}/status/{status}` | — | `List<OrderDto>` | 200 | none |
 | PUT | `/api/v1/orders/{id}` | `OrderDto` | `OrderDto` | 200 (or 500 — `update()` has no not-found guard, throws if the underlying save produces a detached/transient conflict) | none |
 | DELETE | `/api/v1/orders/{id}` | — | empty | 204 (204 even if `id` doesn't exist — `deleteById` on Spring Data throws `EmptyResultDataAccessException` in that case, uncaught -> would actually surface as 500) | none |
+
+`OrderDto`/`OrderEntity` carry a `shippingAddressId` field (GH #58, see Domain model
+above) — `POST /api/v1/orders` accepts it as an ordinary nullable field on the request
+body; there is no dedicated shipping-address endpoint or path, and no ownership/existence
+check against `user-service` happens in this module.
 
 `createOrder` does not call `@Valid` — `spring-boot-starter-validation` is a declared
 dependency (`pom.xml`) but no `@Valid`/`@Validated` annotation appears anywhere in the
@@ -417,6 +422,13 @@ invisible from this module's code).
 - `src/test/java/.../domain/service/impl/OrderServiceImplTest.java` — plain
   Mockito unit test (no Docker needed) covering `OrderServiceImpl.create`'s
   success/failure branches directly (repository and `ProductServiceClient` mocked).
+  GH #58 added two cases verifying `shippingAddressId` survives the domain -> entity ->
+  repository -> domain round trip performed by `create()` (one with a real UUID, one
+  confirming a `null` value is still accepted — required for backward compatibility with
+  callers, such as the dead `createOrderFromCart`, that don't set it). These are unit
+  tests against a mocked repository; they do not exercise a real database column/schema
+  (that would require the Testcontainers-backed integration test, not run here — see
+  below).
 - `src/test/java/.../application/controller/CartControllerTest.java` — `@WebMvcTest(CartController.class)`
   slice test (no Docker needed), `CartService` mocked via `@MockitoBean`. Covers
   get-or-create by user, get-by-id (found/404), add-item (201), remove-item (200/404) —

@@ -36,6 +36,12 @@ public class OrderEntity {
     @Column(name = "buyer_id", nullable = false)
     private UUID buyer;
 
+    // GH #58: shipping address selected at checkout, owned by user-service's Address
+    // entity. Nullable - not every existing/legacy order-creation path (e.g. the
+    // dead createOrderFromCart) supplies one.
+    @Column(name = "shipping_address_id")
+    private UUID shippingAddressId;
+
     @Column(name = "status", nullable = false)
     @Enumerated(EnumType.STRING)
     @Builder.Default

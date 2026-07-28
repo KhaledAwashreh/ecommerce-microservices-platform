@@ -25,6 +25,9 @@ public class OrderDto {
 
     private UUID buyer;
 
+    // GH #58: shipping address selected at checkout, mirrors order-service's OrderDto field.
+    private UUID shippingAddressId;
+
     private String status;
     
     @Builder.Default

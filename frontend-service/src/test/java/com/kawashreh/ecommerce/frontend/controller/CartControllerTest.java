@@ -2,6 +2,7 @@ package com.kawashreh.ecommerce.frontend.controller;
 
 import com.kawashreh.ecommerce.frontend.client.CartServiceClient;
 import com.kawashreh.ecommerce.frontend.config.SessionManager;
+import com.kawashreh.ecommerce.frontend.dto.AddressDto;
 import com.kawashreh.ecommerce.frontend.dto.CartDto;
 import com.kawashreh.ecommerce.frontend.dto.CartItemDto;
 import com.kawashreh.ecommerce.frontend.dto.OrderDto;
@@ -38,6 +39,12 @@ import static org.mockito.Mockito.when;
  * handler at all in CartController, so checkout could never complete and the cart
  * quantity <select> silently 404d.
  * <p>
+ * Also covers GH #58: {@code addressId} used to be discarded no matter what was
+ * submitted (checkout.html only ever offered a hardcoded, non-UUID value="1"). These
+ * tests cover the real parsing/ownership-validation path added for that fix - null/blank/
+ * unparseable/not-owned addressId all redirect with an error, and an owned address flows
+ * through to the created order's {@code shippingAddressId}.
+ * <p>
  * Plain Mockito unit tests with no Spring context - mirrors the style already used by
  * OrderControllerTest in this module. Not executed against Docker/Testcontainers.
  */
@@ -72,6 +79,12 @@ class CartControllerTest {
                 .thenReturn(UserDto.builder().id(userId).username(username).build());
     }
 
+    /** GH #58: stubs the caller's saved-address list to contain exactly {@code addressId}. */
+    private void stubOwnedAddress(UUID userId, UUID addressId) {
+        when(profileFacade.getAddressesForUser(userId))
+                .thenReturn(List.of(AddressDto.builder().id(addressId).street("123 Main St").build()));
+    }
+
     // ---- POST /cart/update ----
 
     @Test
@@ -104,20 +117,78 @@ class CartControllerTest {
     void placeOrder_redirectsToLogin_whenUnauthenticated() {
         when(sessionManager.isAuthenticated(request)).thenReturn(false);
 
-        String view = cartController.placeOrder("1", "CREDIT_CARD", request);
+        String view = cartController.placeOrder(UUID.randomUUID().toString(), "CREDIT_CARD", request);
 
         assertEquals("redirect:/login", view);
         verify(orderFacade, never()).createOrder(any());
     }
 
+    // ---- GH #58: addressId validation ----
+
+    @Test
+    void placeOrder_redirectsWithError_whenAddressIdIsNull() {
+        UUID userId = UUID.randomUUID();
+        authenticateAs("alice", userId);
+
+        String view = cartController.placeOrder(null, "CREDIT_CARD", request);
+
+        assertTrue(view.startsWith("redirect:/checkout?error="));
+        verify(profileFacade, never()).getAddressesForUser(any());
+        verify(orderFacade, never()).createOrder(any());
+    }
+
+    @Test
+    void placeOrder_redirectsWithError_whenAddressIdIsBlank() {
+        // The checkout form's placeholder option submits addressId="" when nothing is picked.
+        UUID userId = UUID.randomUUID();
+        authenticateAs("alice", userId);
+
+        String view = cartController.placeOrder("", "CREDIT_CARD", request);
+
+        assertTrue(view.startsWith("redirect:/checkout?error="));
+        verify(profileFacade, never()).getAddressesForUser(any());
+        verify(orderFacade, never()).createOrder(any());
+    }
+
+    @Test
+    void placeOrder_redirectsWithError_whenAddressIdIsNotAValidUuid() {
+        UUID userId = UUID.randomUUID();
+        authenticateAs("alice", userId);
+
+        String view = cartController.placeOrder("not-a-uuid", "CREDIT_CARD", request);
+
+        assertTrue(view.startsWith("redirect:/checkout?error="));
+        verify(profileFacade, never()).getAddressesForUser(any());
+        verify(orderFacade, never()).createOrder(any());
+    }
+
+    @Test
+    void placeOrder_redirectsWithError_whenAddressNotOwnedByCaller() {
+        UUID userId = UUID.randomUUID();
+        UUID someoneElsesAddressId = UUID.randomUUID();
+        authenticateAs("alice", userId);
+        when(profileFacade.getAddressesForUser(userId)).thenReturn(
+                List.of(AddressDto.builder().id(UUID.randomUUID()).street("1 Other St").build()));
+
+        String view = cartController.placeOrder(someoneElsesAddressId.toString(), "CREDIT_CARD", request);
+
+        assertTrue(view.startsWith("redirect:/checkout?error="));
+        verify(cartServiceClient, never()).getCartForUser(any());
+        verify(orderFacade, never()).createOrder(any());
+    }
+
+    // ---- Happy path + pre-existing failure modes, now requiring an owned address ----
+
     @Test
     void placeOrder_redirectsWithError_whenCartIsEmpty() {
         UUID userId = UUID.randomUUID();
+        UUID addressId = UUID.randomUUID();
         authenticateAs("alice", userId);
+        stubOwnedAddress(userId, addressId);
         when(cartServiceClient.getCartForUser(userId))
                 .thenReturn(CartDto.builder().id(UUID.randomUUID()).cartItems(Collections.emptyList()).build());
 
-        String view = cartController.placeOrder("1", "CREDIT_CARD", request);
+        String view = cartController.placeOrder(addressId.toString(), "CREDIT_CARD", request);
 
         assertTrue(view.startsWith("redirect:/checkout?error="));
         verify(orderFacade, never()).createOrder(any());
@@ -129,7 +200,9 @@ class CartControllerTest {
         UUID storeId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
+        UUID addressId = UUID.randomUUID();
         authenticateAs("alice", userId);
+        stubOwnedAddress(userId, addressId);
 
         CartItemDto item = CartItemDto.builder()
                 .id(UUID.randomUUID())
@@ -150,7 +223,7 @@ class CartControllerTest {
         OrderDto createdOrder = OrderDto.builder().id(orderId).buyer(userId).build();
         when(orderFacade.createOrder(any(OrderDto.class))).thenReturn(createdOrder);
 
-        String view = cartController.placeOrder("1", "CREDIT_CARD", request);
+        String view = cartController.placeOrder(addressId.toString(), "CREDIT_CARD", request);
 
         assertEquals("redirect:/orders/" + orderId, view);
 
@@ -159,6 +232,7 @@ class CartControllerTest {
         OrderDto submitted = orderCaptor.getValue();
         assertEquals(userId, submitted.getBuyer());
         assertEquals(storeId, submitted.getStoreId());
+        assertEquals(addressId, submitted.getShippingAddressId());
         assertEquals(1, submitted.getSelectedItems().size());
         assertEquals(productId, submitted.getSelectedItems().get(0).getProductSku());
         assertEquals(2, submitted.getSelectedItems().get(0).getQuantity());
@@ -170,7 +244,9 @@ class CartControllerTest {
     void placeOrder_redirectsWithError_whenOrderCreationFails() {
         UUID userId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
+        UUID addressId = UUID.randomUUID();
         authenticateAs("alice", userId);
+        stubOwnedAddress(userId, addressId);
 
         CartItemDto item = CartItemDto.builder()
                 .id(UUID.randomUUID())
@@ -187,7 +263,7 @@ class CartControllerTest {
         when(cartServiceClient.getCartForUser(userId)).thenReturn(cart);
         when(orderFacade.createOrder(any(OrderDto.class))).thenReturn(null);
 
-        String view = cartController.placeOrder("1", "CREDIT_CARD", request);
+        String view = cartController.placeOrder(addressId.toString(), "CREDIT_CARD", request);
 
         assertTrue(view.startsWith("redirect:/checkout?error="));
         verify(cartServiceClient, never()).clearCart(any());
@@ -196,7 +272,9 @@ class CartControllerTest {
     @Test
     void placeOrder_redirectsWithError_whenCartItemHasUnparseableProductSku() {
         UUID userId = UUID.randomUUID();
+        UUID addressId = UUID.randomUUID();
         authenticateAs("alice", userId);
+        stubOwnedAddress(userId, addressId);
 
         CartItemDto badItem = CartItemDto.builder()
                 .id(UUID.randomUUID())
@@ -212,7 +290,7 @@ class CartControllerTest {
         CartDto cart = CartDto.builder().id(UUID.randomUUID()).cartItems(List.of(badItem)).build();
         when(cartServiceClient.getCartForUser(userId)).thenReturn(cart);
 
-        String view = cartController.placeOrder("1", "CREDIT_CARD", request);
+        String view = cartController.placeOrder(addressId.toString(), "CREDIT_CARD", request);
 
         assertTrue(view.startsWith("redirect:/checkout?error="));
         verify(orderFacade, never()).createOrder(any());

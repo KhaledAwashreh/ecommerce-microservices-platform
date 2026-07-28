@@ -30,8 +30,15 @@
                         <div class="space-y-3">
                             <select name="addressId" required class="w-full border rounded px-3 py-2">
                                 <option value="">Select an address</option>
-                                <option value="1">123 Main St, New York, NY 10001</option>
+                                <option th:each="address : ${addresses}"
+                                        th:value="${address.id}"
+                                        th:text="${address.street + ', ' + address.city + ', ' + address.state + ' ' + address.postalCode}">
+                                    123 Main St, New York, NY 10001
+                                </option>
                             </select>
+                            <p th:if="${#lists.isEmpty(addresses)}" class="text-sm text-gray-500">
+                                You have no saved addresses yet - add one below before placing your order.
+                            </p>
                             <a href="/addresses" class="text-sm text-blue-600 hover:underline">Add new address</a>
                         </div>
                     </div>

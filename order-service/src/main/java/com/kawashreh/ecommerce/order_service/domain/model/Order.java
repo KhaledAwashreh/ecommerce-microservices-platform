@@ -25,6 +25,10 @@ public class Order {
 
     private UUID buyer;
 
+    // GH #58: references the shipping address selected at checkout (owned by user-service's
+    // Address entity - not validated/dereferenced here, order-service only stores the id).
+    private UUID shippingAddressId;
+
     @Builder.Default
     private OrderStatus status = OrderStatus.PENDING;
 

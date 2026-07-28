@@ -327,6 +327,43 @@ class OrderServiceImplTest {
     }
 
     @Test
+    void create_carriesShippingAddressIdThroughToTheConfirmedOrder() {
+        // GH #58: the shipping address selected at checkout must survive the full
+        // domain -> entity -> repository -> domain round trip performed by create().
+        stubHappyPathValidation(10);
+        stubHappyPathPayment();
+        when(repository.save(any(OrderEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(productServiceClient.deductInventory(any(UUID.class), anyInt())).thenReturn(true);
+
+        UUID shippingAddressId = UUID.randomUUID();
+        Order order = sampleOrder(2);
+        order.setShippingAddressId(shippingAddressId);
+
+        Order result = orderService.create(order);
+
+        assertThat(result.getShippingAddressId()).isEqualTo(shippingAddressId);
+    }
+
+    @Test
+    void create_allowsNullShippingAddressId_forBackwardCompatibility() {
+        // GH #58: shippingAddressId is nullable - existing/other callers that don't supply
+        // one (e.g. the dead createOrderFromCart path) must not be broken by this field's
+        // addition.
+        stubHappyPathValidation(10);
+        stubHappyPathPayment();
+        when(repository.save(any(OrderEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(productServiceClient.deductInventory(any(UUID.class), anyInt())).thenReturn(true);
+
+        Order order = sampleOrder(2);
+        assertThat(order.getShippingAddressId()).isNull();
+
+        Order result = orderService.create(order);
+
+        assertThat(result.getShippingAddressId()).isNull();
+        assertThat(result.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+    }
+
+    @Test
     void create_isAnnotatedNotSupported_soClassLevelTransactionalNeverWrapsRemoteCalls() throws NoSuchMethodException {
         Method create = OrderServiceImpl.class.getMethod("create", Order.class);
         Transactional tx = create.getAnnotation(Transactional.class);

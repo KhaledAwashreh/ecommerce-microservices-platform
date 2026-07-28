@@ -27,6 +27,11 @@ public class OrderDto {
     @NonNull
     private UUID buyer;
 
+    // GH #58: shipping address selected at checkout. Not @NonNull - unlike buyer/seller/
+    // storeId, this is a new optional field and existing callers other than the checkout
+    // flow don't populate it.
+    private UUID shippingAddressId;
+
     @NonNull
     @Builder.Default
     private OrderStatus status = OrderStatus.PENDING;

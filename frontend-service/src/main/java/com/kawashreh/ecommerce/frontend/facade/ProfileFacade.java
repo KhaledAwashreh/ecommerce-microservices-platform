@@ -68,4 +68,16 @@ public class ProfileFacade {
             return Collections.emptyList();
         }
     }
+
+    // GH #58: addresses scoped to a single user, used by checkout (address selector +
+    // ownership validation) - deliberately not getAllAddresses(), which returns every
+    // address for every user.
+    public List<AddressDto> getAddressesForUser(UUID userId) {
+        try {
+            List<AddressDto> addresses = addressServiceClient.searchAddresses(userId);
+            return addresses != null ? addresses : Collections.emptyList();
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
+    }
 }

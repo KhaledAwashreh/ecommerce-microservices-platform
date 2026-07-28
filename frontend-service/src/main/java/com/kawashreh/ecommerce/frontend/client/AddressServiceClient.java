@@ -21,6 +21,13 @@ public interface AddressServiceClient {
     @GetMapping("/{addressId}")
     AddressDto getAddressById(@PathVariable("addressId") UUID addressId);
 
+    // GH #58: user-service already exposes this as GET /api/v1/address/search?userId=,
+    // server-side scoped to the given user (unlike getAddresses(), which returns every
+    // address for every user) - used to populate the checkout address selector and to
+    // validate that a submitted addressId actually belongs to the calling user.
+    @GetMapping("/search")
+    List<AddressDto> searchAddresses(@RequestParam("userId") UUID userId);
+
     @PostMapping
     AddressDto createAddress(@RequestBody AddressRequest addressRequest,
                             @RequestHeader("X-User-ID") UUID userId);
