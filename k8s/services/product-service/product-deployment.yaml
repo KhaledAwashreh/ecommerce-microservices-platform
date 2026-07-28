@@ -28,7 +28,7 @@ spec:
               memory: "64Mi"
       containers:
         - name: product-service
-          image: ghcr.io/kawashreh/ecommerce-microservices-platform/product-service:latest
+          image: ghcr.io/khaledawashreh/ecommerce-microservices-platform/product-service:latest
           ports:
             - containerPort: 8080
           env:

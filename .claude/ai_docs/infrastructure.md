@@ -135,7 +135,7 @@ What each manifest contains, and what's missing:
   this `application.yml` key as a file (no `volumeMounts` referencing it), so this embedded
   YAML is present in the ConfigMap but never consumed by the running pod. Only the discrete
   `SPRING_DATASOURCE_URL`/`SPRING_DATA_REDIS_HOST`/etc. keys are wired via `env.valueFrom.configMapKeyRef`.
-- **Images**: all reference `ghcr.io/kawashreh/ecommerce-microservices-platform/<service>:latest`
+- **Images**: all reference `ghcr.io/khaledawashreh/ecommerce-microservices-platform/<service>:latest`
   with `imagePullSecrets: github-container-registry` — that secret is never created by any
   manifest in this repo (not in `k8s/rbac/`, not elsewhere); it must exist in-cluster already
   by some other process for image pulls to succeed.
@@ -228,7 +228,7 @@ reference — it is not created by any workflow or manifest in this repo.
   for every service. This tag scheme (`kmawashreh/personal_projects_repo/general:<service>`)
   does not match the GHCR image naming used by `docker.yml`
   (`ghcr.io/${{ github.repository }}/<service>`) or by the `k8s/services/*/*.yaml` Deployments
-  (`ghcr.io/kawashreh/ecommerce-microservices-platform/<service>:latest`) — `image.sh` pushes
+  (`ghcr.io/khaledawashreh/ecommerce-microservices-platform/<service>:latest`) — `image.sh` pushes
   to a different registry/repo entirely and is disconnected from both CI and the k8s
   manifests. Also builds with `context: ./$svc` (module-relative), which — per the Dockerfile
   analysis above — will fail on the `COPY api-gateway/pom.xml ...` step for every module

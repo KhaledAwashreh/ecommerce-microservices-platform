@@ -17,7 +17,7 @@ spec:
         - name: github-container-registry
       containers:
         - name: frontend-service
-          image: ghcr.io/kawashreh/ecommerce-microservices-platform/frontend-service:latest
+          image: ghcr.io/khaledawashreh/ecommerce-microservices-platform/frontend-service:latest
           ports:
             - containerPort: 3000
           env:

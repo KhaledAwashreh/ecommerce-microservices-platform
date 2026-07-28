@@ -28,7 +28,7 @@ spec:
               memory: "64Mi"
       containers:
         - name: api-gateway
-          image: ghcr.io/kawashreh/ecommerce-microservices-platform/api-gateway:latest
+          image: ghcr.io/khaledawashreh/ecommerce-microservices-platform/api-gateway:latest
           ports:
             - containerPort: 8765
           env:

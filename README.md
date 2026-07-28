@@ -399,19 +399,19 @@ flowchart LR
 ### Docker Image Pipeline (`docker.yml`)
 
 - Builds all 6 microservice images on Java/pom changes
-- Pushes to **GitHub Container Registry** (`ghcr.io/kawashreh/ecommerce-microservices-platform/*`)
+- Pushes to **GitHub Container Registry** (`ghcr.io/khaledawashreh/ecommerce-microservices-platform/*`)
 - Multi-arch: `linux/amd64` + `linux/arm64`
 - Tags: `latest`, version, commit SHA
 - GitHub Release created on main branch push
 
 **Available images:**
 ```bash
-docker pull ghcr.io/kawashreh/ecommerce-microservices-platform/api-gateway:latest
-docker pull ghcr.io/kawashreh/ecommerce-microservices-platform/user-service:latest
-docker pull ghcr.io/kawashreh/ecommerce-microservices-platform/product-service:latest
-docker pull ghcr.io/kawashreh/ecommerce-microservices-platform/order-service:latest
-docker pull ghcr.io/kawashreh/ecommerce-microservices-platform/payment-service:latest
-docker pull ghcr.io/kawashreh/ecommerce-microservices-platform/frontend-service:latest
+docker pull ghcr.io/khaledawashreh/ecommerce-microservices-platform/api-gateway:latest
+docker pull ghcr.io/khaledawashreh/ecommerce-microservices-platform/user-service:latest
+docker pull ghcr.io/khaledawashreh/ecommerce-microservices-platform/product-service:latest
+docker pull ghcr.io/khaledawashreh/ecommerce-microservices-platform/order-service:latest
+docker pull ghcr.io/khaledawashreh/ecommerce-microservices-platform/payment-service:latest
+docker pull ghcr.io/khaledawashreh/ecommerce-microservices-platform/frontend-service:latest
 ```
 
 ### Deploy Pipeline (`deploy.yaml`)
