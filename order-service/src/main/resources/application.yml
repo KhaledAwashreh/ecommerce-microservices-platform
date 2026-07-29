@@ -30,10 +30,10 @@ spring:
             readTimeout: 10000
             loggerLevel: basic
           # Service-to-service calls go direct by service name, not through the
-          # gateway. The gateway's JwtAuthFilter requires a bearer token, and
-          # order-service has no interceptor to attach one, so routing these
-          # through it yields 401. This matches k8s/services/order-service/
-          # order-configmap.yaml, which already overrides to direct DNS.
+          # gateway (matches k8s/services/order-service/order-configmap.yaml, which
+          # already overrides to direct DNS). Each backend service now validates the
+          # JWT itself (GH #17), so IncomingAuthHeaderFeignInterceptor forwards the
+          # caller's bearer token onto these calls; without it they'd get 401.
           product-service:
             url: ${PRODUCT_SERVICE_URL:http://product-service:8080}
             errorDecoder: com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceErrorDecoder
