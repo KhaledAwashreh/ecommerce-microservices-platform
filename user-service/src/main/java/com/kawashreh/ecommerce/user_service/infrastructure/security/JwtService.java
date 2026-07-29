@@ -7,6 +7,7 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import com.kawashreh.ecommerce.user_service.constants.JwtConstants;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
@@ -19,7 +20,13 @@ import java.util.function.Function;
 @Component
 public class JwtService {
 
-    public static final String SECRET = JwtConstants.SECRET;
+    private final String secret;
+
+    // No default: a missing `jwt.secret` property (env var JWT_SECRET) fails
+    // application startup instead of silently signing tokens with a known value.
+    public JwtService(@Value("${jwt.secret}") String secret) {
+        this.secret = secret;
+    }
 
     /**
      * Issues a token carrying the user's id and role as claims (in addition to the
@@ -49,7 +56,7 @@ public class JwtService {
     }
 
     private Key getSignKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(SECRET);
+        byte[] keyBytes = Decoders.BASE64.decode(secret);
         return Keys.hmacShaKeyFor(keyBytes);
     }
 

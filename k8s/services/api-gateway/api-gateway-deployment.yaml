@@ -42,6 +42,11 @@ spec:
                 configMapKeyRef:
                   name: api-gateway-config
                   key: SPRING_DATA_REDIS_PORT
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: JWT_SECRET
           resources:
             requests:
               cpu: "250m"

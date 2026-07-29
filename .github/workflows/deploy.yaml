@@ -39,6 +39,7 @@ jobs:
       - name: Verify required secrets
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           if [ -z "$POSTGRES_PASSWORD" ]; then
             echo "::error::POSTGRES_PASSWORD is not set."
@@ -46,6 +47,14 @@ jobs:
             echo "value unconditionally, so an unset secret would overwrite the"
             echo "cluster's existing postgres-secret with an empty password and"
             echo "break database auth for every service."
+            exit 1
+          fi
+          if [ -z "$JWT_SECRET" ]; then
+            echo "::error::JWT_SECRET is not set."
+            echo "Refusing to deploy. The Create JWT secret step applies this value"
+            echo "unconditionally, so an unset secret would overwrite the cluster's"
+            echo "existing jwt-secret with an empty signing key and break token"
+            echo "validation for api-gateway and user-service."
             exit 1
           fi
 
@@ -72,6 +81,15 @@ jobs:
           kubectl create secret generic postgres-secret \
             --namespace ecommerce \
             --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create JWT secret
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          kubectl create secret generic jwt-secret \
+            --namespace ecommerce \
+            --from-literal=JWT_SECRET="$JWT_SECRET" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Apply infrastructure manifests (Postgres, Redis)

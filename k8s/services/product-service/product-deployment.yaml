@@ -47,6 +47,11 @@ spec:
                 secretKeyRef:
                   name: postgres-secret
                   key: POSTGRES_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: JWT_SECRET
             - name: SPRING_DATA_REDIS_HOST
               valueFrom:
                 configMapKeyRef:

@@ -262,13 +262,19 @@ payments (id, order_id, buyer_id, amount, payment_method, status, transaction_id
 
 ### Environment Configuration
 
+Copy `.env.example` to `.env` (gitignored) and fill in real values before running either
+compose file — both files read `SPRING_DATASOURCE_PASSWORD` and `JWT_SECRET` via variable
+substitution and refuse to start (`variable is not set` error from `docker compose`) if
+either is missing, rather than falling back to a committed default.
+
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `SPRING_PROFILES_ACTIVE` | `local` | Spring profile |
 | `ZIPKIN_BASE_URL` | http://zipkin:9411 | Zipkin URL |
 | `SPRING_DATASOURCE_URL` | jdbc:postgresql://host:5432/db | DB connection |
 | `SPRING_DATA_REDIS_HOST` | `redis` | Redis host |
-| `POSTGRES_PASSWORD` | `test1234` | Database password |
+| `SPRING_DATASOURCE_PASSWORD` | *(none — required, from `.env`)* | Database password. A weak shared value is fine for local dev; just don't commit it. |
+| `JWT_SECRET` | *(none — required, from `.env`)* | HS256 signing secret shared by `api-gateway` and `user-service`. Generate your own (`openssl rand -base64 48`) — do not reuse the value that used to be committed here. |
 
 ---
 
@@ -309,6 +315,30 @@ kubectl apply -f k8s/services/*/configmap.yaml
 kubectl apply -f k8s/services/
 ```
 
+### Postgres and JWT Secrets
+
+`k8s/postgres/` intentionally does **not** contain a `Secret` manifest, and no `Secret`
+manifest for the JWT signing key exists anywhere under `k8s/`. Both used to be committed
+as base64-encoded (not encrypted) `Secret` YAML — base64 is trivially reversible, so that
+was equivalent to committing the plaintext password/key. Create them out of band instead,
+the same way the `deploy.yaml` workflow does it:
+
+```bash
+# Database password consumed by every service's SPRING_DATASOURCE_PASSWORD
+kubectl create secret generic postgres-secret \
+  --namespace ecommerce \
+  --from-literal=POSTGRES_PASSWORD=<your-db-password>
+
+# HS256 signing secret shared by api-gateway and user-service
+kubectl create secret generic jwt-secret \
+  --namespace ecommerce \
+  --from-literal=JWT_SECRET=<your-jwt-secret>   # e.g. openssl rand -base64 48
+```
+
+`deploy.yaml` creates both from the `POSTGRES_PASSWORD` and `JWT_SECRET` GitHub Actions
+secrets on every run, so a cluster deployed exclusively through that workflow never needs
+this done by hand — this is only for a cluster you're standing up manually.
+
 ### GHCR Image Pull Secret Setup
 
 To pull images from GitHub Container Registry, create an image pull secret in your Kubernetes cluster:
@@ -336,6 +366,8 @@ The `deploy.yaml` workflow requires these GitHub secrets configured in your repo
 |--------|------------|
 | `K8S_URL` | Run `kubectl cluster-info` to get the API server URL |
 | `KUBERNETES_SECRET` | Create a ServiceAccount with cluster-admin role, then get its token: `kubectl get secret <sa-token> -o jsonpath='{.data.token}' \| base64 -d` |
+| `POSTGRES_PASSWORD` | Pick a value for the cluster's Postgres password; the workflow writes it into the `postgres-secret` `Secret` on every run (see Postgres and JWT Secrets above) |
+| `JWT_SECRET` | Generate one (`openssl rand -base64 48`); the workflow writes it into the `jwt-secret` `Secret` on every run. Must not be the value that used to be committed to source |
 
 ### Kubernetes — Production Hardening
 

@@ -11,7 +11,7 @@ services:
     environment:
       POSTGRES_DB: productdb
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: test1234
+      POSTGRES_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD must be set (copy .env.example to .env)}
     ports:
       - "5434:5432"
     volumes:
@@ -30,7 +30,7 @@ services:
     environment:
       POSTGRES_DB: userdb
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: test1234
+      POSTGRES_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD must be set (copy .env.example to .env)}
     ports:
       - "5433:5432"
     volumes:
@@ -49,7 +49,7 @@ services:
     environment:
       POSTGRES_DB: paymentdb
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: test1234
+      POSTGRES_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD must be set (copy .env.example to .env)}
     ports:
       - "5436:5432"
     volumes:
@@ -68,7 +68,7 @@ services:
     environment:
       POSTGRES_DB: orderdb
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: test1234
+      POSTGRES_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD must be set (copy .env.example to .env)}
     ports:
       - "5435:5432"
     volumes:
@@ -121,8 +121,9 @@ services:
       - SPRING_DATA_REDIS_PORT=6379
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-user:5432/userdb
       - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=test1234
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD must be set (copy .env.example to .env)}
       - ZIPKIN_BASE_URL=http://zipkin:9411
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set (copy .env.example to .env)}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -146,10 +147,11 @@ services:
       - SPRING_PROFILES_ACTIVE=local
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-product:5432/productdb
       - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=test1234
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD must be set (copy .env.example to .env)}
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
       - ZIPKIN_BASE_URL=http://zipkin:9411
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set (copy .env.example to .env)}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -173,12 +175,13 @@ services:
       - SPRING_PROFILES_ACTIVE=local
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-order:5432/orderdb
       - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=test1234
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD must be set (copy .env.example to .env)}
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
       - PRODUCT_SERVICE_URL=http://product-service:8080
       - PAYMENT_SERVICE_URL=http://payment-service:8080
       - ZIPKIN_BASE_URL=http://zipkin:9411
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set (copy .env.example to .env)}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -206,9 +209,10 @@ services:
       - SPRING_PROFILES_ACTIVE=local
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-payment:5432/paymentdb
       - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=test1234
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD must be set (copy .env.example to .env)}
       - ORDER_SERVICE_URL=http://order-service:8080
       - ZIPKIN_BASE_URL=http://zipkin:9411
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set (copy .env.example to .env)}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -239,6 +243,7 @@ services:
       - PRODUCT_SERVICE_URL=http://product-service:8080
       - ORDER_SERVICE_URL=http://order-service:8080
       - PAYMENT_SERVICE_URL=http://payment-service:8080
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set (copy .env.example to .env)}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8765/actuator/health"]
       interval: 30s

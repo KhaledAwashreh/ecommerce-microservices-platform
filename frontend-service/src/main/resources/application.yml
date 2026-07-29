@@ -14,11 +14,6 @@ api:
   gateway:
     base-url: ${API_GATEWAY_BASE_URL:http://localhost:8765}
 
-jwt:
-  secret: 5367566859703373367639792F423F452848284D6251655468576D5A71347437
-  expiration: 1800000
-
-
 management:
   zipkin:
     tracing:

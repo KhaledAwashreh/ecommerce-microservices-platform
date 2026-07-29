@@ -13,6 +13,11 @@ spring:
 server:
   port: 0
 
+# Test-only signing key. Production requires JWT_SECRET (no committed default) —
+# see application.yml. This value is not used outside the `test` profile.
+jwt:
+  secret: dGVzdC1vbmx5LWp3dC1zaWduaW5nLXNlY3JldC1kby1ub3QtdXNlLWluLXByb2Q=
+
 logging:
   level:
     com.kawashreh.ecommerce: DEBUG

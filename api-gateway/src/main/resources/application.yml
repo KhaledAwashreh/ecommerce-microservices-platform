@@ -117,6 +117,11 @@ spring:
                 name: payment-service
                 fallbackUri: forward:/fallback
 
+jwt:
+  # No default: a missing JWT_SECRET env var must fail startup, not fall back to a
+  # committed value. Must match user-service's jwt.secret (same signing key, HS256).
+  secret: ${JWT_SECRET}
+
 server:
   port: 8765
 

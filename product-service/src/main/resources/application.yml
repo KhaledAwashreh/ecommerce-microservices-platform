@@ -11,7 +11,7 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/productdb}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: update
@@ -33,6 +33,12 @@ spring:
 
 server:
   port: 8080
+
+jwt:
+  # No default: a missing JWT_SECRET env var must fail startup, not fall back to a
+  # committed value. Must match api-gateway/user-service's jwt.secret (same signing
+  # key, HS256) — this service only verifies tokens, it doesn't issue them.
+  secret: ${JWT_SECRET}
 
 management:
   zipkin:

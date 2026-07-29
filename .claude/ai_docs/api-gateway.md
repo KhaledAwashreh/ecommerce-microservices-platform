@@ -46,7 +46,7 @@ com.kawashreh.ecommerce.api_gateway/
 │   └── security/JwtService.java              jjwt token parsing/validation (HS256)
 └── constants/
     ├── ApiPaths.java                         FALLBACK, USER_BASE, USER_BY_ID only
-    └── JwtConstants.java                     hardcoded SECRET + EXPIRATION_TIME (30 min)
+    └── JwtConstants.java                     EXPIRATION_TIME (30 min); SECRET removed — see jwt.secret below
 ```
 
 No `domain/`, `dataAccess/`, or `application/` packages — this module has no persistence and
@@ -160,7 +160,8 @@ injection point anywhere in the module — dead bean.
 | `management.zipkin.tracing.endpoint` | all profiles | see above | |
 | `logging.level.org.springframework.cloud.gateway` etc. | `application-local.yml:151-153` | `DEBUG` | Only in local profile |
 | `spring.cloud.config.*`, `eureka.client.*` | `bootstrap.properties` | optional config-server import, Eureka `defaultZone=http://localhost:8761/eureka` | `spring.config.import=optional:configserver:...` — optional, won't fail startup if config-server absent; no `spring-cloud-config-client` or `spring-cloud-starter-netflix-eureka-client` dependency is declared in `pom.xml`, so these properties have no effect (no such starters on the classpath) |
-| `JwtConstants.SECRET` / `EXPIRATION_TIME` | `constants/JwtConstants.java:7-8` | hardcoded HS256 key, 30 min | Not sourced from env/config at all (see Gotchas) |
+| `jwt.secret` | `application.yml`, `JwtService` constructor (`@Value`) | none — required | Sourced from env var `JWT_SECRET`, no committed default; missing value fails app startup |
+| `JwtConstants.EXPIRATION_TIME` | `constants/JwtConstants.java:8` | `1000L * 60 * 30` (30 min) | Still hardcoded — not sourced from env/config |
 
 ## Caching
 
@@ -202,11 +203,12 @@ concerned.
   writes it to `ReactiveSecurityContextHolder`, and mutates the outgoing request to add
   **`X-User-Name`** and **`X-User-ID`** headers before forwarding downstream. No role/claims
   header is propagated.
-- **Secret management**: `JwtConstants.SECRET` (`constants/JwtConstants.java:7`) is a hardcoded
-  hex string committed to source, identical to `user-service`'s
-  `user_service/constants/JwtConstants.java:7` (confirmed by direct comparison) — the two
-  modules stay in sync only because the same literal was copy-pasted into both, not because
-  either reads from shared config or an environment variable.
+- **Secret management**: `JwtService`'s signing key is injected via `@Value("${jwt.secret}")`
+  (constructor param, `Infrastructure/security/JwtService.java`), backed by
+  `application.yml`'s `jwt.secret: ${JWT_SECRET}` (no default — a missing `JWT_SECRET` env
+  var fails startup). Still duplicated with `user-service`'s equivalent `jwt.secret`/
+  `JWT_SECRET` rather than shared config, so the two can still drift if someone sets
+  different values per service — just no longer via a copy-pasted source literal.
 - **CORS**: no `CorsWebFilter`, `CorsConfigurationSource`, `@CrossOrigin`, or
   `spring.cloud.gateway.globalcors` / `default-filters` CORS config exists anywhere in this
   module's source or YAML (confirmed by grep). CORS is not configured.
