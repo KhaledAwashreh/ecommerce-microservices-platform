@@ -1,5 +1,18 @@
 # api-gateway
 
+> **Amendment (GH #19 fix):** this doc predates the fix and the statements that role
+> data is "read from user-service but never turned into a `GrantedAuthority`" and that
+> "no `X-User-Role` (or similar) header is propagated downstream" are now **stale**.
+> `JwtAuthFilter` now reads the `role` claim directly off the token (embedded at
+> issuance by user-service, since the `UserDto` this filter's `userServiceClient`
+> fetches still does not serialize role), builds a `SimpleGrantedAuthority("ROLE_" +
+> role)` for the reactive security context, and adds an `X-User-Role` header alongside
+> the existing `X-User-Name`/`X-User-ID`. Each backend service now independently
+> re-validates the JWT and derives its own verified identity/role rather than trusting
+> these headers outright (GH #17/#19), so this is now defense-in-depth rather than the
+> sole trust boundary. The rest of this document is otherwise still accurate as of the
+> fix; it has not been fully regenerated.
+
 ## Purpose
 
 Spring Cloud Gateway (WebFlux, reactive) fronting the platform's backend services. It is the

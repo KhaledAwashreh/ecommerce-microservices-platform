@@ -1,5 +1,18 @@
 # order-service
 
+> **Amendment (GH #17 fix):** this doc predates the fix and the "No security
+> configuration, filters, or `@PreAuthorize`/`@Secured` annotations exist... performs
+> no token validation" statement is now **stale**. Current state:
+> `infrastructure/security/JwtAuthFilter` + `JwtService` validate every request's
+> bearer token locally (except `/actuator/**`) before it reaches a controller, using
+> the same shared HMAC secret as user-service/api-gateway (`constants/JwtConstants`).
+> A new `IncomingAuthHeaderFeignInterceptor` forwards the caller's Authorization
+> header onto this service's outbound Feign calls to product-service, payment-service,
+> and user-service (the application.yml comment about those calls going direct by DNS
+> "with no interceptor to attach one" is no longer accurate). The rest of this
+> document is otherwise still accurate as of the fix; it has not been fully
+> regenerated.
+
 ## Purpose
 
 `order-service` owns carts, orders, order items, and discounts for the e-commerce

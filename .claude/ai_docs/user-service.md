@@ -1,5 +1,23 @@
 # user-service
 
+> **Amendment (GH #17/#18/#19 fix):** this doc predates the fix for those three P0
+> security issues and several statements below ("does not itself enforce JWT-based
+> authorization", "no `X-User-ID` check, no admin check" on RoleController, "trusts the
+> `X-User-ID` header... verbatim") are now **stale**. Current state: a
+> `JwtAuthFilter`/`JwtService` pair (`infrastructure/security/`) now validates every
+> request's bearer token locally before it reaches a controller (except `/register`,
+> `/login`, `/actuator/**`). On success it overwrites `X-User-ID`/`X-User-Name`/
+> `X-User-Role` on the request with values derived from the token's verified claims, so
+> those headers can no longer be spoofed by a caller — `UserController`/
+> `AddressController`'s existing `@RequestHeader("X-User-ID")` reads now get a
+> trustworthy value for free. `RoleController.create`/`delete` now require
+> `X-User-Role == ADMIN` (`domain/enums/UserRole`), returning 403 otherwise. Tokens
+> issued by `login()` now carry `userId` and `role` claims (previously subject/username
+> only) so every backend service can derive identity independently. The rest of this
+> document (package layout, endpoint tables minus the Authorization column notes above,
+> gotchas list) is otherwise still accurate as of the fix; it has not been fully
+> regenerated.
+
 ## Purpose
 
 Owns the User/Account/Address/Role domain for the platform: registration, login (JWT

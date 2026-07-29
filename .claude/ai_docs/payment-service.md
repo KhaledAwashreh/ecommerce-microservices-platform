@@ -1,5 +1,17 @@
 # payment-service
 
+> **Amendment (GH #17 fix):** this doc predates the fix and the "No
+> auth/authorization in this module... no Spring Security dependency, no auth filter"
+> statements are now **stale** — this was the worst-case service cited in GH #17
+> (direct network access previously allowed processing/viewing/refunding arbitrary
+> payments). Current state: `infrastructure/security/JwtAuthFilter` + `JwtService`
+> (new `jjwt` dependency, same version as user-service/api-gateway) validate every
+> request's bearer token locally (except `/actuator/**`) before it reaches a
+> controller, using the same shared HMAC secret (`constants/JwtConstants`, new). A new
+> `IncomingAuthHeaderFeignInterceptor` forwards the caller's Authorization header onto
+> this service's outbound Feign calls to order-service. The rest of this document is
+> otherwise still accurate as of the fix; it has not been fully regenerated.
+
 ## Purpose
 
 Records payments against orders and exposes a CRUD-ish HTTP API for processing, retrieving,

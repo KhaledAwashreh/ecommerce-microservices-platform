@@ -3,6 +3,32 @@
 System topology and runtime behavior, derived from code and config (not from `README.md`,
 which contains inaccuracies — see "README discrepancies" at the end).
 
+> **Amendment (GH #17/#18/#19 fix):** this doc predates the fix for three P0 security
+> issues. Previously, only `api-gateway` validated JWTs; a caller with direct network
+> reach to any backend service pod bypassed authentication entirely, and every
+> ownership check (`UserServiceImpl`, `AddressServiceImpl`) trusted the gateway-set,
+> spoofable `X-User-ID` header, while `RoleController.create`/`delete` had no
+> authorization check at all. Fix: `user-service`, `product-service`, `order-service`,
+> and `payment-service` each now run their own `JwtAuthFilter` + `JwtService`
+> (`infrastructure/security/` or `infastructure/security/` for product-service),
+> independently validating the bearer token's signature/expiry against the same
+> shared HMAC secret (`constants/JwtConstants`, now present in all four modules) and
+> overwriting `X-User-ID`/`X-User-Name`/`X-User-Role` on the request with values
+> derived from the token's verified claims. Tokens issued by `user-service`'s
+> `login()` now carry `userId` and `role` claims (previously subject/username only).
+> Service-to-service Feign calls (order-service -> product/payment/user-service,
+> payment-service -> order-service, product-service -> user-service) now carry the
+> caller's bearer token via a new `IncomingAuthHeaderFeignInterceptor` in each of
+> those three modules, since the callee now requires one. `api-gateway`'s
+> `JwtAuthFilter` also now reads the token's `role` claim and propagates it as
+> `X-User-Role` downstream (previously discarded). `RoleController.create`/`delete`
+> now require the verified `X-User-Role` header to equal `ADMIN`
+> (`user-service/domain/enums/UserRole`). Basic Kubernetes `NetworkPolicy` manifests
+> were added under `k8s/services/<service>/` restricting ingress on each backend
+> service's port to `api-gateway` and the other backend services only. Per-service
+> ai_docs have brief amendment notes but have not been fully regenerated; the
+> per-endpoint auth tables and "no auth in this module" gotchas below are stale.
+
 ## Services
 
 | Service | Role | Port (container) | Framework |

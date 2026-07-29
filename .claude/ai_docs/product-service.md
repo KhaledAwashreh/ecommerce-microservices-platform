@@ -1,5 +1,16 @@
 # product-service
 
+> **Amendment (GH #17 fix):** this doc predates the fix and the "No
+> authentication/authorization code exists in this module" statement in the Security
+> section is now **stale**. Current state: `infastructure/security/JwtAuthFilter` +
+> `JwtService` validate every request's bearer token locally (except `/actuator/**`)
+> before it reaches a controller, using the same shared HMAC secret as user-service/
+> api-gateway (`constants/JwtConstants`). A new `IncomingAuthHeaderFeignInterceptor`
+> forwards the caller's Authorization header onto this service's own outbound Feign
+> calls (e.g. to user-service), since those now require a token too. The rest of this
+> document is otherwise still accurate as of the fix; it has not been fully
+> regenerated.
+
 ## Purpose
 
 Owns products, product variations, categories, inventory, and product reviews for the
