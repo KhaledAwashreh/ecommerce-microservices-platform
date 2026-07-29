@@ -1,0 +1,29 @@
+# GH #17 defense-in-depth (option 2): restrict which pods may reach order-service on
+# its HTTP port at all, on top of the JWT validation order-service now performs
+# itself (JwtAuthFilter). Egress is left unrestricted.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: order-service-network-policy
+  namespace: ecommerce
+spec:
+  podSelector:
+    matchLabels:
+      app: order-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - api-gateway
+                  - user-service
+                  - product-service
+                  - order-service
+                  - payment-service
+      ports:
+        - protocol: TCP
+          port: 8080

@@ -1,0 +1,31 @@
+# GH #17 defense-in-depth (option 2). This was the worst-case service cited in that
+# issue: payment-service had no security dependency and no filter at all, so any pod
+# with network reach to it could process, view, or refund arbitrary payments. It now
+# validates the JWT itself (JwtAuthFilter); this policy additionally restricts which
+# pods may reach it on the network at all. Egress is left unrestricted.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: payment-service-network-policy
+  namespace: ecommerce
+spec:
+  podSelector:
+    matchLabels:
+      app: payment-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - api-gateway
+                  - user-service
+                  - product-service
+                  - order-service
+                  - payment-service
+      ports:
+        - protocol: TCP
+          port: 8080

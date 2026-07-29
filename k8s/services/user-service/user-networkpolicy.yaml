@@ -1,0 +1,31 @@
+# GH #17 defense-in-depth (option 2): restrict which pods may reach user-service on
+# its HTTP port at all, so that even a pod that isn't api-gateway or one of the other
+# backend services (e.g. frontend-service, or anything else that lands in this
+# namespace later) cannot reach it over the network - on top of the JWT validation
+# user-service now performs itself (JwtAuthFilter). Egress is left unrestricted.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: user-service-network-policy
+  namespace: ecommerce
+spec:
+  podSelector:
+    matchLabels:
+      app: user-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - api-gateway
+                  - user-service
+                  - product-service
+                  - order-service
+                  - payment-service
+      ports:
+        - protocol: TCP
+          port: 8080
