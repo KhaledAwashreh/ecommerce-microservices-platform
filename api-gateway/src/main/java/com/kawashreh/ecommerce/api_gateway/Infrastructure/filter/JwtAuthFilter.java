@@ -6,12 +6,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
+
+import java.util.List;
 
 @Component
 public class JwtAuthFilter implements WebFilter {
@@ -52,11 +55,23 @@ public class JwtAuthFilter implements WebFilter {
                             .flatMap(userDetails -> {
                                 if (jwtService.validateToken(token, userDetails)) {
                                     log.info("Token validated for user: {}", userDetails.getUsername());
+                                    // GH #19: the role fetched here used to be discarded - null
+                                    // authorities and no role header downstream, so services
+                                    // couldn't do role-based checks even if they wanted to.
+                                    // Read the role from the token's own claims (embedded at
+                                    // issuance by user-service) rather than userDetails, since
+                                    // the user-service response this client consumes does not
+                                    // currently serialize role.
+                                    String role = jwtService.extractClaim(token, claims -> claims.get("role", String.class));
+                                    List<SimpleGrantedAuthority> authorities = role != null
+                                            ? List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                                            : List.of();
                                     UsernamePasswordAuthenticationToken authentication =
-                                            new UsernamePasswordAuthenticationToken(userDetails, null, null);
+                                            new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
                                     ServerWebExchange mutatedExchange = exchange.mutate()
                                             .request(r -> r.header("X-User-Name", userDetails.getUsername())
-                                                            .header("X-User-ID", userDetails.getId().toString()))
+                                                            .header("X-User-ID", userDetails.getId().toString())
+                                                            .header("X-User-Role", role != null ? role : ""))
                                             .build();
                                     return chain.filter(mutatedExchange)
                                             .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication));
