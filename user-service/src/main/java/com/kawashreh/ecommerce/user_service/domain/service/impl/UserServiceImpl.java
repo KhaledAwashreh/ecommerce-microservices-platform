@@ -16,6 +16,7 @@ import com.kawashreh.ecommerce.user_service.domain.service.dto.UserCreateRequest
 import com.kawashreh.ecommerce.user_service.domain.service.dto.UserResponse;
 import com.kawashreh.ecommerce.user_service.domain.service.dto.UserSearchRequest;
 import com.kawashreh.ecommerce.user_service.domain.service.dto.UserUpdateRequest;
+import com.kawashreh.ecommerce.user_service.infrastructure.security.JwtService;
 import com.kawashreh.ecommerce.user_service.infrastructure.security.PasswordHasher;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -35,11 +36,14 @@ public class UserServiceImpl implements UserService {
     private final UserRepository repository;
     private final AccountRepository accountRepository;
     private final PasswordHasher passwordHasher;
+    private final JwtService jwtService;
 
-    public UserServiceImpl(UserRepository repository, AccountRepository accountRepository, PasswordHasher passwordHasher) {
+    public UserServiceImpl(UserRepository repository, AccountRepository accountRepository,
+                            PasswordHasher passwordHasher, JwtService jwtService) {
         this.repository = repository;
         this.accountRepository = accountRepository;
         this.passwordHasher = passwordHasher;
+        this.jwtService = jwtService;
     }
 
     @Override
@@ -176,7 +180,8 @@ public class UserServiceImpl implements UserService {
             return null;
         }
 
-        return com.kawashreh.ecommerce.user_service.infrastructure.security.JwtService.generateToken(user.getUsername());
+        String role = user.getRole() != null ? user.getRole().getName() : null;
+        return jwtService.generateToken(user.getId(), user.getUsername(), role);
     }
 
     @Override

@@ -17,6 +17,7 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     @Query("""
         select u from UserEntity u
         left join fetch u.account
+        left join fetch u.role
         where u.username = :username
         """)
     Optional<UserEntity> findByUsernameWithAccount(String username);

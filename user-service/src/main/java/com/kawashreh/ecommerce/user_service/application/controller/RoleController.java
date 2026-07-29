@@ -3,6 +3,7 @@ package com.kawashreh.ecommerce.user_service.application.controller;
 import com.kawashreh.ecommerce.user_service.application.dto.RoleRequest;
 import com.kawashreh.ecommerce.user_service.application.dto.RoleResponse;
 import com.kawashreh.ecommerce.user_service.application.mapper.RoleHttpMapper;
+import com.kawashreh.ecommerce.user_service.domain.enums.UserRole;
 import com.kawashreh.ecommerce.user_service.domain.service.RoleService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -32,16 +33,34 @@ public class RoleController {
         return ResponseEntity.ok(RoleHttpMapper.toResponse(service.find(id)));
     }
 
+    // GH #18: creating/deleting roles used to have no identity or permission check
+    // at all - any authenticated caller could do either. X-User-Role is set by
+    // JwtAuthFilter from the caller's verified token claims, so it cannot be
+    // spoofed by the client.
     @PostMapping
-    public ResponseEntity<RoleResponse> create(@RequestBody @Valid RoleRequest request) {
+    public ResponseEntity<RoleResponse> create(@RequestBody @Valid RoleRequest request,
+                                                @RequestHeader(value = "X-User-Role", required = false) String requestingUserRole) {
+        if (!isAdmin(requestingUserRole)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
         var role = RoleHttpMapper.toDomain(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(RoleHttpMapper.toResponse(service.save(role)));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+    public ResponseEntity<Void> delete(@PathVariable UUID id,
+                                        @RequestHeader(value = "X-User-Role", required = false) String requestingUserRole) {
+        if (!isAdmin(requestingUserRole)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
         service.delete(id);
         return ResponseEntity.ok().build();
+    }
+
+    private boolean isAdmin(String role) {
+        return role != null && UserRole.ADMIN.name().equalsIgnoreCase(role);
     }
 }
