@@ -7,9 +7,12 @@ import com.kawashreh.ecommerce.order_service.domain.enums.CartStatus;
 import com.kawashreh.ecommerce.order_service.domain.model.Cart;
 import com.kawashreh.ecommerce.order_service.domain.model.CartItem;
 import com.kawashreh.ecommerce.order_service.domain.service.CartService;
+import com.kawashreh.ecommerce.order_service.infrastructure.security.JwtAuthFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -42,7 +45,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code /{id}} are distinct path-segment counts, so a plain cart-id lookup and a
  * user-scoped cart lookup can never collide.
  */
-@WebMvcTest(CartController.class)
+// excludeFilters: this is a web-layer slice test, not concerned with the
+// JwtAuthFilter added for GH #17. That filter needs a JwtService bean, which
+// @WebMvcTest does not scan in, so it must be excluded rather than merely
+// skipped via addFilters=false (the context would still fail to build it).
+@WebMvcTest(controllers = CartController.class,
+        excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtAuthFilter.class))
 class CartControllerTest {
 
     @Autowired

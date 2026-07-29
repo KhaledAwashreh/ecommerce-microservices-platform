@@ -6,9 +6,12 @@ import com.kawashreh.ecommerce.product_service.application.service.ProductVariat
 import com.kawashreh.ecommerce.product_service.domain.model.Product;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductVariation;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductVariationService;
+import com.kawashreh.ecommerce.product_service.infastructure.security.JwtAuthFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -33,7 +36,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * HTTP path to set sku/price/stockQuantity on a variation. This verifies the new
  * ProductVariationController actually exposes those operations.
  */
-@WebMvcTest(ProductVariationController.class)
+// excludeFilters: this is a web-layer slice test, not concerned with the
+// JwtAuthFilter added for GH #17. That filter needs a JwtService bean, which
+// @WebMvcTest does not scan in, so it must be excluded rather than merely
+// skipped via addFilters=false (the context would still fail to build it).
+@WebMvcTest(controllers = ProductVariationController.class,
+        excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtAuthFilter.class))
 class ProductVariationControllerTest {
 
     @Autowired
