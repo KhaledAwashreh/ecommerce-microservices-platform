@@ -20,7 +20,7 @@ interchangeable. Root `CLAUDE.md` already flags this; here is the precise diff.
 | Healthchecks | None defined on any application container (only the `postgres-server`/`redis-server` infra healthchecks). `depends_on` uses `condition: service_healthy` for Postgres/Redis and bare `service_started`/no condition for `frontend-service` -> `api-gateway`. | Every application service has a `curl -f http://localhost:<port>/actuator/health` healthcheck (30s interval, 10s timeout, 5 retries, 90-120s `start_period`), and `depends_on` chains use `condition: service_healthy` throughout, including `order-service` waiting on `product-service` and `payment-service`, and `api-gateway` waiting on all four backend services. |
 | `api-gateway` env: `USER_SERVICE_URL` | `http://user-service:8080` (normal DNS) | `http://host.docker.internal:8081` — points at the **host machine**, port 8081, not the containerized `user-service` at all. Combined with `extra_hosts: host.docker.internal:host-gateway`. This means the dev compose file expects `user-service` to be run manually on the host (e.g. from an IDE) rather than in the `user-service` container it also defines — the containerized `user-service` in this same file is then unreachable from `api-gateway` unless something is separately listening on the host at 8081. |
 | Ports exposed | `api-gateway` 8765, `frontend-service` 3000, `zipkin` 9411, `redisinsight` 5540, `redis` 6379, `postgres` 5433 | `api-gateway` 8765, `frontend-service` 3000, `zipkin` 9411, `redis` 6379, four Postgres ports 5433-5436. No individual backend service ports are published in either file — `user-service`/`product-service`/`order-service`/`payment-service` are only reachable through `api-gateway` or the Docker network. |
-| Passwords | `test1234` for Postgres, both files | identical |
+| Passwords | `${SPRING_DATASOURCE_PASSWORD:?...}`/`${JWT_SECRET:?...}`, both files — sourced from `.env` (gitignored), no committed default; `docker compose` refuses to start if either is unset | identical |
 
 `root CLAUDE.md`'s claim that `docker-compose.yaml` "mirrors k8s" is accurate for the
 single-Postgres, single-`postgres-server`-hostname topology (matches `k8s/postgres/`), but the
@@ -29,14 +29,20 @@ unified file's per-module build `context` is inconsistent with every Dockerfile'
 
 ## `.env`
 
-`.env` (excluded from images via `.dockerignore`) defines defaults consumed by
-`docker-compose` var substitution: `ZIPKIN_BASE_URL`, an unused
-`EUREKA_CLIENT_SERVICEURL_DEFAULTZONE` (no Eureka server exists anywhere in this repo — dead
-variable), `SPRING_DATASOURCE_USERNAME`/`PASSWORD` (`postgres`/`test1234`), and
-per-service `*_SPRING_DATASOURCE_URL` variables that all point at `localhost:5432` — not
-consumed by either compose file directly (both compose files hardcode their own
-`SPRING_DATASOURCE_URL` per service instead), so `.env`'s datasource URLs appear to be for a
-non-Docker, all-services-on-`localhost` local run rather than for the compose files.
+`.env` is gitignored (a committed `.env.example` documents the required keys) and excluded
+from images via `.dockerignore`. It defines values consumed by `docker-compose` var
+substitution: `ZIPKIN_BASE_URL`, an unused `EUREKA_CLIENT_SERVICEURL_DEFAULTZONE` (no
+Eureka server exists anywhere in this repo — dead variable), `SPRING_DATASOURCE_USERNAME`/
+`SPRING_DATASOURCE_PASSWORD`, `JWT_SECRET` (HS256 signing secret shared by `api-gateway`
+and `user-service`), and per-service `*_SPRING_DATASOURCE_URL` variables that all point at
+`localhost:5432` — not consumed by either compose file directly (both compose files
+hardcode their own `SPRING_DATASOURCE_URL` per service instead), so `.env`'s datasource
+URLs appear to be for a non-Docker, all-services-on-`localhost` local run rather than for
+the compose files. `SPRING_DATASOURCE_PASSWORD` and `JWT_SECRET` have no default anywhere
+in the repo (compose files use `${VAR:?err}`, and `application.yml` for the four backend
+services / api-gateway / user-service uses a bare `${VAR}` placeholder) — a missing value
+fails loudly (`docker compose` refuses to start, or Spring fails at context startup)
+instead of silently falling back to a committed secret.
 
 ## Dockerfile build strategy
 
@@ -123,11 +129,15 @@ What each manifest contains, and what's missing:
   cloud LB support (e.g. plain kubeadm/minikube) this Service would stay `<pending>`.
 - **HPA**: none. No `HorizontalPodAutoscaler` manifest exists; `api-gateway` is statically set
   to `replicas: 3`, every other service to `replicas: 1`.
-- **Secrets**: `k8s/postgres/postgres-secret.yaml` hardcodes
-  `POSTGRES_PASSWORD: dGVzdDEyMzQ=` — this is base64, not encryption; it decodes to
-  `test1234`, the same dev password used everywhere else, checked directly into the repo as a
-  Kubernetes `Secret` manifest. Every service Deployment references this same
-  `postgres-secret`/`POSTGRES_PASSWORD` key for its `SPRING_DATASOURCE_PASSWORD` env var.
+- **Secrets**: `k8s/postgres/` no longer contains a `Secret` manifest (it used to hardcode
+  `POSTGRES_PASSWORD: dGVzdDEyMzQ=` — base64, not encryption, decoding to the same
+  dev password used everywhere else). The `postgres-secret`/`POSTGRES_PASSWORD` key every
+  service Deployment references for its `SPRING_DATASOURCE_PASSWORD` env var, and the new
+  `jwt-secret`/`JWT_SECRET` key `api-gateway`/`user-service` reference for `JWT_SECRET`, are
+  now created out of band (`deploy.yaml`'s "Create Postgres secret"/"Create JWT secret"
+  steps do this from the `POSTGRES_PASSWORD`/`JWT_SECRET` GitHub secrets on every deploy;
+  see root `README.md` for the manual `kubectl create secret` equivalent for a hand-managed
+  cluster).
 - **ConfigMaps carry embedded `application.yml`**: `api-gateway-config`, `order-service-config`,
   `payment-service-config`, `product-service-config`, `user-service-config` each embed a full
   `application.yml` block (gateway routes / Feign client URLs / Eureka-disable) as a ConfigMap
@@ -193,16 +203,20 @@ Gaps in `deploy.yaml` as written:
   `initContainer` waits on `postgres-server:5432`/`redis-server:6379`, and every ConfigMap's
   `SPRING_DATASOURCE_URL` points at `postgres-server`. On a cluster that has never had those
   manifests applied by hand, this workflow deploys five services whose init containers will
-  wait forever for a Postgres/Redis Service that does not exist.
+  wait forever for a Postgres/Redis Service that does not exist. The "Create Postgres
+  secret"/"Create JWT secret" steps (below) still run and populate `postgres-secret`/
+  `jwt-secret` regardless — those two `Secret`s just have nothing to back once nothing
+  applies the Postgres Deployment that consumes the former.
 - **Never deploys `frontend-service`** — consistent with there being no manifest for it, but
   means the "Deploy" workflow cannot stand up anything a browser can reach without the
   gateway's raw JSON API.
-- **Never applies the `postgres-secret`** referenced by every service Deployment's
-  `SPRING_DATASOURCE_PASSWORD` `secretKeyRef` — same gap as Postgres/Redis manifests.
 
 Secrets required across the three workflows: `CODECOV_TOKEN` (main.yml), `GITHUB_TOKEN`
 (implicit, docker.yml GHCR push), `K8S_URL` and `KUBERNETES_SECRET` (deploy.yaml, cluster
-auth). No secret named for the `github-container-registry` `imagePullSecret` the Deployments
+auth), `POSTGRES_PASSWORD` and `JWT_SECRET` (deploy.yaml, written into the `postgres-secret`/
+`jwt-secret` `Secret`s via `kubectl create secret ... --dry-run=client -o yaml | kubectl
+apply -f -`, with a "Verify required secrets" step that fails the job if either is empty).
+No secret named for the `github-container-registry` `imagePullSecret` the Deployments
 reference — it is not created by any workflow or manifest in this repo.
 
 ## Local dev entry points

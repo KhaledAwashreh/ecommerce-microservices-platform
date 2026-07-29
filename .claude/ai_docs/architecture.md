@@ -103,10 +103,10 @@ Notes on the arrows:
 3. **Frontend session** — `frontend-service` does not validate JWTs itself for gateway calls;
    it stores the token from `user-service`'s login response in a server-side session via
    `SessionManager` and replays it as a Bearer token on every Feign call
-   (`BearerTokenInterceptor`). `frontend-service/src/main/resources/application.yml:17-19`
-   also declares a `jwt.secret`/`jwt.expiration`, identical to the gateway/user-service
-   secret, but no code in `frontend-service/src/main/java` was found parsing or verifying
-   JWTs locally — this config key appears to be dead/vestigial (see Gotchas).
+   (`BearerTokenInterceptor`). `frontend-service` used to also declare a `jwt.secret`/
+   `jwt.expiration` in `application.yml`, duplicating the gateway/user-service secret, but
+   no code in `frontend-service/src/main/java` was found parsing or verifying JWTs locally
+   — that dead/vestigial config has since been removed (see `frontend-service.md` Gotchas).
 
 ## Order placement flow
 

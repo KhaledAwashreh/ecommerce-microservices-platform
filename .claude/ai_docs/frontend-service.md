@@ -65,7 +65,7 @@ frontend-service/src/main/java/com/kawashreh/ecommerce/frontend/
 Resources:
 ```
 frontend-service/src/main/resources/
-├── application.yml       # port 3000, thymeleaf cache=false, api.gateway.base-url, jwt.secret/expiration (unused, see Gotchas), zipkin, actuator
+├── application.yml       # port 3000, thymeleaf cache=false, api.gateway.base-url, zipkin, actuator (jwt.secret/expiration removed — was dead config, see Gotchas)
 ├── application-ide.yml   # IDE profile override: zipkin base-url localhost instead of docker hostname
 └── templates/
     ├── layout/base.html          # fragments only: navbar, footer, toast — not a layout dialect base page (no thymeleaf-layout-dialect dependency)
@@ -243,8 +243,6 @@ upstream address response, `AddressRequest` / upstream create+update address req
 | `spring.thymeleaf.cache` | `application.yml` | `false` | Hot-reload templates in dev |
 | `spring.thymeleaf.prefix` / `.suffix` | `application.yml` | `classpath:/templates/` / `.html` | |
 | `api.gateway.base-url` | `application.yml` | `${API_GATEWAY_BASE_URL:http://localhost:8765}` | Base URL for every Feign client |
-| `jwt.secret` | `application.yml` | hardcoded hex string | **Unused** — no class in this module reads `jwt.*` or uses `io.jsonwebtoken` despite the `jjwt-api/impl/jackson` deps in `pom.xml` (see Gotchas) |
-| `jwt.expiration` | `application.yml` | `1800000` | Same — unused |
 | `management.zipkin.tracing.endpoint` | `application.yml` / `application-ide.yml` | `${ZIPKIN_BASE_URL:http://zipkin:9411}/api/v2/spans` (docker) vs `http://localhost:9411/api/v2/spans` (ide profile) | |
 | `management.endpoints.web.exposure.include` | `application.yml` | `health,info,metrics,prometheus` | |
 | `management.tracing.sampling.probability` | `application.yml` | `1.0` | |
@@ -278,8 +276,9 @@ None. No `CacheConfig`, no `@Cacheable` annotations, no Redis dependency in this
   so the Spring Boot default (30 minutes) applies.
 - Passwords are never held by this module beyond the raw form field
   (`rawPassword` on `UserRegisterRequest`) — hashing happens in `user-service`.
-- `jwt.secret` in `application.yml` is present but **unused** by any class in this module
-  (see Configuration/Gotchas) — it is dead configuration, not a live signing key here.
+- `jwt.secret`/`jwt.expiration` used to be present in `application.yml` but were confirmed
+  unused by any class in this module and removed (see Gotchas) — this module never signed
+  or parsed JWTs; it only ever forwarded the opaque token it received from `user-service`.
 
 ## Tests
 
@@ -464,10 +463,12 @@ from the two real test classes above.
     http://localhost:3000" for the compose setup, implying compose port-maps around this;
     the Dockerfile's own healthcheck is still targeting the wrong in-container port).
     Severity: **medium**.
-20. **`jwt.secret`/`jwt.expiration` config and the `jjwt-api`/`jjwt-impl`/`jjwt-jackson`
-    Maven dependencies are unused.** No class in `frontend-service/src/main` imports
-    `io.jsonwebtoken` or reads `jwt.*` properties — the module treats the token from
-    `user-service` as an opaque string. Dead config and dead dependencies. Severity: **low**.
+20. **`jjwt-api`/`jjwt-impl`/`jjwt-jackson` Maven dependencies are unused.** No class in
+    `frontend-service/src/main` imports `io.jsonwebtoken` — the module treats the token
+    from `user-service` as an opaque string. (The `jwt.secret`/`jwt.expiration`
+    `application.yml` keys that were the config-side half of this dead-code smell have been
+    removed — they duplicated the real `api-gateway`/`user-service` signing secret for no
+    reason, since nothing here ever read them.) Dead dependencies remain. Severity: **low**.
 21. **`UserServiceClient`'s Javadoc is stale/misleading.**
     `.../client/UserServiceClient.java:18-21` says "Uses Kubernetes DNS for service
     discovery: http://user-service:8080", but the `@FeignClient` `url` attribute is

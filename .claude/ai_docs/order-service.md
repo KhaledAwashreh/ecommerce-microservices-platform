@@ -364,7 +364,7 @@ working create path, and the plain one already existed and worked.
 | `spring.application.name` | `order-service` | `application.yml` | |
 | `server.port` | `8080` | `application.yml` | `application-ide.yml` overrides to `8083`. Dockerfile comment claims "Port is dynamically assigned (server.port=0 in application.properties)" — that is only true for `src/test/resources/application-test.yml` (`server.port: 0`), **not** for the shipped `application.yml`; the Dockerfile comment is stale/incorrect for the running image. |
 | `spring.datasource.url` | `jdbc:postgresql://localhost:5432/orderdb` (base) | `application.yml`, overridden per profile (`-local`: `localhost:5433`, `-ide`: `localhost:5435`, k8s configmap: `postgres-server:5432`, test: `localhost:5432` via Testcontainers-injected URL) | |
-| `spring.datasource.username` / `password` | `postgres` / `test1234` | `application.yml` | Dev-only credential per root `CLAUDE.md` warning. |
+| `spring.datasource.username` / `password` | `postgres` / *(none — required)* | `application.yml` | `password: ${SPRING_DATASOURCE_PASSWORD}` has no default — a missing env var fails startup rather than falling back to a committed value. Dev-only credential per root `CLAUDE.md` warning. |
 | `spring.jpa.hibernate.ddl-auto` | `update` (main), `create-drop` (test) | `application.yml`, `application-test.yml` | |
 | `spring.jpa.show-sql` | `true` | `application.yml`, `application-test.yml` | |
 | `spring.data.redis.host` / `port` | `localhost:6379` (base default), `redis:6379` (`-local` profile — see Gotchas), `redis-server:6379` (k8s) | `application.yml`, `application-local.yml`, configmap | |

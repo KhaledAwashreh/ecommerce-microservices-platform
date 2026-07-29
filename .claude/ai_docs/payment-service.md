@@ -169,7 +169,7 @@ payment-service is itself an inbound dependency of `order-service`
 |---|---|---|---|---|
 | `server.port` | `8080` | (inherits 8080) | `8084` | `0` (random, for parallel test runs) |
 | `spring.datasource.url` | `${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/paymentdb}` | `jdbc:postgresql://localhost:5433/paymentdb` | `jdbc:postgresql://localhost:5436/paymentdb` | `jdbc:postgresql://localhost:5432/paymentdb` (overridden by Testcontainers at runtime) |
-| `spring.datasource.username`/`password` | `postgres`/`test1234` (env-overridable) | `postgres`/`test1234` | `postgres`/`test1234` | `test`/`test` |
+| `spring.datasource.username`/`password` | `postgres`/*(none — required)* | `postgres`/`test1234` | `postgres`/`test1234` | `test`/`test` |
 | `spring.jpa.hibernate.ddl-auto` | `update` | (inherits) | (inherits) | `create-drop` |
 | `management.zipkin.tracing.endpoint` | `${ZIPKIN_BASE_URL:http://zipkin:9411}/api/v2/spans` | `http://zipkin:9411/api/v2/spans` | `http://localhost:9411/api/v2/spans` | (inherits) |
 | `management.tracing.sampling.probability` | `1.0` | (inherits) | (inherits) | (inherits) |

@@ -179,7 +179,7 @@ segment keeps Spring's route matching unambiguous.
 | Property | Source | Default | Notes |
 |---|---|---|---|
 | `spring.datasource.url` | `application.yml` | `jdbc:postgresql://localhost:5432/productdb` | Overridden by env var `SPRING_DATASOURCE_URL`; further overridden per-profile (`application-local.yml`: port 5433; `application-ide.yml`: port 5434). |
-| `spring.datasource.username/password` | `application.yml` | `postgres`/`postgres` | `application-local.yml` uses password `test1234` (dev-only, per repo convention). |
+| `spring.datasource.username/password` | `application.yml` | `postgres`/*(none — required)* | `password: ${SPRING_DATASOURCE_PASSWORD}` has no default (previously `:postgres`) — a missing env var fails startup. `application-local.yml` still hardcodes password `test1234` (dev-only, per repo convention). |
 | `spring.jpa.hibernate.ddl-auto` | `application.yml` | `update` | Test profile uses `create-drop`. |
 | `spring.data.redis.host/port` | `application.yml` | `localhost`/`6379` | Env vars `SPRING_DATA_REDIS_HOST`/`SPRING_DATA_REDIS_PORT`. `application-local.yml` hardcodes host `redis` (Docker Compose service name) even though it's meant for "running from IDE without Docker" per its own header comment — inconsistent with its stated purpose. |
 | `server.port` | `application.yml` | `8080` | `application-ide.yml` sets `8082`. Test profile (`application-test.yml`) uses `0` (random port). Dockerfile comment claims "Port is dynamically assigned (server.port=0 in application.properties)" — false for the shipped `application.yml`/Docker profile, only true under the `test` profile; see Gotchas. |

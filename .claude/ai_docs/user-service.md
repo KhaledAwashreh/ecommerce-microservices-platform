@@ -151,7 +151,7 @@ module — presumably selected by `SPRING_PROFILES_ACTIVE` env var at deploy tim
 |---|---|---|
 | `server.port` | `8080` (`application.yml`), `8081` (`application-ide.yml`), `0` random (`application-test.yml`) | The Dockerfile comment ("Port is dynamically assigned (server.port=0 in application.properties)", `Dockerfile:34`) is **stale** — the shipped `application.yml` hardcodes port `8080`, not `0`. Only the test profile uses `0`. |
 | `spring.datasource.url` | `jdbc:postgresql://localhost:5432/userdb` | env `SPRING_DATASOURCE_URL` (only in `application.yml`; `application-local.yml`/`application-ide.yml` hardcode values, no env override). |
-| `spring.datasource.username`/`password` | `postgres`/`test1234` | env `SPRING_DATASOURCE_USERNAME`/`SPRING_DATASOURCE_PASSWORD` (default profile only). |
+| `spring.datasource.username`/`password` | `postgres`/*(none — required)* | env `SPRING_DATASOURCE_USERNAME`/`SPRING_DATASOURCE_PASSWORD` (default profile only) — `password` has no default, a missing env var fails startup rather than falling back to a committed value. |
 | `spring.jpa.hibernate.ddl-auto` | `update` (prod-ish profiles), `create-drop` (test) | — |
 | `spring.data.redis.host`/`port` | `localhost:6379` (default), `redis:6379` (`application-local.yml`) | env `SPRING_DATA_REDIS_HOST`/`SPRING_DATA_REDIS_PORT` (default profile only). |
 | `management.zipkin.tracing.endpoint` | `http://zipkin:9411/api/v2/spans` | env `ZIPKIN_BASE_URL` (default/local); hardcoded `http://localhost:9411/...` in `application-ide.yml`. |
@@ -191,18 +191,20 @@ for up to 10 minutes after a profile edit or password change.
   `PasswordHasher` interface, implemented by `Argon2PasswordHasher`.
 - **JWT** (`infrastructure/security/JwtService.java`):
   - Algorithm: `HS256` (`SignatureAlgorithm.HS256`, `io.jsonwebtoken` / jjwt 0.11.5).
-  - Secret: `JwtConstants.SECRET`, a **hardcoded Base64 string committed to source**
-    (`constants/JwtConstants.java:7`), decoding to 48 bytes (384 bits — sufficient
-    length for HS256, but not sourced from any env var/secret store, identical across
-    every environment and profile, and visible to anyone with repo access).
-  - Expiry: `JwtConstants.EXPIRATION_TIME = 30 minutes`, also hardcoded, no per-profile override.
+  - Secret: injected via `@Value("${jwt.secret}")` into `JwtService`'s constructor, backed
+    by `application.yml`'s `jwt.secret: ${JWT_SECRET}` — no committed default; a missing
+    `JWT_SECRET` env var fails application startup instead of falling back to a known value.
+    Must match `api-gateway`'s `jwt.secret`/`JWT_SECRET` (same signing key, HS256) — still
+    two independently-set values rather than shared config, so they can drift if configured
+    inconsistently per service, just no longer via a copy-pasted source literal.
+  - Expiry: `JwtConstants.EXPIRATION_TIME = 30 minutes`, still hardcoded, no per-profile override.
   - Claims: subject = username only; no roles/authorities, no issuer, no audience claim.
-  - `generateToken`/`createToken`/`getSignKey` are `static`; `extractUsername`,
-    `extractExpiration`, `extractClaim`, `extractAllClaims` are instance methods on the
-    same `@Component` — inconsistent design, and the instance methods
-    (`extractUsername`/`extractExpiration`) are **never called anywhere in this module**
-    (dead code here; token validation happens in `api-gateway`'s own, separate JWT
-    filter, not by calling into this class).
+  - `generateToken`/`createToken`/`getSignKey` are instance methods on the `@Component`
+    (constructor-injected into `UserServiceImpl` rather than called statically); this and
+    `extractUsername`/`extractExpiration`/`extractClaim`/`extractAllClaims` are now all
+    instance methods on the same class, and the extraction methods are **still never called
+    anywhere in this module** (dead code here; token validation happens in `api-gateway`'s
+    own, separate JWT filter, not by calling into this class).
 - **Authorization model**: this service performs no independent authentication. It
   trusts the `X-User-ID` request header verbatim as the caller's identity (set by
   `api-gateway`'s `JwtAuthFilter` after validating the bearer token). `UserController`
@@ -324,12 +326,12 @@ for up to 10 minutes after a profile edit or password change.
     never referenced; actual role checks (`User.isAdmin/isCustomer/isSeller`) compare
     `role.getName()` strings against `"ADMIN"`/`"SELLER"`/`"CUSTOMER"` literals instead.
     **Severity: low.**
-15. **Dead/unused `JwtService` instance methods** — `infrastructure/security/JwtService.java:42-61`.
+15. **Dead/unused `JwtService` instance methods** — `infrastructure/security/JwtService.java`.
     `extractUsername`, `extractExpiration`, `extractClaim`, `extractAllClaims` are never
-    called anywhere in `user-service`; only the static `generateToken` is used (by
-    `UserServiceImpl.login`). Token *validation* happens exclusively in `api-gateway`'s
-    own filter, which does not call into this class (separate module, separate JWT
-    handling code). **Severity: low.**
+    called anywhere in `user-service`; only `generateToken` is used (constructor-injected
+    into `UserServiceImpl`, called from `.login`). Token *validation* happens exclusively in
+    `api-gateway`'s own filter, which does not call into this class (separate module,
+    separate JWT handling code). **Severity: low.**
 16. **Unused Feign/LoadBalancer dependencies** — `pom.xml` declares
     `spring-cloud-starter-openfeign`, `feign-micrometer`, and
     `spring-cloud-starter-loadbalancer`, but no `@FeignClient` or outbound HTTP client
