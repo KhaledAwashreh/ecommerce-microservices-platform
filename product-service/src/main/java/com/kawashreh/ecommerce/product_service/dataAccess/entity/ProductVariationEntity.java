@@ -56,7 +56,7 @@ public class ProductVariationEntity {
     private List<UUID> attachments;
 
     @OneToMany
-    @JoinColumn(name = "category_id", nullable = false)
+    @JoinColumn(name = "product_variation_id", nullable = false)
     private List<AttributeEntity> attributes;
 
     @ManyToOne(fetch = FetchType.LAZY)
