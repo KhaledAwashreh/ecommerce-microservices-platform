@@ -36,24 +36,16 @@
                     </div>
                 </div>
                 <span th:class="${'px-2 py-1 rounded text-xs font-bold ' +
-                    (inventory.availableQuantity > 10 ? 'bg-green-100 text-green-800' :
-                     inventory.availableQuantity > 0 ? 'bg-yellow-100 text-yellow-800' :
+                    (inventory.quantity > 10 ? 'bg-green-100 text-green-800' :
+                     inventory.quantity > 0 ? 'bg-yellow-100 text-yellow-800' :
                      'bg-red-100 text-red-800')}"
-                      th:text="${inventory.availableQuantity > 0 ? 'In Stock' : 'Out of Stock'}">In Stock</span>
+                      th:text="${inventory.quantity > 0 ? 'In Stock' : 'Out of Stock'}">In Stock</span>
             </div>
 
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <p class="text-sm text-gray-500">Available</p>
-                    <p class="font-bold text-lg" th:text="${inventory.availableQuantity}">50</p>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-500">Reserved</p>
-                    <p class="font-bold text-lg text-gray-600" th:text="${inventory.reservedQuantity}">5</p>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-500">Total Quantity</p>
-                    <p class="font-bold text-lg text-gray-600" th:text="${inventory.quantity}">55</p>
+                    <p class="text-sm text-gray-500">Quantity</p>
+                    <p class="font-bold text-lg" th:text="${inventory.quantity}">50</p>
                 </div>
                 <div>
                     <p class="text-sm text-gray-500">Warehouse Location</p>

@@ -30,7 +30,6 @@
                         <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Product</th>
                         <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">SKU</th>
                         <th class="px-4 py-3 text-center text-sm font-medium text-gray-500">Available</th>
-                        <th class="px-4 py-3 text-center text-sm font-medium text-gray-500">Reserved</th>
                         <th class="px-4 py-3 text-center text-sm font-medium text-gray-500">Location</th>
                         <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">Actions</th>
                     </tr>
@@ -50,11 +49,10 @@
                         </td>
                         <td class="px-4 py-4 text-sm font-mono" th:text="${inv.sku ?: 'N/A'}">SKU-001</td>
                         <td class="px-4 py-4 text-center">
-                            <span th:class="${inv.availableQuantity > 10 ? 'text-green-600' : inv.availableQuantity > 0 ? 'text-yellow-600' : 'text-red-600'}"
-                                  class="font-bold" 
-                                  th:text="${inv.availableQuantity}">50</span>
+                            <span th:class="${inv.quantity > 10 ? 'text-green-600' : inv.quantity > 0 ? 'text-yellow-600' : 'text-red-600'}"
+                                  class="font-bold"
+                                  th:text="${inv.quantity}">50</span>
                         </td>
-                        <td class="px-4 py-4 text-center text-gray-600" th:text="${inv.reservedQuantity}">5</td>
                         <td class="px-4 py-4 text-center text-gray-600" th:text="${inv.warehouseLocation ?: 'Main Warehouse'}">Warehouse A</td>
                         <td class="px-4 py-4 text-right">
                             <button class="text-blue-600 hover:underline text-sm mr-3">Edit</button>
