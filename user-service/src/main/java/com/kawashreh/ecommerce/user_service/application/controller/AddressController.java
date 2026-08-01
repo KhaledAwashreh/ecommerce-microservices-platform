@@ -40,10 +40,10 @@ public class AddressController {
 
     @GetMapping("/search")
     public ResponseEntity<List<CreateAddressResponse>> search(
-            @RequestParam(required = false) UUID userId,
+            @RequestHeader("X-User-ID") UUID requestingUserId,
             @RequestParam(required = false) String q) {
         var request = com.kawashreh.ecommerce.user_service.domain.service.dto.AddressSearchRequest.builder()
-                .userId(userId)
+                .userId(requestingUserId)
                 .query(q)
                 .build();
         return ResponseEntity.ok(AddressHttpMapper.toResponseList(service.search(request)));

@@ -21,12 +21,14 @@ public interface AddressServiceClient {
     @GetMapping("/{addressId}")
     AddressDto getAddressById(@PathVariable("addressId") UUID addressId);
 
-    // GH #58: user-service already exposes this as GET /api/v1/address/search?userId=,
-    // server-side scoped to the given user (unlike getAddresses(), which returns every
-    // address for every user) - used to populate the checkout address selector and to
-    // validate that a submitted addressId actually belongs to the calling user.
+    // GH #58/#59: user-service exposes this as GET /api/v1/address/search, scoped
+    // server-side to the caller's own X-User-ID (unlike getAddresses(), which returns
+    // every address for every user) - used to populate the checkout address selector and
+    // to validate that a submitted addressId actually belongs to the calling user. The
+    // endpoint used to also accept a caller-supplied userId query param, which made it an
+    // IDOR (GH #59); it no longer does, so this client no longer sends one.
     @GetMapping("/search")
-    List<AddressDto> searchAddresses(@RequestParam("userId") UUID userId);
+    List<AddressDto> searchAddresses();
 
     @PostMapping
     AddressDto createAddress(@RequestBody AddressRequest addressRequest,

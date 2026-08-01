@@ -71,10 +71,13 @@ public class ProfileFacade {
 
     // GH #58: addresses scoped to a single user, used by checkout (address selector +
     // ownership validation) - deliberately not getAllAddresses(), which returns every
-    // address for every user.
+    // address for every user. userId is unused here (GH #59: the server derives the
+    // caller's identity from the session-authenticated X-User-ID header, not a
+    // caller-supplied id) but kept in the signature since call sites pass the resolved
+    // session user for readability.
     public List<AddressDto> getAddressesForUser(UUID userId) {
         try {
-            List<AddressDto> addresses = addressServiceClient.searchAddresses(userId);
+            List<AddressDto> addresses = addressServiceClient.searchAddresses();
             return addresses != null ? addresses : Collections.emptyList();
         } catch (Exception e) {
             return Collections.emptyList();
