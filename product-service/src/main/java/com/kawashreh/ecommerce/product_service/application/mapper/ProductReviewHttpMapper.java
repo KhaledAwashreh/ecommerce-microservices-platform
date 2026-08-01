@@ -17,7 +17,8 @@ public final class ProductReviewHttpMapper {
                 .productId(review.getProduct() != null ? review.getProduct().getId() : null)
                 .review(review.getReview())
                 .stars(review.getStars())
-                .createdAt(review.getProduct().getCreatedAt())
+                .createdAt(review.getCreatedAt())
+                .updatedAt(review.getUpdatedAt())
                 .build();
     }
 
