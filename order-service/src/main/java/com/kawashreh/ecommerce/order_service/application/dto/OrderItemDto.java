@@ -1,5 +1,7 @@
 package com.kawashreh.ecommerce.order_service.application.dto;
 
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
@@ -16,13 +18,15 @@ public class OrderItemDto {
     @NonNull
     private UUID id;
 
-    @NonNull
+    @NotNull
     private UUID productSku;
 
-    @NonNull
+    // GH #40: negative/zero quantities reached the service/DB unchecked.
+    @Positive
     private int quantity;
 
-    @NonNull
+    @NotNull
+    @Positive
     private BigDecimal unitPrice;
 
     @NonNull

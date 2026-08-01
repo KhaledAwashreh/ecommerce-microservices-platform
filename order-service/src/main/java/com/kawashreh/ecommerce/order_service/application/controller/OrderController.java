@@ -3,7 +3,11 @@ package com.kawashreh.ecommerce.order_service.application.controller;
 import com.kawashreh.ecommerce.order_service.application.dto.OrderDto;
 import com.kawashreh.ecommerce.order_service.application.mapper.OrderHttpMapper;
 import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
+import com.kawashreh.ecommerce.order_service.domain.exception.InvalidOrderStateException;
 import com.kawashreh.ecommerce.order_service.domain.service.OrderService;
+import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import com.kawashreh.ecommerce.order_service.constants.ApiPaths;
@@ -16,6 +20,8 @@ import java.util.UUID;
 @RequestMapping(ApiPaths.ORDER_BASE)
 public class OrderController {
 
+    private static final Logger logger = LoggerFactory.getLogger(OrderController.class);
+
     private final OrderService orderService;
 
     public OrderController(OrderService orderService) {
@@ -23,7 +29,7 @@ public class OrderController {
     }
 
     @PostMapping
-    public ResponseEntity<OrderDto> createOrder(@RequestBody OrderDto orderDto) {
+    public ResponseEntity<OrderDto> createOrder(@RequestBody @Valid OrderDto orderDto) {
         var order = OrderHttpMapper.toDomain(orderDto);
         var created = orderService.create(order);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -96,11 +102,21 @@ public class OrderController {
     @PutMapping("/{id}")
     public ResponseEntity<OrderDto> updateOrder(
             @PathVariable UUID id,
-            @RequestBody OrderDto orderDto) {
+            @RequestBody @Valid OrderDto orderDto) {
         var order = OrderHttpMapper.toDomain(orderDto);
         order.setId(id);
-        var updated = orderService.update(order);
-        return ResponseEntity.ok(OrderHttpMapper.toDto(updated));
+        try {
+            var updated = orderService.update(order);
+            return ResponseEntity.ok(OrderHttpMapper.toDto(updated));
+        } catch (InvalidOrderStateException e) {
+            // GH #43: the order exists but the requested status transition is not legal
+            // from its current status - a genuine, deterministic client-side conflict, not
+            // a server error. Mapped locally here rather than via a module-wide
+            // GlobalExceptionHandler - this module has none (root CLAUDE.md) and a single
+            // call site doesn't warrant adding one, mirroring PaymentController#refundPayment.
+            logger.warn("Rejected status transition for order {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        }
     }
 
     @DeleteMapping("/{id}")

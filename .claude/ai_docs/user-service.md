@@ -121,9 +121,9 @@ only `spring-security-crypto` for Argon2).
 | GET | `/{userId}` | path `userId: UUID` | `UserDto` or empty body | 200 / 404 | None. |
 | GET | `?username=` | query `username` | `UserDto` or empty body | 200 / 404 | None. |
 | GET | `/search?q=` | query `q` (optional) | `List<UserDto>` | 200 | None. |
-| POST | `/register` | body `UserRegisterDto` (**not** `@Valid`) | `UserDto` | 201 | None — public registration. |
+| POST | `/register` | body `UserRegisterDto` (`@Valid`: `@NotBlank` name/username/phone/rawPassword, `@NotBlank @Email` email, `@NotNull` birthdate — GH #40) | `UserDto` | 201, 400 on validation failure | None — public registration. |
 | POST | `/login` | body `UserLoginDto` | JWT string (`Content-Type` not JSON, `String` body) | 202 on success / throws `UnauthorizedException` → **401** on bad credentials (fixed for GH #37; was `NoSuchElementException` → 404) | None (public). |
-| PUT | `/{userId}` | body `UserUpdateRequest` (**not** `@Valid`), header `X-User-ID: UUID` (required) | `UserDto` or empty body | 200 / 404 (user truly doesn't exist) / **403** (fixed for GH #37; was 404) | Manual check in `UserServiceImpl.update`: `X-User-ID` must equal path `{userId}` or throws `ForbiddenException` (→ 403). |
+| PUT | `/{userId}` | body `UserUpdateRequest` (`@Valid`, but only `email` carries a constraint - `@Email`, format-only since a `null` email means "leave unchanged" per `UserServiceImpl.update`'s partial-update semantics — GH #40), header `X-User-ID: UUID` (required) | `UserDto` or empty body | 200 / 400 (missing header GH #44, or malformed email GH #40) / 404 (user truly doesn't exist) / **403** (fixed for GH #37; was 404) | Manual check in `UserServiceImpl.update`: `X-User-ID` must equal path `{userId}` or throws `ForbiddenException` (→ 403). |
 | DELETE | `/{userId}` | header `X-User-ID: UUID` (required) | — | 204 / **403** (fixed for GH #37; was 404) | Same manual self-only check in `UserServiceImpl.delete`, now throws `ForbiddenException`. |
 
 Note: `login` returns HTTP 202 Accepted for a successful login, not 200 — unusual choice,
@@ -267,11 +267,21 @@ for up to 10 minutes after a profile edit or password change.
 
 - `user-service/src/test/java/.../BaseIntegrationTest.java`: Testcontainers scaffold —
   spins up `postgres:16-alpine` and `redis:7-alpine`, wires their connection info into
-  Spring properties via `@DynamicPropertySource`, `@ActiveProfiles("test")`.
-- `user-service/src/test/java/.../UserServiceImplApplicationTests.java`: the **only**
-  test in the module, and it is an empty `contextLoads()` smoke test — no controller,
-  service, mapper, or repository test exists for any of the User/Account/Address/Role
-  flows described above (registration, login, ownership checks, caching, validation).
+  Spring properties via `@DynamicPropertySource`, `@ActiveProfiles("test")`. Has a real
+  subclass, `UserServiceImplIntegrationTest` (service-layer, `delete`/ownership/cache
+  eviction coverage) — this note is stale where it implies `contextLoads()` is the only
+  test; it predates that addition.
+- `user-service/src/test/java/.../UserServiceImplApplicationTests.java`: empty
+  `contextLoads()` smoke test.
+- `user-service/src/test/java/.../application/controller/UserControllerTest.java`: a
+  `@WebMvcTest` slice (JwtAuthFilter excluded from component scanning, same pattern as
+  the web-layer slice tests in other modules) covering the GH #44 fix (missing
+  `X-User-ID` header on `PUT /{userId}` → 400, not 500) and the GH #40 fix (`/register`
+  and `PUT /{userId}` reject invalid payloads via `@Valid` before reaching
+  `UserService`). Plain Spring MVC test context, no Testcontainers/Docker needed.
+- `user-service/src/test/java/.../application/controller/UserControllerLoginTest.java`: a
+  separate, plain-Mockito unit test (not a `@WebMvcTest` slice) covering the GH #37 fix —
+  `login()` throwing `UnauthorizedException` on bad credentials.
 - Run: `mvn -pl user-service test` (needs a running Docker daemon for Testcontainers)
   or `mvn -pl user-service -am test` from the repo root.
 
@@ -291,13 +301,13 @@ for up to 10 minutes after a profile edit or password change.
    Same key for every environment/profile, not read from an env var or secret manager,
    visible to anyone with repo read access; compromise of the repo means every issued
    token everywhere can be forged. **Severity: critical.**
-3. **No `@Valid` on registration/update DTOs** — `application/controller/UserController.java:60,76-78`.
-   `POST /register` (`UserRegisterDto`) and `PUT /{userId}` (`UserUpdateRequest`)
-   accept request bodies with no `@Valid` annotation, and the domain-service `UserUpdateRequest`
-   DTO has no Bean Validation constraints regardless — a caller can register/update a
-   user with blank name/email/phone, malformed email, etc. Contrast with
-   `AddressController`/`RoleController`, which do use `@Valid` + `@NotBlank`.
-   **Severity: high.**
+3. ~~**No `@Valid` on registration/update DTOs**~~ — fixed (GH #40). `POST /register`
+   (`UserRegisterDto`) and `PUT /{userId}` (`UserUpdateRequest`) now validate with
+   `@Valid`; see the HTTP API table above for exactly what's constrained. Note
+   `UserUpdateRequest` only got a format constraint on `email` (`@Email`, which allows
+   `null`) — it's a genuine partial update (`UserServiceImpl.update` treats a `null`
+   field as "leave unchanged"), so `@NotBlank`/`@NotNull` on its other fields would have
+   broken legitimate partial updates.
 4. **No authorization on RoleController create/delete** — `application/controller/RoleController.java:35-46`.
    Any caller that can reach the service (i.e. anyone who clears the gateway) can create
    arbitrary roles or delete any role by ID, with no `X-User-ID` check, no admin check,
@@ -343,13 +353,11 @@ for up to 10 minutes after a profile edit or password change.
     `AddressController.delete` and `RoleController.delete` both return 200 with an
     empty body (`AddressController.java:73-78`, `RoleController.java:42-46`).
     **Severity: low.**
-11. **Missing `X-User-ID` header likely surfaces as 500, not 400** — `UserController.java:76-78,88-89`,
-    `AddressController.java:53-54,60-63,73-76`. The header is a required
-    `@RequestHeader`; Spring throws `MissingRequestHeaderException` when it's absent.
-    `GlobalExceptionHandler` has no specific handler for that type, so it falls through
-    to the catch-all `@ExceptionHandler(Exception.class)`, which always returns
-    **500 Internal Server Error** with the message "An unexpected error occurred" —
-    masking what is really a 400-class client error. **Severity: medium.**
+11. ~~**Missing `X-User-ID` header likely surfaces as 500, not 400**~~ — fixed (GH #44).
+    `GlobalExceptionHandler` (`exception/GlobalExceptionHandler.java`) now has explicit
+    handlers for `MissingRequestHeaderException` and
+    `MissingServletRequestParameterException` ahead of the catch-all
+    `@ExceptionHandler(Exception.class)`, both returning 400 with `common.dto.ErrorResponse`.
 12. **Dead code: `EditAddressRequest` / `EditAddressResponse`** —
     `application/dto/EditAddressRequest.java`, `EditAddressResponse.java`. Both are
     empty classes with no fields, never referenced by any controller, mapper, or test

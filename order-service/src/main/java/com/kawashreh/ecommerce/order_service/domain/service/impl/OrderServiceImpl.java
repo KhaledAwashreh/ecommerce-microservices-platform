@@ -4,6 +4,7 @@ import com.kawashreh.ecommerce.order_service.dataAccess.mapper.OrderMapper;
 import com.kawashreh.ecommerce.order_service.dataAccess.repository.OrderRepository;
 import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
 import com.kawashreh.ecommerce.order_service.domain.exception.InsufficientStockException;
+import com.kawashreh.ecommerce.order_service.domain.exception.InvalidOrderStateException;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.client.PaymentClient;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceClient;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.InventoryDto;
@@ -19,7 +20,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -36,6 +41,18 @@ public class OrderServiceImpl implements OrderService {
     // placeholder is sent instead; payment-service treats paymentMethod as free text with
     // no validation/branching on it.
     private static final String DEFAULT_PAYMENT_METHOD = "CARD";
+
+    // GH #43: the legal order-status transition graph. PENDING and CONFIRMED can each
+    // still be cancelled; SHIPPED can only move forward to DELIVERED; DELIVERED and
+    // CANCELLED are terminal - nothing may transition out of them.
+    private static final Map<OrderStatus, Set<OrderStatus>> LEGAL_STATUS_TRANSITIONS = new EnumMap<>(OrderStatus.class);
+    static {
+        LEGAL_STATUS_TRANSITIONS.put(OrderStatus.PENDING, EnumSet.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED));
+        LEGAL_STATUS_TRANSITIONS.put(OrderStatus.CONFIRMED, EnumSet.of(OrderStatus.SHIPPED, OrderStatus.CANCELLED));
+        LEGAL_STATUS_TRANSITIONS.put(OrderStatus.SHIPPED, EnumSet.of(OrderStatus.DELIVERED));
+        LEGAL_STATUS_TRANSITIONS.put(OrderStatus.DELIVERED, EnumSet.noneOf(OrderStatus.class));
+        LEGAL_STATUS_TRANSITIONS.put(OrderStatus.CANCELLED, EnumSet.noneOf(OrderStatus.class));
+    }
 
     private final OrderRepository repository;
     private final ProductServiceClient productServiceClient;
@@ -353,10 +370,34 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public Order update(Order order) {
+        // GH #43: only guard the transition when the order already exists - repository
+        // holds the only source of truth for "current" status, and an update against an
+        // id that doesn't exist yet has no prior status to violate a transition against
+        // (that not-found case is a separate, pre-existing concern, not this issue's scope).
+        repository.findById(order.getId())
+                .ifPresent(existing -> validateStatusTransition(existing.getStatus(), order.getStatus()));
+
         var entity = OrderMapper.toEntity(order);
         entity.getSelectedItems().forEach(item -> item.setOrder(entity));
         var updated = repository.save(entity);
         return OrderMapper.toDomain(updated);
+    }
+
+    /**
+     * GH #43: rejects a status update that is not a legal transition from the order's
+     * current status per {@link #LEGAL_STATUS_TRANSITIONS} - e.g. moving backward from
+     * CONFIRMED to PENDING, or skipping straight to SHIPPED/DELIVERED. A no-op (current
+     * equals requested) is always allowed.
+     */
+    private void validateStatusTransition(OrderStatus current, OrderStatus requested) {
+        if (current == requested) {
+            return;
+        }
+        Set<OrderStatus> allowedNextStates = LEGAL_STATUS_TRANSITIONS.getOrDefault(current, EnumSet.noneOf(OrderStatus.class));
+        if (!allowedNextStates.contains(requested)) {
+            throw new InvalidOrderStateException(
+                    "Cannot transition order status from " + current + " to " + requested);
+        }
     }
 
     @Override

@@ -8,6 +8,7 @@ import com.kawashreh.ecommerce.user_service.application.mapper.UserHttpMapper;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
 import com.kawashreh.ecommerce.user_service.domain.service.dto.UserResponse;
 import com.kawashreh.ecommerce.user_service.constants.ApiPaths;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -57,7 +58,7 @@ public class UserController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<UserDto> create(@RequestBody UserRegisterDto userDto) {
+    public ResponseEntity<UserDto> create(@RequestBody @Valid UserRegisterDto userDto) {
         UserResponse saved = service.create(UserHttpMapper.toCreateRequest(userDto));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(UserHttpMapper.toDto(saved));
@@ -74,7 +75,7 @@ public class UserController {
 
     @PutMapping("/{userId}")
     public ResponseEntity<UserDto> update(@PathVariable UUID userId,
-                                          @RequestBody UserUpdateRequest updateDto,
+                                          @RequestBody @Valid UserUpdateRequest updateDto,
                                           @RequestHeader("X-User-ID") UUID requestingUserId) {
         var serviceRequest = UserHttpMapper.toUpdateRequest(updateDto, requestingUserId);
         UserResponse updated = service.update(userId, serviceRequest);

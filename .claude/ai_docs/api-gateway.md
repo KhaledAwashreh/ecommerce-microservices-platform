@@ -220,15 +220,21 @@ concerned.
 
 - `ApiGatewayApplicationTests.java` — single `@SpringBootTest` `contextLoads()` smoke test, no
   assertions beyond successful context startup.
-- `BaseIntegrationTest.java` — an abstract Testcontainers base class (spins up a `redis:7-alpine`
-  container, wires `spring.data.redis.host/port` via `@DynamicPropertySource`, `@ActiveProfiles("test")`).
-  **No test class in this module extends it** (confirmed by grep for `BaseIntegrationTest`
-  across `api-gateway/`) — dead code.
-- No tests exist for `JwtAuthFilter`, `SecurityConfig`, route predicates, the fallback
-  controller, or `ReactiveUserServiceClient`.
-- Run: `mvn -pl api-gateway test` (per root `CLAUDE.md`). Requires a running Docker daemon
-  for `testcontainers`/`junit-jupiter` dependencies even though `BaseIntegrationTest` is unused,
-  since the dependency is on the test classpath.
+- `BaseIntegrationTest.java` was removed (GH #45) — it was dead Testcontainers scaffolding
+  (spun up a `redis:7-alpine` container) with no subclass, and nothing in this module actually
+  uses the `RedisCacheManager` `CacheConfig` defines (`@Cacheable` appears nowhere in
+  `src/main`), so a Redis Testcontainer never backed anything worth asserting on.
+- `Infrastructure/filter/JwtAuthFilterTest.java` (GH #45) — new plain-Mockito unit test of
+  `JwtAuthFilter` (no Docker/Spring context): public-path bypass, missing/malformed
+  `Authorization` header → 401, failed token validation → 401, and the
+  `X-User-Name`/`X-User-ID`/`X-User-Role` headers forwarded to the mutated exchange on
+  success. `ReactiveUserServiceClient` and `JwtService` are mocked; the exchange is built
+  with `MockServerHttpRequest`/`MockServerWebExchange` and the outcome verified with
+  `StepVerifier` (the filter is reactive, returns `Mono<Void>`).
+- Still no tests for `SecurityConfig`, route predicates, the fallback controller, or
+  `ReactiveUserServiceClient` directly.
+- Run: `mvn -pl api-gateway test` (per root `CLAUDE.md`). No longer needs Docker for anything
+  in this module's own test suite now that `BaseIntegrationTest` is gone.
 
 ## Gotchas
 
@@ -336,12 +342,12 @@ concerned.
     `forward:/fallback` from the `CircuitBreaker` filter, which is a server-side forward that
     bypasses the WebFilter chain's exchange re-evaluation in the way route filters typically do
     — exact interaction between `forward:` and the security filter chain is not verified here.
-19. **`BaseIntegrationTest` (`src/test/java/.../BaseIntegrationTest.java`) is dead code.** No
-    test class extends it; it is unused Testcontainers scaffolding.
-20. **Zero tests for security-critical logic.** `JwtAuthFilter`, `SecurityConfig`,
-    `JwtService`, `ReactiveUserServiceClient`, the fallback controller, and all route
-    predicates/filters have no test coverage — only a trivial context-load test exists
-    (`ApiGatewayApplicationTests.java`).
+19. ~~**`BaseIntegrationTest` is dead code.**~~ — fixed (GH #45): removed outright rather
+    than wired up, since nothing in this module exercises the Redis it stood up. See Tests.
+20. **Partially fixed: `JwtAuthFilter` now has test coverage** (GH #45,
+    `Infrastructure/filter/JwtAuthFilterTest.java`). `SecurityConfig`, `JwtService`,
+    `ReactiveUserServiceClient`, the fallback controller, and all route predicates/filters
+    still have none.
 21. **`spring-boot-starter-actuator` declared twice** in `pom.xml` (`pom.xml:39-40` and
     `pom.xml:158-160`) — harmless (Maven dedupes) but indicates copy-paste drift in the POM.
 22. **`bootstrap.properties` references Spring Cloud Config Server and Eureka**
