@@ -83,8 +83,7 @@ change affects before editing.
 - Service-to-service calls go through OpenFeign, addressed by Kubernetes DNS service name
   (`http://product-service:8080`), wrapped in Resilience4j circuit breakers and retries.
 - `frontend-service` uses Feign clients pointed at the gateway base URL, with
-  `BearerTokenInterceptor` attaching the session JWT to every outbound call. (Its
-  `WebClientConfig` bean is unused.)
+  `BearerTokenInterceptor` attaching the session JWT to every outbound call.
 - Auth is JWT. `user-service` issues, `api-gateway` validates in `JwtAuthFilter`, then
   propagates identity headers downstream.
 

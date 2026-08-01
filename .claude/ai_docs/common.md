@@ -3,10 +3,15 @@
 ## Purpose
 
 `common` is a shared Maven library (`com.kawashreh.ecommerce:common`, packaging `jar`) holding
-one error DTO and three `RuntimeException` subclasses used to standardize error responses across
+one error DTO and two `RuntimeException` subclasses used to standardize error responses across
 services. It has a single external dependency (`jackson-annotations`) and no Spring dependency of
 its own — the classes are plain Java, framework-agnostic. In practice it is consumed by exactly
 two of the six other modules.
+
+A third exception, `IllegalArgumentException` (shadowing `java.lang.IllegalArgumentException`
+by simple name), used to live here — repo-wide grep found nothing that threw, caught, or
+imported it; every `throw new IllegalArgumentException(...)` in the repo resolved to the JDK
+class instead. Removed as dead code (issue #51).
 
 ## Package layout
 
@@ -16,7 +21,6 @@ common/src/main/java/com/kawashreh/ecommerce/common/
 │   └── ErrorResponse.java              # status, message, timestamp; Jackson-serializable
 └── exceptions/
     ├── DuplicateEntityException.java   # extends RuntimeException
-    ├── IllegalArgumentException.java   # extends RuntimeException — shadows java.lang.IllegalArgumentException
     └── NoSuchElementException.java     # extends RuntimeException — shadows java.util.NoSuchElementException
 ```
 
@@ -28,7 +32,6 @@ No `src/test` directory exists for this module.
 |---|---|---|---|
 | `ErrorResponse` | `common/src/main/java/com/kawashreh/ecommerce/common/dto/ErrorResponse.java` | `int status`, `String message`, `LocalDateTime timestamp`; single `@JsonCreator` constructor, getters only (immutable, no setters) | Jackson-annotated (`@JsonCreator`/`@JsonProperty`) so it round-trips through `ObjectMapper` on both serialize and deserialize sides. |
 | `DuplicateEntityException` | `.../exceptions/DuplicateEntityException.java` | `RuntimeException` subclass, `(String message)` and `(String message, Throwable cause)` ctors | Plain marker/carrier exception, no extra state. |
-| `IllegalArgumentException` (`com.kawashreh.ecommerce.common.exceptions`) | `.../exceptions/IllegalArgumentException.java` | Same two ctors as above | Same simple name as `java.lang.IllegalArgumentException`. See Gotchas. |
 | `NoSuchElementException` (`com.kawashreh.ecommerce.common.exceptions`) | `.../exceptions/NoSuchElementException.java` | Same two ctors as above | Same simple name as `java.util.NoSuchElementException`. See Gotchas. |
 
 No JPA entities, repositories, or persistence code in this module.
@@ -57,11 +60,10 @@ None. No `common/src/test` directory exists.
 
 ## Gotchas
 
-1. **`common.exceptions.IllegalArgumentException` is dead code.** Repo-wide grep for
-   `com.kawashreh.ecommerce.common.exceptions.IllegalArgumentException` finds only its own
-   declaration (`common/src/main/java/com/kawashreh/ecommerce/common/exceptions/IllegalArgumentException.java`).
-   Nothing throws it, catches it, or imports it. Every `throw new IllegalArgumentException(...)` in
-   the repo resolves to `java.lang.IllegalArgumentException` (see Cross-module usage §2).
+1. ~~`common.exceptions.IllegalArgumentException` is dead code.~~ Removed (issue #51) —
+   repo-wide grep found nothing that threw, caught, or imported it; every
+   `throw new IllegalArgumentException(...)` in the repo resolved to
+   `java.lang.IllegalArgumentException` anyway (see Cross-module usage §2).
 2. **`common.exceptions.NoSuchElementException` is used for authorization checks, not
    "not found."** In `user-service`, ownership-check failures are thrown as this exception
    (`UserServiceImpl.java:152`, `:187`; `AddressServiceImpl.java:86`, `:103`) and then mapped to
@@ -91,13 +93,12 @@ None. No `common/src/test` directory exists.
    fall back to the generic `"Service error"` string via the `catch (Exception e)` at line 71-73 —
    so real backend error messages from order-service/product-service/payment-service never reach
    the user, only user-service's do.
-5. Sibling shadowing dead code discovered in the same investigation (not part of `common`, but
-   directly adjacent): `user-service` defines its own
-   `com.kawashreh.ecommerce.user_service.exception.MethodArgumentNotValidException`
-   (`user-service/src/main/java/com/kawashreh/ecommerce/user_service/exception/MethodArgumentNotValidException.java`),
-   which shadows `org.springframework.web.bind.MethodArgumentNotValidException` by simple name.
-   It is never thrown or referenced anywhere; `GlobalExceptionHandler.java:8,27-28` imports and
-   handles Spring's real class instead, so this local class is unused dead code.
+5. Sibling shadowing dead code discovered in the same investigation, and removed alongside it
+   (issue #51, not part of `common` but directly adjacent): `user-service` used to define its
+   own `com.kawashreh.ecommerce.user_service.exception.MethodArgumentNotValidException`, which
+   shadowed `org.springframework.web.bind.MethodArgumentNotValidException` by simple name. It
+   was never thrown or referenced anywhere — `GlobalExceptionHandler.java` imports and handles
+   Spring's real class instead.
 
 ## Cross-module usage
 

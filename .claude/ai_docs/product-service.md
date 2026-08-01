@@ -77,10 +77,11 @@ collides in meaning (not in name) with the misspelled `categry` table.
   code despite the directory being capitalized `Dao`):
   - `ProductRepository` — plain `JpaRepository`, no custom queries.
   - `CategoryRepository` — adds `findByName(String)`.
-  - `ProductVariationRepository` — `findByProductId` (List and Page overloads —
-    the `Page` overload is never called, see Gotchas), `deleteByProductId`, `countByProductId`.
-  - `ProductReviewRepository` — `findByProductId` (List and Page overloads, Page overload
-    unused), `findByUserId`, `countByProductId`.
+  - `ProductVariationRepository` — `findByProductId` (List), `deleteByProductId`,
+    `countByProductId`. (A never-called `Page` overload was removed — issue #51, see
+    Gotchas.)
+  - `ProductReviewRepository` — `findByProductId` (List), `findByUserId`,
+    `countByProductId`. (Same dead `Page` overload removed here too.)
   - `InventoryRepository` — `findByProductVariationId`,
     `findByProductVariationIdWithLock` (`@Lock(PESSIMISTIC_WRITE)`), and two `@Modifying`
     JPQL bulk updates: `deductQuantity` (conditional `WHERE ... quantity >= :quantity`,
@@ -312,22 +313,21 @@ which is very permissive (allows any base type).
    scalar/FK fields, not the `attributes` (miswired join column, Gotcha #10) or `attachments`
    (backed by the dead `Attachment` entity, Gotcha #12) collections, both of which were
    already-flagged issues independent of this fix.
-7. **Medium — stale cache on review writes.** `ProductReviewServiceImpl.save` (used via
-   `ReviewApplicationService.createReview`), `update`, and `delete` never evict
-   `CacheConstants.PRODUCT_REVIEW_BY_PRODUCT_ID`, so `findByProductId` (cached, 10 min TTL)
-   goes stale after any write. `PRODUCT_REVIEW_BY_USER_ID` is declared in `CacheConstants`
-   but not referenced by any `@Cacheable`/`@CacheEvict` anywhere — dead constant.
-8. **Medium — `ProductServiceImpl.save` (create) never evicts `product_by_id`.** Only
-   `update`/`delete` evict (`allEntries = true`). Combined with `@Cacheable` caching by id
-   and Spring's default of caching `null` results, a `find(id)` miss followed by a `save`
-   using that same id (unusual, since ids are DB-generated, but possible if a caller
-   supplies an id in the DTO) would leave a stale `null` cached.
-9. **Medium — inconsistent/dead JPQL repository methods.** `ProductVariationRepository`
-   and `ProductReviewRepository` each declare a `Page<...> findByProductId(UUID, Pageable)`
-   overload that is never called from any service or controller — no pagination is
-   actually exposed over HTTP anywhere in this module, and there is no search/filter
-   functionality (by name, category, price, etc.) despite `Product`/`ProductVariation`
-   having natural search fields.
+7. ~~Medium — stale cache on review writes.~~ Fixed (issue #35). `ProductReviewServiceImpl.save`
+   (used via `ReviewApplicationService.createReview`), `update`, and `delete` now all evict
+   `CacheConstants.PRODUCT_REVIEW_BY_PRODUCT_ID` (`allEntries = true`).
+   ~~`PRODUCT_REVIEW_BY_USER_ID`~~ was declared in `CacheConstants` but never referenced by
+   any `@Cacheable`/`@CacheEvict` — removed as a dead constant (issue #35/#51).
+8. ~~Medium — `ProductServiceImpl.save` (create) never evicts `product_by_id`.~~ Fixed
+   (issue #35) — `save` now evicts `product_by_id` (`allEntries = true`), same as
+   `update`/`delete`.
+9. ~~Medium — inconsistent/dead JPQL repository methods.~~ Fixed (issue #51).
+   `ProductVariationRepository` and `ProductReviewRepository` each declared a
+   `Page<...> findByProductId(UUID, Pageable)` overload that was never called from any
+   service or controller — no pagination is actually exposed over HTTP anywhere in this
+   module. Both dead overloads were removed. (There is still no search/filter
+   functionality — by name, category, price, etc. — despite `Product`/`ProductVariation`
+   having natural search fields; that part of the observation still stands.)
 10. **Medium — miswired `@OneToMany` join column.** `ProductVariationEntity.java:58-60`:
     `attributes` is mapped `@OneToMany @JoinColumn(name = "category_id", nullable = false)`
     against `AttributeEntity` — `category_id` is a copy-paste leftover (there is no

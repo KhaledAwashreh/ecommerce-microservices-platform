@@ -27,7 +27,7 @@ Actuator health/info/metrics, Redis-backed cache infrastructure, and Zipkin trac
 
 ```
 com.kawashreh.ecommerce.api_gateway/
-├── ApiGatewayApplication.java              @SpringBootApplication + @EnableFeignClients (entry point)
+├── ApiGatewayApplication.java              @SpringBootApplication (entry point)
 ├── FallbackController.java                 single GET/any-method handler for /fallback
 ├── Infrastructure/                          (capital "I" — deviates from the lower-case
 │                                              infrastructure/ convention in CLAUDE.md)
@@ -36,7 +36,7 @@ com.kawashreh.ecommerce.api_gateway/
 │   ├── configuration/
 │   │   ├── Resilience4jConfiguration.java   default Resilience4j circuit-breaker Customizer
 │   │   ├── SecurityConfig.java              WebFlux SecurityWebFilterChain, public path list
-│   │   └── WebClientConfig.java             two WebClient.Builder beans (load-balanced + plain)
+│   │   └── WebClientConfig.java             one WebClient.Builder bean (a second, unused @LoadBalanced one was removed — issue #51)
 │   ├── filter/
 │   │   ├── JwtAuthFilter.java                WebFilter: JWT auth + header propagation
 │   │   └── LoggingFilter.java                GlobalFilter: logs request path only
@@ -132,15 +132,11 @@ Configuration).
 |---|---|---|---|---|
 | `ReactiveUserServiceClient` (`Infrastructure/http/client/ReactiveUserServiceClient.java`) | `WebClient` (non-load-balanced `webClientBuilder` bean) | `${USER_SERVICE_URL:http://user-service:8080}` | `JwtAuthFilter`, to re-fetch the user by username on every authenticated request | None explicit — `retrieveByUsername`/`retrieveById` have no `.onErrorResume`/timeout; any error propagates and is caught by `JwtAuthFilter`'s outer `.onErrorResume` which returns 401 |
 | Gateway routes (all 5-6 backend routes) | Spring Cloud Gateway HTTP proxy | user/product/order/payment-service, env-overridable | end clients | Gateway `Retry` filter (3 attempts, GET/POST) + `CircuitBreaker` filter → `forward:/fallback` (503) |
-| `@EnableFeignClients` (`ApiGatewayApplication.java:8`) | OpenFeign | none declared | — | `spring-cloud-starter-openfeign` is on the classpath and Feign clients are enabled, but **no `@FeignClient` interface exists anywhere in this module** — dead/unused capability (see Gotchas) |
-
-`WebClientConfig` defines two `WebClient.Builder` beans: `loadBalancedWebClientBuilder`
-(`@LoadBalanced`) and a plain `webClientBuilder`. `ReactiveUserServiceClient` is constructed
-with the plain (non-`@LoadBalanced`) builder via constructor injection — Spring picks it
-because it's the only `WebClient.Builder` param without a qualifier and there'd normally be an
-ambiguity, but `@LoadBalanced` is itself a qualifier annotation, so the unqualified
-`webClientBuilder` bean is the unambiguous match. The `@LoadBalanced` builder bean has no
-injection point anywhere in the module — dead bean.
+`ReactiveUserServiceClient` is constructed via constructor injection with the module's one
+remaining `webClientBuilder` bean. `@EnableFeignClients` (there was never a `@FeignClient`
+interface anywhere in this module) and the second, `@LoadBalanced`-qualified
+`WebClient.Builder` bean it had no injection point for were both removed as dead code
+(issue #51) — see Gotchas.
 
 ## Configuration
 
@@ -292,15 +288,15 @@ concerned.
 10. **`resilience4j.timelimiter` only configured in the `local` profile**
     (`application-local.yml:113-126`), absent from default `application.yml` — inconsistent
     resilience behavior between profiles for the identical route set.
-11. **`@EnableFeignClients` with zero `@FeignClient` interfaces.** `ApiGatewayApplication.java:8`
-    enables Feign client scanning, and `spring-cloud-starter-openfeign` /
-    `feign-micrometer` are on the classpath (`pom.xml:86-88,146-149`), but no `@FeignClient`
-    interface exists anywhere in `api-gateway/src/main` — dead capability. Downstream calls in
-    this module use `WebClient` (`ReactiveUserServiceClient`) instead.
-12. **`@LoadBalanced WebClient.Builder` bean is never injected.**
-    `WebClientConfig.loadBalancedWebClientBuilder()` (`Infrastructure/configuration/WebClientConfig.java:11-15`)
-    has no consumer in this module; `ReactiveUserServiceClient` uses the plain
-    `webClientBuilder` bean instead. Dead bean.
+11. ~~`@EnableFeignClients` with zero `@FeignClient` interfaces.~~ Removed (issue #51) —
+    no `@FeignClient` interface ever existed anywhere in `api-gateway/src/main`. Downstream
+    calls in this module use `WebClient` (`ReactiveUserServiceClient`) instead. The
+    `spring-cloud-starter-openfeign`/`feign-micrometer` dependencies were left in `pom.xml`
+    (not part of issue #51's explicit list for this module — only the duplicate
+    `spring-boot-starter-actuator` entry was, see item 21).
+12. ~~`@LoadBalanced WebClient.Builder` bean is never injected.~~ Removed (issue #51) — it
+    had no consumer in this module; `ReactiveUserServiceClient` uses the plain
+    `webClientBuilder` bean, which is now the only bean `WebClientConfig` defines.
 13. **Caching infrastructure configured but entirely unused.** `CacheConfig` defines a full
     Redis cache manager plus two `RedisTemplate` beans and `@EnableCaching`, but no
     `@Cacheable`/`@CacheEvict`/manual template usage exists anywhere in `api-gateway/src/main`
@@ -341,8 +337,9 @@ concerned.
     `JwtService`, `ReactiveUserServiceClient`, the fallback controller, and all route
     predicates/filters have no test coverage — only a trivial context-load test exists
     (`ApiGatewayApplicationTests.java`).
-21. **`spring-boot-starter-actuator` declared twice** in `pom.xml` (`pom.xml:39-40` and
-    `pom.xml:158-160`) — harmless (Maven dedupes) but indicates copy-paste drift in the POM.
+21. ~~`spring-boot-starter-actuator` declared twice~~ in `pom.xml` — harmless (Maven
+    dedupes) but indicated copy-paste drift; the second declaration was removed
+    (issue #51).
 22. ~~`bootstrap.properties` references Spring Cloud Config Server and Eureka~~ — removed
     (issue #50). It configured `spring.cloud.config.discovery.*`,
     `eureka.client.serviceUrl.defaultZone`, and `spring.config.import=optional:configserver:...`,
