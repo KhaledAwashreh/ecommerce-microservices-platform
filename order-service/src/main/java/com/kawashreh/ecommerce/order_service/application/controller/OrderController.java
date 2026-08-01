@@ -4,6 +4,7 @@ import com.kawashreh.ecommerce.order_service.application.dto.OrderDto;
 import com.kawashreh.ecommerce.order_service.application.mapper.OrderHttpMapper;
 import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
 import com.kawashreh.ecommerce.order_service.domain.service.OrderService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import com.kawashreh.ecommerce.order_service.constants.ApiPaths;
@@ -23,7 +24,7 @@ public class OrderController {
     }
 
     @PostMapping
-    public ResponseEntity<OrderDto> createOrder(@RequestBody OrderDto orderDto) {
+    public ResponseEntity<OrderDto> createOrder(@RequestBody @Valid OrderDto orderDto) {
         var order = OrderHttpMapper.toDomain(orderDto);
         var created = orderService.create(order);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -96,7 +97,7 @@ public class OrderController {
     @PutMapping("/{id}")
     public ResponseEntity<OrderDto> updateOrder(
             @PathVariable UUID id,
-            @RequestBody OrderDto orderDto) {
+            @RequestBody @Valid OrderDto orderDto) {
         var order = OrderHttpMapper.toDomain(orderDto);
         order.setId(id);
         var updated = orderService.update(order);

@@ -6,6 +6,7 @@ import com.kawashreh.ecommerce.payment_service.application.mapper.PaymentHttpMap
 import com.kawashreh.ecommerce.payment_service.domain.exception.InvalidPaymentStateException;
 import com.kawashreh.ecommerce.payment_service.domain.model.Payment;
 import com.kawashreh.ecommerce.payment_service.domain.service.PaymentService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -28,7 +29,7 @@ public class PaymentController {
     }
 
     @PostMapping(ApiPaths.PROCESS)
-    public ResponseEntity<PaymentResponseDto> processPayment(@RequestBody PaymentRequestDto request) {
+    public ResponseEntity<PaymentResponseDto> processPayment(@RequestBody @Valid PaymentRequestDto request) {
         // request.getAmount() is intentionally not passed through: PaymentServiceImpl
         // re-derives the authoritative amount from order-service so a client cannot
         // dictate what it pays.

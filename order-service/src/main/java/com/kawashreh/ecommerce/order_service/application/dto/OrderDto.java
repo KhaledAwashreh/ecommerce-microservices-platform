@@ -1,6 +1,9 @@
 package com.kawashreh.ecommerce.order_service.application.dto;
 
 import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
@@ -18,16 +21,16 @@ public class OrderDto {
     @NonNull
     private UUID id;
 
-    @NonNull
+    @NotNull
     private UUID storeId;
 
-    @NonNull
+    @NotNull
     private UUID seller;
 
-    @NonNull
+    @NotNull
     private UUID buyer;
 
-    // GH #58: shipping address selected at checkout. Not @NonNull - unlike buyer/seller/
+    // GH #58: shipping address selected at checkout. Not required - unlike buyer/seller/
     // storeId, this is a new optional field and existing callers other than the checkout
     // flow don't populate it.
     private UUID shippingAddressId;
@@ -36,6 +39,9 @@ public class OrderDto {
     @Builder.Default
     private OrderStatus status = OrderStatus.PENDING;
 
+    // GH #40: an order with no items reached the service/DB unchecked.
+    @NotEmpty
+    @Valid
     @Builder.Default
     private List<OrderItemDto> selectedItems = new ArrayList<>();
 
