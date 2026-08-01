@@ -168,6 +168,17 @@ collection on failure — no retry, no circuit breaker configuration is defined 
 module (Resilience4j lives in `api-gateway`, not here). `GlobalExceptionHandler` catches
 any exception that a controller lets propagate (i.e. anything not caught by a facade
 first) and redirects back to a caller-appropriate path with `?error=<message>`.
+**(Fixed for GH #36)** `extractMessage` (`exception/GlobalExceptionHandler.java`) used to
+assume every Feign error body was `common.ErrorResponse`'s shape, which only holds for
+user-service — order-service/product-service/payment-service have no
+`GlobalExceptionHandler` of their own and fall back to Spring Boot's default error body
+(different shape, and a timestamp format `ErrorResponse`'s constructor can't parse), and
+`api-gateway`'s fallback controller returns plain text. The real message from those was
+silently discarded and replaced with a generic "Service error". It now tries
+`common.ErrorResponse` first, then falls back to reading just the `"message"` key
+generically out of whatever JSON came back (still returning a per-status default like
+"Resource not found" if no usable message is found anywhere, rather than always
+"Service error"). See `exception/GlobalExceptionHandlerTest.java`.
 
 | Client method | Gateway path called | Owning service (per root `CLAUDE.md`) | Used by |
 |---|---|---|---|

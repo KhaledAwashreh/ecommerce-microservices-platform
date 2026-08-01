@@ -84,13 +84,18 @@ None. No `common/src/test` directory exists.
    `message` guarantee for arbitrary exceptions). `api-gateway`'s circuit-breaker fallback
    (`api-gateway/src/main/java/com/kawashreh/ecommerce/api_gateway/FallbackController.java:13-16`)
    returns a **plain-text** body (`"Service is currently unavailable..."`), not JSON at all.
-   `frontend-service`'s `GlobalExceptionHandler.extractMessage`
-   (`frontend-service/.../exception/GlobalExceptionHandler.java:60-74`) tries to
-   `objectMapper.readValue(ex.contentUTF8(), ErrorResponse.class)` on every Feign error body; for
-   any non-user-service backend this JSON-parse will fail (wrong shape or plain text) and silently
-   fall back to the generic `"Service error"` string via the `catch (Exception e)` at line 71-73 —
-   so real backend error messages from order-service/product-service/payment-service never reach
-   the user, only user-service's do.
+   **(Fixed for GH #36)** `frontend-service`'s `GlobalExceptionHandler.extractMessage`
+   (`frontend-service/.../exception/GlobalExceptionHandler.java`) used to try
+   `objectMapper.readValue(ex.contentUTF8(), ErrorResponse.class)` on every Feign error body and
+   fall back to a generic `"Service error"` string on any parse failure — which for any
+   non-user-service backend was every time (wrong shape or plain text), so real backend error
+   messages from order-service/product-service/payment-service never reached the user. It now
+   also falls back to reading the JSON `"message"` key generically when the body isn't
+   `ErrorResponse`'s shape, and still falls back to a per-status default (not always
+   `"Service error"`) if no usable message is found anywhere (including non-JSON bodies like
+   `api-gateway`'s plain-text fallback). This was fixed on the frontend side only — the four
+   services without a `GlobalExceptionHandler`/`ErrorResponse` are unchanged; see point 3 above,
+   which is still accurate.
 5. Sibling shadowing dead code discovered in the same investigation (not part of `common`, but
    directly adjacent): `user-service` defines its own
    `com.kawashreh.ecommerce.user_service.exception.MethodArgumentNotValidException`
