@@ -13,6 +13,16 @@
 > document is otherwise still accurate as of the fix; it has not been fully
 > regenerated.
 
+> **Amendment (GH #42 fix):** the module now has an `exception/GlobalExceptionHandler`
+> (`@RestControllerAdvice`), the first in this module. `OrderServiceImpl.update()`/
+> `delete()` call `repository.existsById()` first and throw
+> `common.exceptions.NoSuchElementException` for a missing id, which the handler maps
+> to `404` with a `common.dto.ErrorResponse` body. The "500 on missing id" and
+> "no `@ControllerAdvice` in this module" statements below (HTTP API table and Gotcha
+> #10/#12) are now stale for this specific path; other unhandled exceptions in the
+> module still fall through to Spring's default error body, since the handler only
+> covers `NoSuchElementException` so far.
+
 ## Purpose
 
 `order-service` owns carts, orders, order items, and discounts for the e-commerce
@@ -49,6 +59,7 @@ order_service/
 │   ├── exception/                        InsufficientStockException, ProductServiceException
 │   ├── model/                            Cart, CartItem, Order, OrderItem, Discount (plain POJOs)
 │   └── service/ + service/impl/          CartService/CartServiceImpl, OrderService/OrderServiceImpl
+├── exception/GlobalExceptionHandler.java @RestControllerAdvice (GH #42) — maps common.exceptions.NoSuchElementException to 404/ErrorResponse; nothing else yet
 └── infrastructure/
     ├── cache/CacheConfig.java            RedisCacheManager, RedisTemplate, StringRedisTemplate beans (unused — no @Cacheable anywhere)
     ├── config/FeignClientConfig.java     Feign logger level + productServiceErrorDecoder bean
@@ -154,8 +165,8 @@ is now wired (see above); it only recomputes `subtotal` from cart item `lineTota
 | GET | `/api/v1/orders/buyer/{buyerId}/store/{storeId}` | — | `List<OrderDto>` | 200 | none |
 | GET | `/api/v1/orders/seller/{sellerId}/store/{storeId}` | — | `List<OrderDto>` | 200 | none |
 | GET | `/api/v1/orders/buyer/{buyerId}/status/{status}` | — | `List<OrderDto>` | 200 | none |
-| PUT | `/api/v1/orders/{id}` | `OrderDto` | `OrderDto` | 200 (or 500 — `update()` has no not-found guard, throws if the underlying save produces a detached/transient conflict) | none |
-| DELETE | `/api/v1/orders/{id}` | — | empty | 204 (204 even if `id` doesn't exist — `deleteById` on Spring Data throws `EmptyResultDataAccessException` in that case, uncaught -> would actually surface as 500) | none |
+| PUT | `/api/v1/orders/{id}` | `OrderDto` | `OrderDto` | 200, 404 if `id` doesn't exist (GH #42: `update()` checks `existsById()` first) | none |
+| DELETE | `/api/v1/orders/{id}` | — | empty | 204, 404 if `id` doesn't exist (GH #42: `delete()` checks `existsById()` first) | none |
 
 `OrderDto`/`OrderEntity` carry a `shippingAddressId` field (GH #58, see Domain model
 above) — `POST /api/v1/orders` accepts it as an ordinary nullable field on the request
@@ -515,19 +526,21 @@ invisible from this module's code).
 9. **Duplicate log line** — the two `logger.info("Inventory validation passed...")` calls
    at `OrderServiceImpl.java:92-95` log functionally the same message twice per item (once
    keyed by SKU, once by product id).
-10. **No `@ControllerAdvice`/`GlobalExceptionHandler` in this module** — contrary to the
-    pattern the root `CLAUDE.md` describes repo-wide, unhandled `IllegalArgumentException`,
-    `InsufficientStockException`, and the wrapped `RuntimeException` from `create()` all
-    surface as Spring Boot's default error response, not `common.dto.ErrorResponse`.
+10. **No `@ControllerAdvice`/`GlobalExceptionHandler` for most exception types** — as of
+    GH #42 the module has `exception/GlobalExceptionHandler`, but it only handles
+    `common.exceptions.NoSuchElementException` (-> 404). Unhandled
+    `IllegalArgumentException`, `InsufficientStockException`, and the wrapped
+    `RuntimeException` from `create()` still surface as Spring Boot's default error
+    response, not `common.dto.ErrorResponse`.
 11. **No request-body validation** — `spring-boot-starter-validation` is a pom dependency
     but `@Valid`/`@Validated` is never used; `OrderController.createOrder`/`updateOrder`
     accept any `OrderDto`, including one with `null` `@NonNull`-annotated fields (Lombok's
     `@NonNull` is not enforced during JSON deserialization).
-12. **`updateOrder`/`deleteOrder` have no not-found guard** — `update()` calls
-    `repository.save()` unconditionally (no existence check), and `delete()` calls
-    `repository.deleteById(id)` directly, which throws `EmptyResultDataAccessException`
-    (uncaught, surfaces as 500) if `id` does not exist, rather than a 404.
-    `OrderController.java:96-110`, `OrderServiceImpl.java:207-218`.
+12. ~~**`updateOrder`/`deleteOrder` have no not-found guard**~~ — fixed in GH #42:
+    `update()`/`delete()` now call `repository.existsById()` first and throw
+    `common.exceptions.NoSuchElementException`, mapped to 404 by the new
+    `GlobalExceptionHandler`. `OrderController.java:96-110`,
+    `OrderServiceImpl.java:207-218`.
 13. **`OrderItem.productSku` / `CartItem.productSku` are typed `UUID`, not a SKU string** —
     despite the name, the field is used interchangeably as a product id
     (`retrieveProduct`) and a product-variation id (`retrieveInventory`,
