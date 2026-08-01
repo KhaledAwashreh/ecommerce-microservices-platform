@@ -97,11 +97,9 @@ DTOs for a single page).
 - `pom.xml` does declare `org.postgresql:postgresql` (runtime driver) and
   `spring-boot-starter-test` + `testcontainers` (`junit-jupiter`, `postgresql`) as test
   dependencies.
-- `src/test/java/.../BaseIntegrationTest.java` spins up a `PostgreSQLContainer`, sets
-  `spring.jpa.hibernate.ddl-auto=create-drop` via `@DynamicPropertySource`, and
-  `src/test/resources/application-test.yml` configures a `frontenddb` datasource — but
-  since there is no JPA starter and no entities, none of this JPA config does anything.
-  This is dead test scaffolding (see Tests and Gotchas).
+- `BaseIntegrationTest.java` and `src/test/resources/application-test.yml` (a Postgres/JPA
+  Testcontainers scaffold with no matching JPA starter or entities) were removed outright
+  (GH #45) rather than wired up — see Tests.
 
 ## HTTP API — UI routes
 
@@ -301,14 +299,15 @@ JDK 25 (`Byte Buddy could not instrument all classes within the mock's type hier
 JDK 21 install (e.g. `C:\Program Files\Java\jdk-21` if present); this is an environment
 tooling mismatch, not something GH #58 introduced or fixed.
 
-`src/test/java/.../BaseIntegrationTest.java` is an abstract `@SpringBootTest` +
-`@Testcontainers` base class (spins up a `PostgreSQLContainer`, wires
-`spring.datasource.*` and `spring.jpa.hibernate.ddl-auto` dynamically) — but **no test
-class in the module extends it**. `src/test/resources/application-test.yml` (a `test`
-profile datasource + JPA config) is likewise unreferenced by any actual test. Since the
-module has no JPA starter and no entities at all (see Persistence), this scaffolding
-could not exercise anything even if a test extended it — dead test scaffolding, distinct
-from the two real test classes above.
+`src/test/java/.../BaseIntegrationTest.java` and `src/test/resources/application-test.yml`
+were **removed** (GH #45), not wired up: the abstract `@SpringBootTest` +
+`@Testcontainers` base class spun up a `PostgreSQLContainer` and wired
+`spring.datasource.*`/`spring.jpa.hibernate.ddl-auto`, but the module has no JPA starter
+and no entities at all (see Persistence) — the scaffolding could never have exercised
+anything even with a subclass, unlike payment-service's equivalent (real JPA/Postgres
+usage), which got a real subclass instead. The two real test classes above
+(`OrderControllerTest`, `CartControllerTest`) already provide this module's actual
+coverage and don't need Docker/a Spring context at all.
 
 ## Gotchas
 
@@ -475,10 +474,9 @@ from the two real test classes above.
     `${api.gateway.base-url}/api/v1/user` — it goes through the gateway, exactly like
     every other client in this module, not direct k8s DNS. Severity: **low** (misleading
     comment only).
-22. **Test scaffolding is dead weight.** `BaseIntegrationTest.java` and
-    `application-test.yml` configure Testcontainers Postgres + JPA `ddl-auto` for a
-    module with no JPA starter, no entities, and zero test classes that extend the base
-    class. See Tests. Severity: **low**.
+22. ~~**Test scaffolding is dead weight.**~~ — fixed (GH #45): `BaseIntegrationTest.java`
+    and `application-test.yml` were removed rather than wired up, since neither could
+    ever exercise anything real in a module with no JPA starter/entities. See Tests.
 23. **`/products` silently degrades for anonymous users instead of redirecting.**
     `ProductController.products()` (`.../controller/ProductController.java:30-39`) is the
     only "browse" page that checks `sessionManager.isAuthenticated(request)` — but

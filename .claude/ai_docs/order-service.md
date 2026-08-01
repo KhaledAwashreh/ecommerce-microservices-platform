@@ -95,10 +95,16 @@ PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED
 
 Only `PENDING`, `CONFIRMED`, and `CANCELLED` are ever assigned by code (in
 `OrderServiceImpl.create`/`createOrderFromCart`). `SHIPPED` and `DELIVERED` are declared
-but nothing in this module ever transitions an order into them — they are set-once-never
-values as far as `order-service` is concerned (some other service or manual DB update
-would be required). There is no enforcement preventing, e.g., `OrderController.updateOrder`
-from setting an arbitrary status via `PUT /api/v1/orders/{id}` (see HTTP API / Gotchas).
+but nothing in this module ever transitions an order into them via `create` — they can
+only be reached today through `PUT /api/v1/orders/{id}` (see HTTP API), which is now
+guarded (GH #43): `OrderServiceImpl.update` enforces a legal transition graph -
+`PENDING -> CONFIRMED|CANCELLED`, `CONFIRMED -> SHIPPED|CANCELLED`, `SHIPPED ->
+DELIVERED`; `DELIVERED`/`CANCELLED` are terminal. A same-status update is a no-op. An
+illegal transition throws `InvalidOrderStateException`
+(`domain/exception/InvalidOrderStateException.java`), mapped locally in
+`OrderController.updateOrder` to `409 Conflict` (no `GlobalExceptionHandler` exists in
+this module - see HTTP API / Gotchas). The check is skipped if `id` doesn't correspond
+to an existing order yet - see Gotcha 12, still unfixed.
 
 ## Persistence
 
@@ -144,7 +150,7 @@ is now wired (see above); it only recomputes `subtotal` from cart item `lineTota
 
 | Method | Path | Request body | Response | Status codes | Auth |
 |---|---|---|---|---|---|
-| POST | `/api/v1/orders` | `OrderDto` | `OrderDto` | 201 Created (or 500 on any unhandled exception — no `@ControllerAdvice` in this module) | None enforced in-module; relies on upstream gateway/JWT filter |
+| POST | `/api/v1/orders` | `OrderDto` | `OrderDto` | 201 Created, 400 on `@Valid` failure (GH #40 - see below), or 500 on any other unhandled exception — no `@ControllerAdvice` in this module | None enforced in-module; relies on upstream gateway/JWT filter |
 | GET | `/api/v1/orders` | — | `List<OrderDto>` | 200 | none |
 | GET | `/api/v1/orders/{id}` | — | `OrderDto` or empty body | 200, 404 if not found | none |
 | GET | `/api/v1/orders/buyer/{buyerId}` | — | `List<OrderDto>` | 200 | none |
@@ -154,7 +160,7 @@ is now wired (see above); it only recomputes `subtotal` from cart item `lineTota
 | GET | `/api/v1/orders/buyer/{buyerId}/store/{storeId}` | — | `List<OrderDto>` | 200 | none |
 | GET | `/api/v1/orders/seller/{sellerId}/store/{storeId}` | — | `List<OrderDto>` | 200 | none |
 | GET | `/api/v1/orders/buyer/{buyerId}/status/{status}` | — | `List<OrderDto>` | 200 | none |
-| PUT | `/api/v1/orders/{id}` | `OrderDto` | `OrderDto` | 200 (or 500 — `update()` has no not-found guard, throws if the underlying save produces a detached/transient conflict) | none |
+| PUT | `/api/v1/orders/{id}` | `OrderDto` | `OrderDto` | 200, 400 on `@Valid` failure, 409 if the requested `status` is not a legal transition from the order's current status (GH #43), or 500 — `update()` still has no not-found guard, throws if the underlying save produces a detached/transient conflict | none |
 | DELETE | `/api/v1/orders/{id}` | — | empty | 204 (204 even if `id` doesn't exist — `deleteById` on Spring Data throws `EmptyResultDataAccessException` in that case, uncaught -> would actually surface as 500) | none |
 
 `OrderDto`/`OrderEntity` carry a `shippingAddressId` field (GH #58, see Domain model
@@ -162,15 +168,20 @@ above) — `POST /api/v1/orders` accepts it as an ordinary nullable field on the
 body; there is no dedicated shipping-address endpoint or path, and no ownership/existence
 check against `user-service` happens in this module.
 
-`createOrder` does not call `@Valid` — `spring-boot-starter-validation` is a declared
-dependency (`pom.xml`) but no `@Valid`/`@Validated` annotation appears anywhere in the
-module, and none of the request DTOs are validated at the HTTP boundary; Lombok's
-`@NonNull` on DTO fields only guards the generated all-args constructor/builder, not
-JSON deserialization, so a POST body missing a `@NonNull` field silently binds `null`.
+`createOrder`/`updateOrder` now both validate with `@Valid` (GH #40):
+`OrderDto.buyer`/`seller`/`storeId` are `@NotNull`, `selectedItems` is `@NotEmpty` and
+cascades (`@Valid`) into each `OrderItemDto`, whose `quantity`/`unitPrice` are
+`@Positive`. `id`/`createdAt`/`updatedAt` are intentionally left without Bean Validation
+constraints - they're server-managed (`id` is `GenerationType.UUID`, `createdAt`/
+`updatedAt` are `@CreationTimestamp`/`@UpdateTimestamp`) and a normal create request
+omits them; Lombok's `@NonNull` still guards them at the Java-construction level (e.g.
+`OrderHttpMapper`/`OrderDto.builder()` call sites) but does not affect JSON
+deserialization. There is still no `GlobalExceptionHandler` in this module, so a
+`MethodArgumentNotValidException` from a failed `@Valid` falls through to Spring's
+default 400 body, not `common.dto.ErrorResponse`.
 
-`updateOrder` lets the caller set `status` to any `OrderStatus` value (including going
-backward, e.g. `CONFIRMED` -> `PENDING`, or jumping to `SHIPPED`/`DELIVERED` without ever
-going through the create flow) — there is no transition guard.
+`updateOrder` no longer lets the caller set `status` to an arbitrary `OrderStatus` value
+— see the transition-guard note under `OrderStatus` above (GH #43).
 
 No `@ControllerAdvice`/`GlobalExceptionHandler` exists in `order-service` (confirmed by
 grep across `src/main`), unlike the pattern described in the root `CLAUDE.md`
@@ -519,15 +530,15 @@ invisible from this module's code).
     pattern the root `CLAUDE.md` describes repo-wide, unhandled `IllegalArgumentException`,
     `InsufficientStockException`, and the wrapped `RuntimeException` from `create()` all
     surface as Spring Boot's default error response, not `common.dto.ErrorResponse`.
-11. **No request-body validation** — `spring-boot-starter-validation` is a pom dependency
-    but `@Valid`/`@Validated` is never used; `OrderController.createOrder`/`updateOrder`
-    accept any `OrderDto`, including one with `null` `@NonNull`-annotated fields (Lombok's
-    `@NonNull` is not enforced during JSON deserialization).
-12. **`updateOrder`/`deleteOrder` have no not-found guard** — `update()` calls
-    `repository.save()` unconditionally (no existence check), and `delete()` calls
-    `repository.deleteById(id)` directly, which throws `EmptyResultDataAccessException`
-    (uncaught, surfaces as 500) if `id` does not exist, rather than a 404.
-    `OrderController.java:96-110`, `OrderServiceImpl.java:207-218`.
+11. ~~**No request-body validation**~~ — fixed (GH #40): `OrderController.createOrder`/
+    `updateOrder` now validate with `@Valid`; see HTTP API above for what's constrained.
+12. **`updateOrder`/`deleteOrder` still have no not-found guard** — `update()`'s status-
+    transition check (GH #43) only runs `if (repository.findById(order.getId())` finds a
+    row; if it doesn't, the method falls straight through to `repository.save()` with no
+    prior state to validate a transition against (deliberately out of #43's scope - a
+    pre-existing, separate gap), and `delete()` still calls `repository.deleteById(id)`
+    directly, which throws `EmptyResultDataAccessException` (uncaught, surfaces as 500) if
+    `id` does not exist, rather than a 404. `OrderController.java`, `OrderServiceImpl.java`.
 13. **`OrderItem.productSku` / `CartItem.productSku` are typed `UUID`, not a SKU string** —
     despite the name, the field is used interchangeably as a product id
     (`retrieveProduct`) and a product-variation id (`retrieveInventory`,

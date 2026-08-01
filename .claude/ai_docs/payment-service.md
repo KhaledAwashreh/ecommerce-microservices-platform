@@ -137,7 +137,7 @@ Base path: `ApiPaths.BASE_PATH = "/api/v1/payment"` (singular — matches the ga
 
 | Method | Path (`BASE_PATH` + …) | Request | Response | Status codes | Auth |
 |---|---|---|---|---|---|
-| POST | `/process` | `PaymentRequestDto` (JSON body: `orderId`, `buyerId`, `amount`, `paymentMethod`) | `PaymentResponseDto` (existing payment if one already exists for `orderId` — issue #11) | 200 on success; an unhandled `OrderServiceException` from the order-service lookup (issue #10) surfaces as Spring's default 500 body — this module has no `GlobalExceptionHandler` (root `CLAUDE.md`) | None enforced in this module — JWT is validated upstream at the gateway (`architecture.md`), payment-service trusts the caller |
+| POST | `/process` | `PaymentRequestDto` (JSON body: `orderId`, `buyerId`, `amount`, `paymentMethod`; `@Valid` since GH #40 — `orderId`/`buyerId` `@NotNull`, `paymentMethod` `@NotBlank`) | `PaymentResponseDto` (existing payment if one already exists for `orderId` — issue #11) | 200 on success, 400 on `@Valid` failure (Spring's default body, no `GlobalExceptionHandler` in this module); an unhandled `OrderServiceException` from the order-service lookup (issue #10) surfaces as Spring's default 500 body | None enforced in this module — JWT is validated upstream at the gateway (`architecture.md`), payment-service trusts the caller |
 | GET | `/{paymentId}` | path var `paymentId: UUID` | `PaymentResponseDto` or empty body | 200, 404 if not found | None |
 | GET | `/order/{orderId}` | path var `orderId: UUID` | `PaymentResponseDto` or empty body | 200, 404 if not found | None |
 | POST | `/{paymentId}/refund` | path var `paymentId: UUID` | `Boolean` (`true`/`false`) | 200 (`true` if payment found and refunded, `false` if not found); 409 if the payment exists but is not `COMPLETED` (including one already `REFUNDED`) — issue #12 | None |
@@ -214,9 +214,8 @@ unauthenticated.
 `payment-service/src/test/java/.../BaseIntegrationTest.java` is an **abstract** base class
 (`@SpringBootTest @Testcontainers @ActiveProfiles("test")`) that spins up a
 `postgres:16-alpine` Testcontainer and wires `spring.datasource.*` + forces
-`ddl-auto=create-drop` via `@DynamicPropertySource`. **No concrete test class extends it** —
-the Docker-dependent path documented in the root `CLAUDE.md` ("Integration tests use
-TestContainers") still exercises nothing for this module.
+`ddl-auto=create-drop` via `@DynamicPropertySource`. It now has a concrete subclass,
+`PaymentServiceIntegrationTest` (GH #45) — see below.
 
 `domain/service/impl/PaymentServiceImplTest.java` (added alongside issues #10 and #11,
 extended for #12) is a plain-Mockito unit test of `PaymentServiceImpl` — no Spring context,
@@ -227,9 +226,25 @@ failure (#10); the idempotency fast-path, the concurrent-insert unique-constrain
 row can be found afterwards (#11); and `refundPayment`'s status guard (#12) — a successful
 refund from `COMPLETED`, `false` on an unknown `paymentId`, and `InvalidPaymentStateException`
 on every other status via a parameterized test over `PaymentEntity.PaymentStatus` (excluding
-`COMPLETED`), plus an explicit already-`REFUNDED` case.
+`COMPLETED`), plus an explicit already-`REFUNDED` case. Because `PaymentRepository` is fully
+mocked here, this test can't observe the idempotency behavior actually being backed by the
+DB's unique constraint on `order_id`, only the pre-check + catch-`DataIntegrityViolationException`
+code path in isolation.
 
-To run: `mvn -pl payment-service test` (17 tests, all in `PaymentServiceImplTest`)
+`PaymentServiceIntegrationTest.java` (GH #45) is the first concrete `BaseIntegrationTest`
+subclass in this module: `@Autowired PaymentService`/`PaymentRepository` exercised against a
+real `postgres:16-alpine` Testcontainer, with only `OrderServiceClient` (the Feign call to
+order-service) mocked via `@MockitoBean`. Covers `processPayment` persisting a real row with
+the amount derived from the mocked order, the idempotency retry actually hitting the DB
+(not just the in-memory mock), and the refund transition guard against real persisted state.
+
+`application/controller/PaymentControllerTest.java` (GH #40) is a `@WebMvcTest` slice
+(JwtAuthFilter excluded from component scanning) covering the new `@Valid` on
+`PaymentRequestDto` — see Gotcha 5, now fixed.
+
+To run: `mvn -pl payment-service test` (needs Docker for `PaymentServiceIntegrationTest`;
+24 tests total across `PaymentServiceImplTest`, `PaymentServiceIntegrationTest`, and
+`PaymentControllerTest`)
 
 ## Gotchas
 
@@ -279,12 +294,11 @@ To run: `mvn -pl payment-service test` (17 tests, all in `PaymentServiceImplTest
    original request would have returned is the more useful idempotent behavior. If partial
    payments are ever intended, this needs an explicit idempotency key instead of keying off
    `orderId` alone.
-5. **No request validation.** `PaymentRequestDto` (`application/dto/PaymentRequestDto.java`)
-   has no Bean Validation annotations (`@NotNull`, `@Positive`, etc.) despite
-   `spring-boot-starter-validation` being a declared dependency (`pom.xml:41`), and
-   `PaymentController.processPayment` does not annotate the parameter with `@Valid`. A
-   `null` `orderId`/`buyerId`/`paymentMethod` or a negative `amount` is accepted without
-   error (amount is discarded anyway, per item 1).
+5. ~~**No request validation.**~~ — fixed (GH #40). `PaymentRequestDto` now has
+   `@NotNull` on `orderId`/`buyerId` and `@NotBlank` on `paymentMethod`;
+   `PaymentController.processPayment` validates with `@Valid`. `amount` is deliberately
+   left without a constraint - it's discarded anyway (per item 1 / the comment in
+   `PaymentController`), so a negative/malformed value here still can't reach the DB.
 6. **`com.stripe:stripe-java` is still a dead dependency.** Unlike
    `spring-cloud-starter-loadbalancer`, `spring-cloud-starter-openfeign`, and
    `resilience4j-retry` — all now exercised by `OrderServiceClient` and its circuit
@@ -317,10 +331,9 @@ To run: `mvn -pl payment-service test` (17 tests, all in `PaymentServiceImplTest
 10. **No auth/authorization in this module.** See Security section — any direct caller that
     can reach `payment-service:8080` (bypassing the gateway) can process, view, or refund any
     payment for any order/buyer with no credential check.
-11. **Integration-test path still exercises nothing.** `BaseIntegrationTest.java` is abstract
-    and unused by any concrete test class, so the Testcontainers-based integration path
-    documented in the root `CLAUDE.md` runs nothing for this module. Unit coverage of
-    `processPayment` exists instead via `PaymentServiceImplTest` (see Tests section).
+11. ~~**Integration-test path still exercises nothing.**~~ — fixed (GH #45).
+    `PaymentServiceIntegrationTest` now extends `BaseIntegrationTest` and exercises
+    `PaymentService` against a real Postgres Testcontainer (see Tests section).
 12. **Misleading Dockerfile comment.** `Dockerfile:34` claims the port is dynamically
     assigned via `server.port=0`, which is only true for the `test` profile; the image's
     actual runtime config (`application.yml`) fixes `server.port: 8080`.
