@@ -2,6 +2,8 @@ package com.kawashreh.ecommerce.user_service;
 
 import com.kawashreh.ecommerce.common.exceptions.NoSuchElementException;
 import com.kawashreh.ecommerce.user_service.constants.CacheConstants;
+import com.kawashreh.ecommerce.user_service.dataAccess.entity.AccountEntity;
+import com.kawashreh.ecommerce.user_service.dataAccess.repository.AccountRepository;
 import com.kawashreh.ecommerce.user_service.dataAccess.repository.UserRepository;
 import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
@@ -27,6 +29,9 @@ class UserServiceImplIntegrationTest extends BaseIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private AccountRepository accountRepository;
 
     @Autowired
     private CacheManager cacheManager;
@@ -86,5 +91,30 @@ class UserServiceImplIntegrationTest extends BaseIntegrationTest {
         userService.delete(nonExistentId, nonExistentId);
 
         assertThat(userRepository.findById(nonExistentId)).isEmpty();
+    }
+
+    // Regression test for GH #33 (paired with GH #32): login() never checked
+    // Account.isArchived(), so a banned/archived account could still authenticate
+    // as long as the password matched.
+    @Test
+    void login_shouldFail_whenAccountIsArchived() {
+        UserResponse created = createUser();
+
+        AccountEntity account = accountRepository.findByUserId(created.getId()).orElseThrow();
+        account.setArchived(true);
+        accountRepository.save(account);
+
+        String token = userService.login(created.getUsername(), "Password123!");
+
+        assertThat(token).isNull();
+    }
+
+    @Test
+    void login_shouldSucceed_whenAccountIsNotArchived() {
+        UserResponse created = createUser();
+
+        String token = userService.login(created.getUsername(), "Password123!");
+
+        assertThat(token).isNotNull();
     }
 }

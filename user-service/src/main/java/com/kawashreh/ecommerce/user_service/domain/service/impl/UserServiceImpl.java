@@ -180,6 +180,18 @@ public class UserServiceImpl implements UserService {
             return null;
         }
 
+        // GH #33: reject archived (banned/deleted) accounts even with a correct password.
+        // Scoped to `archived` specifically rather than the full Account.canLogin()
+        // (activated && !archived && emailVerified): nothing in this codebase ever sets
+        // `activated`/`emailVerified` true (registration has no activation or email-
+        // verification step), so enforcing the full predicate here would reject every
+        // account, including ones just registered - a much larger behavior change than
+        // this issue describes. Archived is the one flag with a real, working lifecycle
+        // (see GH #32's AccountMapper fix), so it's the one enforced here.
+        if (account.isArchived()) {
+            return null;
+        }
+
         String role = user.getRole() != null ? user.getRole().getName() : null;
         return jwtService.generateToken(user.getId(), user.getUsername(), role);
     }

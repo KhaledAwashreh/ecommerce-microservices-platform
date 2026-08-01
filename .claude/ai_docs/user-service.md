@@ -240,10 +240,18 @@ for up to 10 minutes after a profile edit or password change.
   `GlobalExceptionHandler` maps to **404 Not Found** — not 403 Forbidden. Not
   necessarily wrong (avoids confirming a resource's existence to a non-owner) but
   conflates "not found" and "not yours" under one status/exception type.
-- `login()` does not check `Account.canLogin()` (`activated && !archived && emailVerified`)
-  — an unactivated, unverified, or archived account can still authenticate successfully
-  as long as the password matches. `Account.activate()`/`canLogin()` exist but are never
-  invoked anywhere in `src/main`.
+- **(Fixed for GH #32/#33)** `AccountMapper` now maps `archived` in both directions, and
+  `login()` (`domain/service/impl/UserServiceImpl.java`) now rejects an archived account
+  after a correct password check, returning `null` (→ 404 "Invalid username or password"
+  via `UserController.login`), same as a wrong password. This is intentionally scoped to
+  `archived` only, not the full `Account.canLogin()` predicate
+  (`activated && !archived && emailVerified`): nothing in this codebase ever sets
+  `activated`/`emailVerified` true (there is no activation or email-verification flow,
+  and `Account.activate()` still has zero callers), so enforcing the full predicate would
+  reject every account, including ones freshly registered — a far larger behavior change
+  than either issue asked for. `Account.canLogin()` remains defined but effectively only
+  half-wired; fully honoring it is a follow-up that needs a registration/verification flow
+  decision, not something this fix invented on its own.
 
 ## Tests
 
@@ -294,10 +302,12 @@ for up to 10 minutes after a profile edit or password change.
    gateway. There is no defense-in-depth if that assumption is ever violated (e.g. a
    misconfigured route, a compromised gateway, or direct pod-to-pod access inside the
    cluster). **Severity: high** (design-level, not a code bug per se).
-6. **`login()` ignores account activation/verification state** — `domain/service/impl/UserServiceImpl.java:158-180`.
-   `Account.canLogin()` (`activated && !archived && emailVerified`) is defined but never
-   called; a correct password alone is sufficient to receive a token regardless of
-   account status. **Severity: medium.**
+6. **(Fixed for GH #33) `login()` now rejects archived accounts.** `Account.canLogin()`
+   (`activated && !archived && emailVerified`) is still defined but only its `archived`
+   half is enforced in `login()` — see the Security section note above for why the
+   `activated`/`emailVerified` portion is deliberately not (yet) enforced. **Severity now:
+   low** (remaining gap is `activated`/`emailVerified` not being enforceable without a
+   registration/verification flow that doesn't exist yet).
 7. **Insecure Jackson default typing in Redis cache serializer** — `infrastructure/cache/CacheConfig.java:34-40`.
    `activateDefaultTyping(BasicPolymorphicTypeValidator.builder().allowIfBaseType(Object.class).build(), NON_FINAL, PROPERTY)`
    embeds `@class` type info in every cached JSON value and allows deserialization of
@@ -306,11 +316,11 @@ for up to 10 minutes after a profile edit or password change.
    polymorphic-deserialization gadget-chain risk. **Severity: medium** (requires a
    secondary Redis-write vector to exploit, but the validator itself provides no
    meaningful restriction).
-8. **`AccountMapper` never maps the `archived` field** — `dataAccess/mapper/AccountMapper.java`.
-   `Account.archived`/`AccountEntity.archived` exist on both sides but neither
-   `toEntity` nor `toDomain` sets it — `archived` is silently always `false` after any
-   round-trip through this mapper, even if the DB row has `archived = true`.
-   **Severity: medium.**
+8. **(Fixed for GH #32) `AccountMapper` now maps the `archived` field** —
+   `dataAccess/mapper/AccountMapper.java`. Previously neither `toEntity` nor `toDomain`
+   set it, so `archived` was silently always `false` after any round-trip through this
+   mapper even if the DB row had `archived = true`; this is what let `login()`'s new
+   archived check (GH #33) actually work end-to-end.
 9. **Stale caches on profile update/password change** — `UserServiceImpl.update()`
    (`domain/service/impl/UserServiceImpl.java:182-204`) and `.changePassword()`
    (`:221-254`) don't evict `usersById` or `userByUsername`. A `find`/`findByUsername`
