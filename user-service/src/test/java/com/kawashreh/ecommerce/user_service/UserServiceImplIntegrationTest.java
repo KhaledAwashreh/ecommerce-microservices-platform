@@ -1,6 +1,6 @@
 package com.kawashreh.ecommerce.user_service;
 
-import com.kawashreh.ecommerce.common.exceptions.NoSuchElementException;
+import com.kawashreh.ecommerce.common.exceptions.ForbiddenException;
 import com.kawashreh.ecommerce.user_service.constants.CacheConstants;
 import com.kawashreh.ecommerce.user_service.dataAccess.entity.AccountEntity;
 import com.kawashreh.ecommerce.user_service.dataAccess.repository.AccountRepository;
@@ -9,6 +9,7 @@ import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
 import com.kawashreh.ecommerce.user_service.domain.service.dto.UserCreateRequest;
 import com.kawashreh.ecommerce.user_service.domain.service.dto.UserResponse;
+import com.kawashreh.ecommerce.user_service.domain.service.dto.UserUpdateRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.Cache;
@@ -73,15 +74,33 @@ class UserServiceImplIntegrationTest extends BaseIntegrationTest {
         assertThat(userByUsernameCache.get(created.getUsername())).isNull();
     }
 
+    // Regression test for GH #37: ownership-check failures used to throw
+    // common.exceptions.NoSuchElementException (mapped to 404), conflating "not found"
+    // with "not yours" (a 403-shaped condition). Now throws ForbiddenException.
     @Test
-    void delete_shouldThrowAndNotDelete_whenRequestingUserIsNotOwner() {
+    void delete_shouldThrowForbiddenAndNotDelete_whenRequestingUserIsNotOwner() {
         UserResponse created = createUser();
         UUID otherUserId = UUID.randomUUID();
 
         assertThatThrownBy(() -> userService.delete(created.getId(), otherUserId))
-                .isInstanceOf(NoSuchElementException.class);
+                .isInstanceOf(ForbiddenException.class);
 
         assertThat(userRepository.findById(created.getId())).isPresent();
+    }
+
+    @Test
+    void update_shouldThrowForbidden_whenRequestingUserIsNotOwner() {
+        UserResponse created = createUser();
+        UUID otherUserId = UUID.randomUUID();
+
+        UserUpdateRequest request = UserUpdateRequest.builder()
+                .id(created.getId())
+                .requestingUserId(otherUserId)
+                .name("Someone Else")
+                .build();
+
+        assertThatThrownBy(() -> userService.update(created.getId(), request))
+                .isInstanceOf(ForbiddenException.class);
     }
 
     @Test

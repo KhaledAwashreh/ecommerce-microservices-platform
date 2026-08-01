@@ -1,6 +1,6 @@
 package com.kawashreh.ecommerce.user_service.application.controller;
 
-import com.kawashreh.ecommerce.common.exceptions.NoSuchElementException;
+import com.kawashreh.ecommerce.common.exceptions.UnauthorizedException;
 import com.kawashreh.ecommerce.user_service.application.dto.UserDto;
 import com.kawashreh.ecommerce.user_service.application.dto.UserRegisterDto;
 import com.kawashreh.ecommerce.user_service.application.dto.UserUpdateRequest;
@@ -67,7 +67,7 @@ public class UserController {
     public ResponseEntity<String> login(@RequestBody com.kawashreh.ecommerce.user_service.application.dto.UserLoginDto userDto) {
         String token = service.login(userDto.getUsername(), userDto.getPassword());
         if (token == null) {
-            throw new NoSuchElementException("Invalid username or password");
+            throw new UnauthorizedException("Invalid username or password");
         }
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(token);
     }

@@ -1,5 +1,6 @@
 package com.kawashreh.ecommerce.user_service.domain.service.impl;
 
+import com.kawashreh.ecommerce.common.exceptions.ForbiddenException;
 import com.kawashreh.ecommerce.common.exceptions.NoSuchElementException;
 import com.kawashreh.ecommerce.user_service.constants.CacheConstants;
 import com.kawashreh.ecommerce.user_service.dataAccess.entity.AddressEntity;
@@ -83,7 +84,7 @@ public class AddressServiceImpl implements AddressService {
         // TODO (investigate SpEL): Replace manual ownership check with
         //   @PreAuthorize SpEL once security context is available at service layer.
         if (!entity.getUser().getId().equals(requestingUserId)) {
-            throw new NoSuchElementException("You can only delete your own addresses");
+            throw new ForbiddenException("You can only delete your own addresses");
         }
 
         repository.deleteById(id);
@@ -100,7 +101,7 @@ public class AddressServiceImpl implements AddressService {
         }
 
         if (!entity.getUser().getId().equals(request.getRequestingUserId())) {
-            throw new NoSuchElementException("You can only edit your own addresses");
+            throw new ForbiddenException("You can only edit your own addresses");
         }
 
         if (request.getStreet() != null) entity.setStreet(request.getStreet());

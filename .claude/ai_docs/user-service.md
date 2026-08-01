@@ -122,9 +122,9 @@ only `spring-security-crypto` for Argon2).
 | GET | `?username=` | query `username` | `UserDto` or empty body | 200 / 404 | None. |
 | GET | `/search?q=` | query `q` (optional) | `List<UserDto>` | 200 | None. |
 | POST | `/register` | body `UserRegisterDto` (**not** `@Valid`) | `UserDto` | 201 | None — public registration. |
-| POST | `/login` | body `UserLoginDto` | JWT string (`Content-Type` not JSON, `String` body) | 202 on success / throws `NoSuchElementException` → 404 on bad credentials | None (public). |
-| PUT | `/{userId}` | body `UserUpdateRequest` (**not** `@Valid`), header `X-User-ID: UUID` (required) | `UserDto` or empty body | 200 / 404 | Manual check in `UserServiceImpl.update`: `X-User-ID` must equal path `{userId}` or throws `NoSuchElementException` (→ 404, not 403). |
-| DELETE | `/{userId}` | header `X-User-ID: UUID` (required) | — | 204 | Same manual self-only check in `UserServiceImpl.delete`. |
+| POST | `/login` | body `UserLoginDto` | JWT string (`Content-Type` not JSON, `String` body) | 202 on success / throws `UnauthorizedException` → **401** on bad credentials (fixed for GH #37; was `NoSuchElementException` → 404) | None (public). |
+| PUT | `/{userId}` | body `UserUpdateRequest` (**not** `@Valid`), header `X-User-ID: UUID` (required) | `UserDto` or empty body | 200 / 404 (user truly doesn't exist) / **403** (fixed for GH #37; was 404) | Manual check in `UserServiceImpl.update`: `X-User-ID` must equal path `{userId}` or throws `ForbiddenException` (→ 403). |
+| DELETE | `/{userId}` | header `X-User-ID: UUID` (required) | — | 204 / **403** (fixed for GH #37; was 404) | Same manual self-only check in `UserServiceImpl.delete`, now throws `ForbiddenException`. |
 
 Note: `login` returns HTTP 202 Accepted for a successful login, not 200 — unusual choice,
 kept as-is since it is deliberate code, not a typo of e.g. 200/201.
@@ -137,8 +137,8 @@ kept as-is since it is deliberate code, not a typo of e.g. 200/201.
 | GET | `/{addressId}` | path `addressId` | `CreateAddressResponse` or empty | 200 / 404 | None. |
 | GET | `/search` | query `userId` (optional), `q` (optional) | `List<CreateAddressResponse>` | 200 | None. |
 | POST | `` | body `CreateAddressRequest` (`@Valid`), header `X-User-ID: UUID` (required) | `CreateAddressResponse` | 201 | Address is created under the `X-User-ID` supplied by caller — no check that this equals any authenticated identity beyond gateway trust. |
-| PUT | `/{addressId}` | body `AddressUpdateRequest` (`@Valid`), header `X-User-ID` (required) | `CreateAddressResponse` or empty | 200 / 404 | Manual check in `AddressServiceImpl.update`: address's owning user must equal `X-User-ID`, else `NoSuchElementException` (→404). |
-| DELETE | `/{addressId}` | header `X-User-ID` (required) | — | **200** (`ResponseEntity.ok().build()`, not 204) | Same manual ownership check in `AddressServiceImpl.delete`. |
+| PUT | `/{addressId}` | body `AddressUpdateRequest` (`@Valid`), header `X-User-ID` (required) | `CreateAddressResponse` or empty | 200 / 404 (address truly doesn't exist) / **403** (fixed for GH #37; was 404) | Manual check in `AddressServiceImpl.update`: address's owning user must equal `X-User-ID`, else `ForbiddenException` (→403). |
+| DELETE | `/{addressId}` | header `X-User-ID` (required) | — | **200** (`ResponseEntity.ok().build()`, not 204) / **403** (fixed for GH #37; was 404) | Same manual ownership check in `AddressServiceImpl.delete`, now throws `ForbiddenException`. |
 
 ### RoleController (`/api/v1/roles`)
 
@@ -236,13 +236,23 @@ for up to 10 minutes after a profile edit or password change.
   the service layer (`domain/service/UserService.java:11-13`,
   `domain/service/AddressService.java:11-13`) — i.e. the current state is acknowledged
   as a stopgap in the code itself.
-- Failed ownership checks throw `common`'s `NoSuchElementException`, which
-  `GlobalExceptionHandler` maps to **404 Not Found** — not 403 Forbidden. Not
-  necessarily wrong (avoids confirming a resource's existence to a non-owner) but
-  conflates "not found" and "not yours" under one status/exception type.
+- **(Fixed for GH #37)** Failed ownership checks now throw `common`'s new
+  `ForbiddenException`, which `GlobalExceptionHandler` maps to **403 Forbidden** — not
+  404 Not Found. Previously both this case and a genuine "resource doesn't exist" case
+  threw `common`'s `NoSuchElementException` (→ 404), making the two indistinguishable
+  from the caller's side and from the code (an accident, not a deliberate "don't confirm
+  existence to a non-owner" design choice — nothing in the code or docs said otherwise).
+  A real "not found" (e.g. `GET /{userId}` for a nonexistent user, or
+  `AddressServiceImpl.create` for a nonexistent user) still throws/returns 404 as before;
+  only the ownership-mismatch branches changed. Login failure is a third, separate case:
+  `UserController.login` now throws `common`'s new `UnauthorizedException` (→ **401**),
+  not `NoSuchElementException`/404 — a wrong password was never a "not found" or
+  "forbidden" condition. See `exception/GlobalExceptionHandlerTest.java` for the status
+  mapping and `UserServiceImplIntegrationTest`/`AddressServiceImplIntegrationTest`/
+  `UserControllerTest` for the three call sites.
 - **(Fixed for GH #32/#33)** `AccountMapper` now maps `archived` in both directions, and
   `login()` (`domain/service/impl/UserServiceImpl.java`) now rejects an archived account
-  after a correct password check, returning `null` (→ 404 "Invalid username or password"
+  after a correct password check, returning `null` (→ 401 "Invalid username or password"
   via `UserController.login`), same as a wrong password. This is intentionally scoped to
   `archived` only, not the full `Account.canLogin()` predicate
   (`activated && !archived && emailVerified`): nothing in this codebase ever sets
