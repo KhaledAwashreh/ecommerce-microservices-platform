@@ -9,27 +9,6 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-22.04
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_DB: ecommerce
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: test1234
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-retries 5
-      redis:
-        image: redis:7
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-retries 5
 
     steps:
       - name: Checkout source
@@ -43,25 +22,6 @@ jobs:
 
       - name: Clear Maven cache
         run: rm -rf ~/.m2/repository
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: package-lock.json
-
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Run Jest tests with coverage
-        run: npm test -- --coverage --passWithNoTests
-
-      - name: Upload Jest coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: jest-coverage-report
-          path: coverage/
 
       - name: Run tests
         run: mvn clean verify

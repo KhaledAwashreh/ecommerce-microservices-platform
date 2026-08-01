@@ -23,6 +23,23 @@ spec:
           limits:
             cpu: "1"
             memory: "1Gi"
+        startupProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          failureThreshold: 30
+          periodSeconds: 5
+        livenessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
         ports:
         - containerPort: 6379
         volumeMounts:

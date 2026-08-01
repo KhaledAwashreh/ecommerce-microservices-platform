@@ -10,6 +10,13 @@ spring:
       discovery:
         locator:
           enabled: false
+      default-filters:
+        - name: RequestRateLimiter
+          args:
+            redis-rate-limiter.replenishRate: 20
+            redis-rate-limiter.burstCapacity: 40
+            redis-rate-limiter.requestedTokens: 1
+            key-resolver: "#{@ipKeyResolver}"
       routes:
         - id: httpbin
           uri: http://httpbin.org:80
@@ -122,6 +129,12 @@ jwt:
   # committed value. Must match user-service's jwt.secret (same signing key, HS256).
   secret: ${JWT_SECRET}
 
+# Origins allowed to make cross-origin browser requests through the gateway.
+# Comma-separated. Defaults to the local frontend-service dev port; override
+# per environment via CORS_ALLOWED_ORIGINS.
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
 server:
   port: 8765
 
@@ -129,6 +142,15 @@ management:
   zipkin:
     tracing:
       endpoint: ${ZIPKIN_BASE_URL:http://zipkin:9411}/api/v2/spans
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
 
 
 resilience4j:
