@@ -247,24 +247,12 @@ reference — it is not created by any workflow or manifest in this repo.
   manifests. Also builds with `context: ./$svc` (module-relative), which — per the Dockerfile
   analysis above — will fail on the `COPY api-gateway/pom.xml ...` step for every module
   except a hypothetical service with no sibling-module dependencies.
-- **`start.makefile`** — present at repo root, **not** wired to any `make` invocation
-  documented elsewhere (root `CLAUDE.md` does not mention it), and broken as written:
-  - Target syntax is missing colons throughout (`start-config` instead of `start-config:`,
-    `start-eureka start-config` instead of `start-eureka: start-config`, etc. — lines 10, 16,
-    22, 27, 31) — this is not valid Makefile syntax; `make` would fail to parse targets with
-    prerequisites this way.
-  - References `CONFIG_SERVICE_DIR=.config-service`, `EUREKA_SERVICE_DIR=.naming-server`,
-    `API_GATEWAY_DIR=.api-gateway` (`start.makefile:2-4`) — none of these directories exist
-    anywhere in the repository (the actual gateway module is `api-gateway/`, not
-    `.api-gateway`, and there is no config-service or naming-server module at all, consistent
-    with there being no Eureka/Config Server anywhere else in the codebase).
-  - `MVN = mvn spring-bootrun` (`start.makefile:7`) — the actual Maven Spring Boot goal is
-    `spring-boot:run`, not `spring-bootrun`; as written this is not a valid Maven goal.
-  - The final `.PHONY` line is also missing its colon (`.PHONY start-config ...` instead of
-    `.PHONY: start-config ...`, line 35).
-  - Net effect: `start.makefile` cannot run as-is against this repository under any
-    interpretation — wrong syntax, wrong module directories, wrong Maven goal, for services
-    (Config Server, Eureka) that do not exist in this codebase.
+- **`start.makefile`** — removed (issue #48). It was not wired to any `make` invocation
+  documented elsewhere, had invalid Makefile syntax (missing colons on target lines), and
+  referenced a Config Server + Eureka topology (`.config-service`, `.naming-server` module
+  directories that never existed in this repo) this project does not use — it uses
+  Kubernetes DNS for discovery. `start.sh` and the compose files are the only supported
+  local-startup paths.
 - `docker-compose -f docker-compose.dev.yml up -d` / `down` — the docker-based path documented
   in root `CLAUDE.md`, and the one `start.sh`/`stop.sh` wrap.
 - Maven: `mvn clean install` (full reactor), `mvn -pl <module> [-am] test`, `mvn clean verify`
