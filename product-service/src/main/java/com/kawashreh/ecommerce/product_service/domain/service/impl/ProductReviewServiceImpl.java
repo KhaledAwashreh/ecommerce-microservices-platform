@@ -7,6 +7,7 @@ import com.kawashreh.ecommerce.product_service.dataAccess.entity.ProductReviewEn
 import com.kawashreh.ecommerce.product_service.domain.model.Product;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductReview;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductReviewService;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +34,7 @@ public class ProductReviewServiceImpl implements ProductReviewService {
         return repository.findById(id).map(ProductReviewMapper::toDomain).orElse(null);
     }
 
+    @CacheEvict(value = CacheConstants.PRODUCT_REVIEW_BY_PRODUCT_ID, allEntries = true)
     @Override
     public ProductReview save(ProductReview productReview, Product product) {
 
@@ -44,11 +46,13 @@ public class ProductReviewServiceImpl implements ProductReviewService {
         return null;
     }
 
+    @CacheEvict(value = CacheConstants.PRODUCT_REVIEW_BY_PRODUCT_ID, allEntries = true)
     @Override
     public void update(ProductReview productReview) {
         repository.save(ProductReviewMapper.toEntity(productReview));
     }
 
+    @CacheEvict(value = CacheConstants.PRODUCT_REVIEW_BY_PRODUCT_ID, allEntries = true)
     @Override
     public void delete(UUID id) {
         repository.deleteById(id);

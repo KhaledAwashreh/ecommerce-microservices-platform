@@ -77,10 +77,11 @@ collides in meaning (not in name) with the misspelled `categry` table.
   code despite the directory being capitalized `Dao`):
   - `ProductRepository` — plain `JpaRepository`, no custom queries.
   - `CategoryRepository` — adds `findByName(String)`.
-  - `ProductVariationRepository` — `findByProductId` (List and Page overloads —
-    the `Page` overload is never called, see Gotchas), `deleteByProductId`, `countByProductId`.
-  - `ProductReviewRepository` — `findByProductId` (List and Page overloads, Page overload
-    unused), `findByUserId`, `countByProductId`.
+  - `ProductVariationRepository` — `findByProductId` (List), `deleteByProductId`,
+    `countByProductId`. (A never-called `Page` overload was removed — issue #51, see
+    Gotchas.)
+  - `ProductReviewRepository` — `findByProductId` (List), `findByUserId`,
+    `countByProductId`. (Same dead `Page` overload removed here too.)
   - `InventoryRepository` — `findByProductVariationId`,
     `findByProductVariationIdWithLock` (`@Lock(PESSIMISTIC_WRITE)`), and two `@Modifying`
     JPQL bulk updates: `deductQuantity` (conditional `WHERE ... quantity >= :quantity`,
@@ -195,16 +196,17 @@ segment keeps Spring's route matching unambiguous.
 | `spring.data.redis.host/port` | `application.yml` | `localhost`/`6379` | Env vars `SPRING_DATA_REDIS_HOST`/`SPRING_DATA_REDIS_PORT`. `application-local.yml` hardcodes host `redis` (Docker Compose service name) even though it's meant for "running from IDE without Docker" per its own header comment — inconsistent with its stated purpose. |
 | `server.port` | `application.yml` | `8080` | `application-ide.yml` sets `8082`. Test profile (`application-test.yml`) uses `0` (random port). Dockerfile comment claims "Port is dynamically assigned (server.port=0 in application.properties)" — false for the shipped `application.yml`/Docker profile, only true under the `test` profile; see Gotchas. |
 | `spring.cloud.openfeign.client.config.user-service.url` | `application.yml` | `${GATEWAY_URL:http://api-gateway:8765}` | Points Feign at the gateway, not directly at user-service, matching repo convention. |
-| `spring.cloud.config.enabled` / `discovery.enabled` | `application.yml` | `false` | Config server / discovery client disabled even though `bootstrap.properties` configures a `config-server` and Eureka `naming-server` — see Gotchas (vestigial bootstrap file). |
+| `spring.cloud.config.enabled` / `discovery.enabled` | `application.yml` | `false` | Config server / discovery client disabled; this project uses Kubernetes DNS, not Eureka/Config Server (the module's `bootstrap.properties` configured both and was removed as dead config — issue #50). |
 | `management.zipkin.tracing.endpoint` | `application.yml` | `${ZIPKIN_BASE_URL:http://zipkin:9411}/api/v2/spans` | `management.tracing.sampling.probability` = `1.0` (trace everything). |
 | `management.endpoints.web.exposure.include` | `application.yml` | `health,info,metrics,prometheus` | No auth restricting actuator endpoints within this module. |
 
 Profiles present: default (`application.yml`), `local` (`application-local.yml`, IDE-without-Docker),
 `ide` (`application-ide.yml`, product-service in IDE / rest in Docker), `test`
 (`src/test/resources/application-test.yml`, used by `@ActiveProfiles("test")` but largely
-superseded by Testcontainers dynamic properties in `BaseIntegrationTest`). `bootstrap.properties`
-configures Spring Cloud Config + Eureka but `spring.cloud.config.enabled=false` in
-`application.yml` means this bootstrap wiring is effectively inert.
+superseded by Testcontainers dynamic properties in `BaseIntegrationTest`). The module
+previously had a `bootstrap.properties` configuring Spring Cloud Config + Eureka; it was
+removed (issue #50) since `spring.cloud.config.enabled=false` in `application.yml` made it
+inert.
 
 ## Caching
 
@@ -311,22 +313,21 @@ which is very permissive (allows any base type).
    scalar/FK fields, not the `attributes` (miswired join column, Gotcha #10) or `attachments`
    (backed by the dead `Attachment` entity, Gotcha #12) collections, both of which were
    already-flagged issues independent of this fix.
-7. **Medium — stale cache on review writes.** `ProductReviewServiceImpl.save` (used via
-   `ReviewApplicationService.createReview`), `update`, and `delete` never evict
-   `CacheConstants.PRODUCT_REVIEW_BY_PRODUCT_ID`, so `findByProductId` (cached, 10 min TTL)
-   goes stale after any write. `PRODUCT_REVIEW_BY_USER_ID` is declared in `CacheConstants`
-   but not referenced by any `@Cacheable`/`@CacheEvict` anywhere — dead constant.
-8. **Medium — `ProductServiceImpl.save` (create) never evicts `product_by_id`.** Only
-   `update`/`delete` evict (`allEntries = true`). Combined with `@Cacheable` caching by id
-   and Spring's default of caching `null` results, a `find(id)` miss followed by a `save`
-   using that same id (unusual, since ids are DB-generated, but possible if a caller
-   supplies an id in the DTO) would leave a stale `null` cached.
-9. **Medium — inconsistent/dead JPQL repository methods.** `ProductVariationRepository`
-   and `ProductReviewRepository` each declare a `Page<...> findByProductId(UUID, Pageable)`
-   overload that is never called from any service or controller — no pagination is
-   actually exposed over HTTP anywhere in this module, and there is no search/filter
-   functionality (by name, category, price, etc.) despite `Product`/`ProductVariation`
-   having natural search fields.
+7. ~~Medium — stale cache on review writes.~~ Fixed (issue #35). `ProductReviewServiceImpl.save`
+   (used via `ReviewApplicationService.createReview`), `update`, and `delete` now all evict
+   `CacheConstants.PRODUCT_REVIEW_BY_PRODUCT_ID` (`allEntries = true`).
+   ~~`PRODUCT_REVIEW_BY_USER_ID`~~ was declared in `CacheConstants` but never referenced by
+   any `@Cacheable`/`@CacheEvict` — removed as a dead constant (issue #35/#51).
+8. ~~Medium — `ProductServiceImpl.save` (create) never evicts `product_by_id`.~~ Fixed
+   (issue #35) — `save` now evicts `product_by_id` (`allEntries = true`), same as
+   `update`/`delete`.
+9. ~~Medium — inconsistent/dead JPQL repository methods.~~ Fixed (issue #51).
+   `ProductVariationRepository` and `ProductReviewRepository` each declared a
+   `Page<...> findByProductId(UUID, Pageable)` overload that was never called from any
+   service or controller — no pagination is actually exposed over HTTP anywhere in this
+   module. Both dead overloads were removed. (There is still no search/filter
+   functionality — by name, category, price, etc. — despite `Product`/`ProductVariation`
+   having natural search fields; that part of the observation still stands.)
 10. **Medium — miswired `@OneToMany` join column.** `ProductVariationEntity.java:58-60`:
     `attributes` is mapped `@OneToMany @JoinColumn(name = "category_id", nullable = false)`
     against `AttributeEntity` — `category_id` is a copy-paste leftover (there is no
@@ -381,12 +382,12 @@ which is very permissive (allows any base type).
     `src/main/resources/application.yml` sets `server.port: 8080`; `server.port: 0` only
     appears in the test profile (`src/test/resources/application-test.yml`), which the
     Docker image never uses.
-20. **Low — vestigial Spring Cloud Config/Eureka bootstrap.** `bootstrap.properties`
-    configures `spring.cloud.config.*` and `eureka.client.serviceUrl.defaultZone` pointing
-    at a `config-server`/`naming-server` that do not otherwise appear wired into this
-    module's active configuration (`application.yml` sets
-    `spring.cloud.config.enabled=false` and `discovery.enabled=false`), so this file is
-    effectively dead configuration carried over from an earlier architecture.
+20. ~~Low — vestigial Spring Cloud Config/Eureka bootstrap.~~ Removed (issue #50).
+    `bootstrap.properties` configured `spring.cloud.config.*` and
+    `eureka.client.serviceUrl.defaultZone` pointing at a `config-server`/`naming-server`
+    that never existed in this repo (`application.yml` set
+    `spring.cloud.config.enabled=false` and `discovery.enabled=false`, making it dead
+    configuration carried over from an earlier architecture).
 21. **Naming deviations (intentional, not to be "fixed"):** package `infastructure/`
     (misspelled, should be `infrastructure/`) and `dataAccess/Dao/` (capital `D`) — called
     out in the root `CLAUDE.md` as known, deliberate deviations from the four-layer

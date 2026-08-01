@@ -47,12 +47,11 @@ com.kawashreh.ecommerce.user_service
 │   ├── mapper/                          UserMapper, AccountMapper, AddressMapper, RoleMapper (entity <-> domain model)
 │   └── repository/                      Spring Data JPA repositories
 ├── domain/
-│   ├── enums/                           AccountStatus, AccountType, Gender, UserRole (unused)
+│   ├── enums/                           AccountStatus, AccountType, Gender, UserRole (used by RoleController.isAdmin — see below)
 │   ├── model/                           User, Account, Address, Role (plain POJOs, business methods)
 │   └── service/ + service.impl/         UserService, AddressService, RoleService + impls; service/dto holds the internal request/response shapes
 ├── exception/
-│   ├── GlobalExceptionHandler.java      @RestControllerAdvice
-│   └── MethodArgumentNotValidException.java   dead: shadows Spring's own class, never thrown/caught
+│   └── GlobalExceptionHandler.java      @RestControllerAdvice
 └── infrastructure/
     ├── cache/CacheConfig.java           RedisCacheManager + RedisTemplate + StringRedisTemplate beans
     └── security/                        JwtService, Argon2PasswordHasher, PasswordConfig, PasswordHasher
@@ -72,9 +71,12 @@ and `RoleController` hardcode `"/api/v1/address"` and `"/api/v1/roles"` directly
 | `Address` | `AddressEntity` (table `Address`) | `AddressMapper` | N:1 to User. `AddressEntity` field is named `DefaultAddress` (capitalized, deviates from `defaultAddress` used everywhere else — Lombok builder method is literally `.DefaultAddress(...)`, see `AddressMapper.java:13`). |
 | `Role` | `RoleEntity` (table `roles`) | `RoleMapper` | `permissions` is a raw `String` (column `jsonb default '[]'`) — no structured type, no validation that it is valid JSON. |
 
-`domain/enums/UserRole` (`ADMIN`/`SELLER`/`CUSTOMER`) is declared but never referenced
-anywhere in `user-service/src/main` or `src/test` — dead code. Role membership is
-actually resolved via `Role.name` string comparison in `User.isAdmin/isCustomer/isSeller`.
+`domain/enums/UserRole` (`ADMIN`/`SELLER`/`CUSTOMER`) is used by
+`RoleController.isAdmin` (`UserRole.ADMIN.name()`, added for the GH #18 admin check — see
+the amendment note at the top of this doc) but nowhere else; `User.isAdmin/isCustomer/isSeller`
+still resolves role membership via `Role.name` string comparison, not this enum. (An
+earlier version of this doc called `UserRole` entirely dead code and issue #51 repeated
+that claim — both are now stale; verify current usage before removing it.)
 
 `User` also carries three `Boolean` fields (`customer`, `seller`, `admin`) annotated
 `@JsonAlias` "for backward compatibility with legacy Redis cache format"
@@ -151,19 +153,25 @@ kept as-is since it is deliberate code, not a typo of e.g. 200/201.
 
 ## Outbound dependencies
 
-None found. `user-service` has `spring-cloud-starter-openfeign` and
-`spring-cloud-starter-loadbalancer` on the classpath (`pom.xml`) but no `@FeignClient`
-interfaces exist anywhere under `src/main` — these dependencies appear to be
-carried but unused in this module (or reserved for a future call-out, e.g. to
-notify another service on registration). No `WebClient`/`RestTemplate` usage either.
+None. `user-service` no longer carries Feign/load-balancer dependencies —
+`spring-cloud-starter-openfeign`, `feign-micrometer`, and `spring-cloud-starter-loadbalancer`
+were removed from `pom.xml` (issue #51): no `@FeignClient` interface ever existed anywhere
+under `src/main`. No `WebClient`/`RestTemplate` usage either. Note: one of the removed
+dependencies (`spring-cloud-starter-loadbalancer` → `spring-cloud-context`) was transitively
+supplying `org.bouncycastle:bcprov-jdk18on`, which `Argon2PasswordEncoder` (see Security)
+needs on the classpath at runtime — removing it without adding `bcprov-jdk18on` directly
+broke password hashing (`NoClassDefFoundError` on `Argon2Parameters$Builder`). `pom.xml` now
+declares `bcprov-jdk18on` explicitly instead of relying on that transitive path.
 
 ## Configuration
 
 Profiles: `application.yml` (default/docker), `application-local.yml`, `application-ide.yml`
 (activated via `spring.profiles.active`, not shown as explicitly set anywhere in this
-module — presumably selected by `SPRING_PROFILES_ACTIVE` env var at deploy time),
-`bootstrap.properties` (Spring Cloud Config / Eureka bootstrap, config import is
-`optional:` so absence doesn't fail startup), and test-only `application-test.yml`.
+module — presumably selected by `SPRING_PROFILES_ACTIVE` env var at deploy time), and
+test-only `application-test.yml`. The module previously had a `bootstrap.properties`
+configuring Spring Cloud Config/Eureka; it was removed (issue #50) since it was inert
+(every YAML profile disables config/discovery) and this project uses Kubernetes DNS,
+not Eureka.
 
 | Property | Default | Source / override |
 |---|---|---|
@@ -175,7 +183,6 @@ module — presumably selected by `SPRING_PROFILES_ACTIVE` env var at deploy tim
 | `management.zipkin.tracing.endpoint` | `http://zipkin:9411/api/v2/spans` | env `ZIPKIN_BASE_URL` (default/local); hardcoded `http://localhost:9411/...` in `application-ide.yml`. |
 | `management.tracing.sampling.probability` | `1.0` | 100% trace sampling — fine for dev, would be expensive in real prod. |
 | `GATEWAY_URL` | `http://localhost:8765` | Only set in `application-ide.yml`; unused elsewhere in this module (no outbound HTTP calls reference it — see Outbound dependencies). |
-| `eureka.client.serviceUrl.defaultZone` | `http://naming-server:8761/eureka` | `bootstrap.properties` — but `spring.cloud.config.enabled: false` and `discovery.enabled: false` are set in every YAML profile, so Eureka/Config-server registration is effectively disabled; `bootstrap.properties` looks vestigial. |
 
 JWT config is **not externalized** — see Security.
 
@@ -358,40 +365,42 @@ for up to 10 minutes after a profile edit or password change.
     handlers for `MissingRequestHeaderException` and
     `MissingServletRequestParameterException` ahead of the catch-all
     `@ExceptionHandler(Exception.class)`, both returning 400 with `common.dto.ErrorResponse`.
-12. **Dead code: `EditAddressRequest` / `EditAddressResponse`** —
-    `application/dto/EditAddressRequest.java`, `EditAddressResponse.java`. Both are
-    empty classes with no fields, never referenced by any controller, mapper, or test
-    (`AddressController` uses `AddressUpdateRequest`/`CreateAddressResponse` instead).
-    **Severity: low.**
-13. **Dead code: `exception.MethodArgumentNotValidException`** —
-    `exception/MethodArgumentNotValidException.java`. A custom exception class that
-    shadows Spring's own `org.springframework.web.bind.MethodArgumentNotValidException`
-    by name; `GlobalExceptionHandler` imports and handles the *Spring* class, not this
-    one, so this custom class is never thrown or caught anywhere. **Severity: low.**
-14. **Dead code: `domain.enums.UserRole`** — `domain/enums/UserRole.java`. Declared,
-    never referenced; actual role checks (`User.isAdmin/isCustomer/isSeller`) compare
-    `role.getName()` strings against `"ADMIN"`/`"SELLER"`/`"CUSTOMER"` literals instead.
-    **Severity: low.**
+12. ~~Dead code: `EditAddressRequest` / `EditAddressResponse`~~ — removed (issue #51).
+    Both were empty classes with no fields, never referenced by any controller, mapper,
+    or test (`AddressController` uses `AddressUpdateRequest`/`CreateAddressResponse`
+    instead).
+13. ~~Dead code: `exception.MethodArgumentNotValidException`~~ — removed (issue #51). A
+    custom exception class that shadowed Spring's own
+    `org.springframework.web.bind.MethodArgumentNotValidException` by name;
+    `GlobalExceptionHandler` imports and handles the *Spring* class, not this one, so
+    this custom class was never thrown or caught anywhere.
+14. **`domain.enums.UserRole` is not dead** — `domain/enums/UserRole.java` is used by
+    `RoleController.isAdmin` (`UserRole.ADMIN.name()`). See the note in Domain model
+    above; a prior version of this doc and issue #51 both called it dead code, but that's
+    stale as of the GH #18 fix. `User.isAdmin/isCustomer/isSeller` still compares
+    `role.getName()` strings against `"ADMIN"`/`"SELLER"`/`"CUSTOMER"` literals instead of
+    this enum, so the two role-check mechanisms remain inconsistent with each other.
 15. **Dead/unused `JwtService` instance methods** — `infrastructure/security/JwtService.java`.
     `extractUsername`, `extractExpiration`, `extractClaim`, `extractAllClaims` are never
     called anywhere in `user-service`; only `generateToken` is used (constructor-injected
     into `UserServiceImpl`, called from `.login`). Token *validation* happens exclusively in
     `api-gateway`'s own filter, which does not call into this class (separate module,
     separate JWT handling code). **Severity: low.**
-16. **Unused Feign/LoadBalancer dependencies** — `pom.xml` declares
+16. ~~Unused Feign/LoadBalancer dependencies~~ — removed (issue #51). `pom.xml` declared
     `spring-cloud-starter-openfeign`, `feign-micrometer`, and
     `spring-cloud-starter-loadbalancer`, but no `@FeignClient` or outbound HTTP client
-    exists anywhere in `src/main`. Either vestigial or reserved for unbuilt
-    functionality. **Severity: low.**
+    existed anywhere in `src/main`. `spring-cloud-starter-loadbalancer` was transitively
+    supplying `bcprov-jdk18on` (BouncyCastle) that `Argon2PasswordEncoder` needs at
+    runtime — `pom.xml` now declares that dependency directly instead (see Outbound
+    dependencies).
 17. **Stale Dockerfile comment** — `Dockerfile:34`: `# Port is dynamically assigned
     (server.port=0 in application.properties)`. The shipped `application.yml` sets
     `server.port: 8080`, not `0`; only the test profile (`application-test.yml`) uses
     `0`. **Severity: low.**
-18. **`bootstrap.properties` looks vestigial** — `spring.cloud.config.discovery.enabled=true`
-    and Eureka `defaultZone` are configured (`bootstrap.properties`), but every YAML
-    profile explicitly sets `spring.cloud.config.enabled: false` and
-    `spring.cloud.config.discovery.enabled: false`, and `spring.config.import` for the
-    config server is `optional:`. Net effect: this file currently does nothing observable.
+18. ~~`bootstrap.properties` looks vestigial~~ — removed (issue #50). It configured
+    `spring.cloud.config.discovery.enabled=true` and an Eureka `defaultZone`, but every
+    YAML profile explicitly set `spring.cloud.config.enabled: false` and
+    `spring.cloud.config.discovery.enabled: false`, so it did nothing observable.
     **Severity: low.**
 19. **`AddressEntity.DefaultAddress` field naming** — `dataAccess/entity/AddressEntity.java:46`.
     Field is `private boolean DefaultAddress` (capitalized), producing a non-conventional

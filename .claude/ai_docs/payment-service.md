@@ -103,8 +103,9 @@ via `Enum.valueOf`.
     **and**, as of issue #11, by `processPayment` as an idempotency fast-path check (before
     the order-service lookup) and again as the fallback lookup after a unique-constraint
     violation on a concurrent insert.
-  - `findByTransactionId(String transactionId): Optional<PaymentEntity>` — declared but never
-    called anywhere in the module (dead code); moot anyway since `transactionId` is never set.
+  - ~~`findByTransactionId(String transactionId)`~~ — was declared but never called
+    anywhere in the module (dead code, moot anyway since `transactionId` is never set);
+    removed (issue #51).
 - **Unique constraint on `order_id`** (issue #11): `PaymentEntity`'s `@Table` declares
   `uniqueConstraints = @UniqueConstraint(name = "uk_payment_order_id", columnNames =
   "order_id")`. Since this module has no Flyway/Liquibase, the constraint is applied the same
@@ -166,10 +167,20 @@ As of issue #10, payment-service has one outbound dependency: `OrderServiceClien
 (`infrastructure/http/client/OrderServiceClient.java`, `@FeignClient(name =
 "order-service")`), which calls `GET {ApiPaths.ORDER_BASE}{ApiPaths.ORDER_BY_ID}` to fetch
 the order and derive the payment amount from its selected items. It is wrapped in a
-Resilience4j circuit breaker and retry (config name `order-service`, `application.yml`) and
-a custom `OrderServiceErrorDecoder`. `com.stripe:stripe-java:24.0.0` remains a declared but
-unused dependency — no reference to the Stripe SDK exists anywhere under `src/main` (see
-Gotchas).
+Resilience4j circuit breaker (config name `order-service`, `application.yml`,
+`spring.cloud.openfeign.circuitbreaker.enabled=true`) and a custom
+`OrderServiceErrorDecoder`. The `resilience4j.retry.instances.order-service` block in the
+same file is likely inert, not actually wrapping this call: nothing in `src/main`
+has a `@Retry` annotation, a manual `RetryRegistry`/`Retry` usage, or a
+`Customizer<Resilience4JCircuitBreakerFactory>` composing retry into the Feign circuit
+breaker pipeline — Spring Cloud's Resilience4j Feign integration only wires
+circuit-breaker(+time-limiter) automatically, not retry. (Not fully verified with a live
+failure-injection test; flagged during issue #51's dependency cleanup, which removed the
+explicit `io.github.resilience4j:resilience4j-retry:2.3.0` pin from `pom.xml` — the retry
+classes remain on the classpath anyway, transitively at 2.2.0 via
+`spring-cloud-starter-circuitbreaker-resilience4j` → `resilience4j-spring-boot3`.)
+`com.stripe:stripe-java:24.0.0` was a declared but unused dependency — no reference to the
+Stripe SDK existed anywhere under `src/main` — and was removed in the same cleanup.
 
 payment-service is itself an inbound dependency of `order-service`
 (`order-service/.../infrastructure/http/client/PaymentClient.java`, `@FeignClient(name =
@@ -276,8 +287,8 @@ To run: `mvn -pl payment-service test` (needs Docker for `PaymentServiceIntegrat
 3. **`transactionId` is never generated.** Neither `PaymentServiceImpl` nor `PaymentMapper`
    ever sets `Payment.transactionId` / `PaymentEntity.transaction_id`. It is always `null` in
    the database and in every `PaymentResponseDto`.
-   `PaymentRepository.findByTransactionId` (`dataAccess/dao/PaymentRepository.java:15`) is
-   therefore permanently dead code — nothing ever populates a value it could look up.
+   ~~`PaymentRepository.findByTransactionId`~~ was permanently dead code for this reason —
+   nothing ever populated a value it could look up — and was removed (issue #51).
 4. **Idempotent on `orderId` — fixed in issue #11.** `PaymentServiceImpl.processPayment` now
    calls `paymentRepository.findByOrderId(orderId)` before doing anything else — before even
    the order-service lookup — and returns the existing payment unchanged if one exists. A
@@ -299,11 +310,12 @@ To run: `mvn -pl payment-service test` (needs Docker for `PaymentServiceIntegrat
    `PaymentController.processPayment` validates with `@Valid`. `amount` is deliberately
    left without a constraint - it's discarded anyway (per item 1 / the comment in
    `PaymentController`), so a negative/malformed value here still can't reach the DB.
-6. **`com.stripe:stripe-java` is still a dead dependency.** Unlike
-   `spring-cloud-starter-loadbalancer`, `spring-cloud-starter-openfeign`, and
-   `resilience4j-retry` — all now exercised by `OrderServiceClient` and its circuit
-   breaker/retry config (`application.yml`, issue #10) — nothing under `src/main` references
-   the Stripe SDK anywhere. It remains declared but unused in `pom.xml`.
+6. ~~`com.stripe:stripe-java` is still a dead dependency.~~ Removed (issue #51) — nothing
+   under `src/main` ever referenced the Stripe SDK. `spring-cloud-starter-loadbalancer` and
+   `spring-cloud-starter-openfeign` are genuinely used by `OrderServiceClient`, so those
+   stayed; the explicit `resilience4j-retry:2.3.0` pin was also removed since nothing
+   annotates a method `@Retry` or otherwise invokes it — see Outbound dependencies for why
+   that removal is low-risk (the classes remain on the classpath transitively regardless).
 7. **Two parallel `PaymentStatus` enums.** `Payment.PaymentStatus`
    (`domain/model/Payment.java:38-45`) and `PaymentEntity.PaymentStatus`
    (`dataAccess/entity/PaymentEntity.java:57-59`) are separately declared with identical

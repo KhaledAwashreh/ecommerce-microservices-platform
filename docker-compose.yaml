@@ -91,7 +91,6 @@ services:
       - PRODUCT_SERVICE_URL=http://product-service:8080
       - ORDER_SERVICE_URL=http://order-service:8080
       - PAYMENT_SERVICE_URL=http://payment-service:8080
-      - EUREKA_CLIENT_ENABLED=false
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set (copy .env.example to .env)}
     depends_on:
       postgres-server:
@@ -117,7 +116,6 @@ services:
       - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD must be set (copy .env.example to .env)}
       - SPRING_DATA_REDIS_HOST=redis-server
       - SPRING_DATA_REDIS_PORT=6379
-      - EUREKA_CLIENT_ENABLED=false
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set (copy .env.example to .env)}
     depends_on:
       postgres-server:
@@ -140,7 +138,6 @@ services:
       - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD must be set (copy .env.example to .env)}
       - SPRING_DATA_REDIS_HOST=redis-server
       - SPRING_DATA_REDIS_PORT=6379
-      - EUREKA_CLIENT_ENABLED=false
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set (copy .env.example to .env)}
     depends_on:
       postgres-server:
@@ -165,7 +162,6 @@ services:
       - SPRING_DATA_REDIS_PORT=6379
       - PRODUCT_SERVICE_URL=http://product-service:8080
       - PAYMENT_SERVICE_URL=http://payment-service:8080
-      - EUREKA_CLIENT_ENABLED=false
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set (copy .env.example to .env)}
     depends_on:
       postgres-server:
@@ -189,7 +185,6 @@ services:
       - SPRING_DATA_REDIS_HOST=redis-server
       - SPRING_DATA_REDIS_PORT=6379
       - ORDER_SERVICE_URL=http://order-service:8080
-      - EUREKA_CLIENT_ENABLED=false
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set (copy .env.example to .env)}
     depends_on:
       postgres-server:
@@ -211,7 +206,6 @@ services:
       - SPRING_PROFILES_ACTIVE=local
       - API_GATEWAY_BASE-URL=http://api-gateway:8765
       - ZIPKIN_BASE_URL=http://zipkin:9411
-      - EUREKA_CLIENT_ENABLED=false
     depends_on:
       api-gateway:
         condition: service_started

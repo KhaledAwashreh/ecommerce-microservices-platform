@@ -53,8 +53,8 @@ order_service/
     ├── cache/CacheConfig.java            RedisCacheManager, RedisTemplate, StringRedisTemplate beans (unused — no @Cacheable anywhere)
     ├── config/FeignClientConfig.java     Feign logger level + productServiceErrorDecoder bean
     └── http/
-        ├── client/                       ProductServiceClient, PaymentClient, UserServiceClient, ProductServiceErrorDecoder
-        └── dto/                          ProductDto, InventoryDto, PaymentDto, UserDto, CategoryDto (Feign response shapes)
+        ├── client/                       ProductServiceClient, PaymentClient, ProductServiceErrorDecoder
+        └── dto/                          ProductDto, InventoryDto, PaymentDto, CategoryDto (Feign response shapes)
 ```
 
 No `dataAccess/dao/` — repositories are plain Spring Data interfaces. Package casing
@@ -119,9 +119,9 @@ to an existing order yet - see Gotcha 12, still unfixed.
 - Repositories (`order-service/src/main/java/.../dataAccess/repository/`):
   - `CartRepository`: `findByUserId`, `findBySessionId`, `findByStatus`, plus JPQL
     `findByUserIdAndStatus` / `findBySessionIdAndStatus`.
-  - `CartItemRepository`: `findByCartId`, `findByIdAndCartId`, `deleteByCartId`, plus JPQL
-    `findByCartIdAndStoreId` / `findByCartIdAndProductId` — **both JPQL finder methods are
-    never called anywhere in the module** (dead queries).
+  - `CartItemRepository`: `findByCartId`, `findByIdAndCartId`, `deleteByCartId`. (Two JPQL
+    finder methods, `findByCartIdAndStoreId` / `findByCartIdAndProductId`, were never called
+    anywhere in the module — removed as dead queries, issue #51.)
   - `OrderRepository`: `findByBuyer`, `findBySeller`, `findByStoreId`, `findByStatus`, plus
     JPQL `findByBuyerAndStoreId` / `findBySellerAndStoreId` / `findByBuyerAndStatus`.
 
@@ -324,16 +324,21 @@ working create path, and the plain one already existed and worked.
 | Client | `@FeignClient` name | Target base path | Used by | Notes |
 |---|---|---|---|---|
 | `ProductServiceClient` | `product-service` | `/api/v1/product`, `/api/v1/inventory` | `OrderServiceImpl` (`retrieveProduct`, `retrieveInventory`, `deductInventory`) | `checkInventoryAvailability` and `restoreInventory` are declared but **never called** anywhere in `src/main`. |
-| `PaymentClient` | `payment-service` | `/api/v1/payment` | **nothing** — not injected/called anywhere in `src/main` | Fully dead client; declared, configured (`application.yml` has a `payment-service` Feign client config block), never used. |
-| `UserServiceClient` | `user-service` | `/api/v1/user/{userId}` | **nothing** — not injected/called anywhere in `src/main` | Fully dead client; same situation as `PaymentClient`. |
+| `PaymentClient` | `payment-service` | `/api/v1/payment` | `OrderServiceImpl.create` (`processPayment`), issue #9 | ~~Was fully dead~~ — now wired: `create()` calls `paymentClient.processPayment` after confirming inventory. A prior version of this doc and issue #51 both called it dead; that's stale as of issue #9. |
 
-- **Target URL resolution**: `application.yml` (base profile) points all three Feign
+`UserServiceClient` (`user-service`, `/api/v1/user/{userId}`) used to be declared here too —
+genuinely dead, never injected or called anywhere in `src/main`, unlike `PaymentClient`.
+Removed along with its Feign client config block and its DTO (issue #51).
+
+- **Target URL resolution**: `application.yml` (base profile) points both remaining Feign
   client names at `${GATEWAY_URL:http://api-gateway:8765}` — i.e. order-service calls
   through the API gateway by default, per the root `CLAUDE.md` convention. The k8s
   `order-configmap.yaml` overrides this per-service to `http://product-service`,
-  `http://user-service`, `http://payment-service` (direct in-cluster DNS, bypassing the
-  gateway) — a real behavioral difference between the Docker Compose/local profile and
-  the Kubernetes deployment, not just a URL substitution.
+  `http://payment-service` (direct in-cluster DNS, bypassing the gateway) — a real
+  behavioral difference between the Docker Compose/local profile and the Kubernetes
+  deployment, not just a URL substitution. (The configmap still has a leftover
+  `user-service` entry, but per issue #52 these embedded ConfigMap `application.yml`
+  blocks aren't actually mounted by any Deployment, so it's inert either way.)
 - **Failure handling**:
   - `spring.cloud.openfeign.circuitbreaker.enabled: true` (`application.yml`) routes Feign
     calls through Resilience4j. This setting previously lived under a top-level `feign:`
@@ -451,8 +456,8 @@ invisible from this module's code).
     `OrderController` (no `@WebMvcTest`/`MockMvc` test exists — no endpoint, path
     variable, or status-code coverage); the compensating-cancel path (no test forces
     `deductInventory` to fail/return `false` to observe the `CANCELLED` transition or the
-    transaction-rollback behavior documented above); `PaymentClient`/`UserServiceClient`
-    (both entirely unused, so untested); Resilience4j circuit-breaker/retry behavior;
+    transaction-rollback behavior documented above); Resilience4j circuit-breaker/retry
+    behavior;
     `ProductServiceErrorDecoder`; caching (none exists to test).
 - `src/test/java/.../domain/service/impl/OrderServiceImplTest.java` — plain
   Mockito unit test (no Docker needed) covering `OrderServiceImpl.create`'s
@@ -506,10 +511,12 @@ invisible from this module's code).
    `CartItemEntity` before attaching the list, mirroring how `OrderServiceImpl.create`
    manually does `item.setOrder(entity)`.
    `order-service/src/main/java/.../dataAccess/mapper/CartMapper.java:10-33`.
-5. **`PaymentClient` and `UserServiceClient` are fully dead code** — declared, configured
-   in `application.yml`'s Feign client config block, but never injected or called by any
-   class in `src/main`. `infrastructure/http/client/PaymentClient.java`,
-   `infrastructure/http/client/UserServiceClient.java`.
+5. ~~`PaymentClient` and `UserServiceClient` are fully dead code~~ — stale/partially
+   fixed. `PaymentClient` is wired into `OrderServiceImpl.create` as of issue #9 (see
+   Outbound dependencies). `UserServiceClient` really was fully dead — declared,
+   configured in `application.yml`'s Feign client config block, never injected or called
+   by any class in `src/main` — and was removed along with that config block and its DTO
+   (issue #51).
 6. **`ProductServiceClient.checkInventoryAvailability` is declared and never called** —
    `validateInventoryAvailability` re-implements the same check manually via
    `retrieveInventory` instead of calling this endpoint.

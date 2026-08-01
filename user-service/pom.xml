@@ -75,18 +75,15 @@
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-crypto</artifactId>
         </dependency>
-		<dependency>
-			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
-		</dependency>
+        <!-- Argon2PasswordEncoder (PasswordConfig) needs a JCE Argon2 implementation at
+             runtime. This used to arrive only transitively via
+             spring-cloud-starter-loadbalancer -> spring-cloud-context; declare it directly
+             now that the unused Feign/load-balancer starters are gone (issue #51). -->
         <dependency>
-            <groupId>io.github.openfeign</groupId>
-            <artifactId>feign-micrometer</artifactId>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>1.78.1</version>
         </dependency>
-		<dependency>
-			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-starter-openfeign</artifactId>
-		</dependency>
         <dependency>
             <groupId>com.kawashreh.ecommerce</groupId>
             <artifactId>common</artifactId>

@@ -15,8 +15,8 @@ service exclusively through the API gateway (`api.gateway.base-url`, default
 `http://localhost:8765`), never directly. Despite the module's own Javadoc comments
 claiming "Feign client... Uses Kubernetes DNS for service discovery" (see Gotchas), all
 outbound calls are Spring Cloud OpenFeign clients pointed at gateway URLs — **not**
-`WebClient`, contrary to what `WebClientConfig` and the root `CLAUDE.md` suggest (see
-Gotchas).
+`WebClient`. A dead `WebClientConfig` bean that contradicted this (unused anywhere in the
+module) was removed — issue #51.
 
 ## Package layout
 
@@ -31,12 +31,10 @@ frontend-service/src/main/java/com/kawashreh/ecommerce/frontend/
 │   ├── OrderServiceClient.java     # -> ${gateway}/api/v1/orders (order-service)
 │   ├── PaymentServiceClient.java   # -> ${gateway}/api/v1/payment (payment-service)
 │   ├── ProductServiceClient.java   # -> ${gateway}/api/v1/product (product-service)
-│   ├── RoleServiceClient.java      # -> ${gateway}/api/v1/roles (user-service) — UNUSED, dead code
 │   └── UserServiceClient.java      # -> ${gateway}/api/v1/user (user-service)
 ├── config/
 │   ├── BearerTokenInterceptor.java # feign.RequestInterceptor — attaches session JWT as "Authorization: Bearer <token>" to every Feign call
-│   ├── SessionManager.java         # thin wrapper over HttpSession: store/get JWT + username, isAuthenticated, invalidate
-│   └── WebClientConfig.java        # defines a WebClient @Bean — unused anywhere in the module (dead code, see Gotchas)
+│   └── SessionManager.java         # thin wrapper over HttpSession: store/get JWT + username, isAuthenticated, invalidate
 ├── controller/                     # @Controller (not @RestController) classes returning Thymeleaf view names
 │   ├── AuthController.java         # /, /login, /register, /logout
 │   ├── CartController.java         # /cart, /cart/add, /cart/remove wired to CartServiceClient (GH #13); /cart/update and /checkout/place wired for GH #6 (checkout creates an order via OrderFacade, then clears the cart); GH #58 made /checkout and /checkout/place resolve and validate a real shipping address instead of discarding it
@@ -46,14 +44,13 @@ frontend-service/src/main/java/com/kawashreh/ecommerce/frontend/
 │   └── ProfileController.java      # /profile, /profile/edit, /addresses/**
 ├── dto/                             # HTTP-facing DTOs shared with upstream services (plain POJOs, Lombok @Data/@Builder)
 │   ├── AddressDto, CartDto, CartItemDto, CategoryDto, InventoryDto, OrderDto, OrderItemDto,
-│   │   PaymentRequestDto, PaymentResponseDto, ProductDto, ProductVariationDto, RoleDto, UserDto
-│   ├── UserLoginDto, UserRegisterDto            # UNUSED — dead duplicates of dto/request/UserLoginRequest & UserRegisterRequest
+│   │   PaymentRequestDto, PaymentResponseDto, ProductDto, ProductVariationDto, UserDto
 │   ├── facade/                      # composite view-model DTOs built by the facade layer
 │   │   ├── OrderWithDetailsDto      # {order: OrderDto, payment: PaymentResponseDto}
 │   │   ├── ProductWithDetailsDto    # {product: ProductDto, category: CategoryDto}
 │   │   └── ProfileWithAddressesDto  # {user: UserDto, addresses: List<AddressDto>}
 │   └── request/                     # inbound form-bound / request DTOs
-│       ├── AddressRequest, RoleRequest, UserLoginRequest, UserRegisterRequest, UserUpdateRequest
+│       ├── AddressRequest, UserLoginRequest, UserRegisterRequest, UserUpdateRequest
 ├── exception/
 │   └── GlobalExceptionHandler.java  # @ControllerAdvice — maps FeignException/DuplicateEntityException/NoSuchElementException/IllegalArgumentException/Exception to redirect-with-error-query-param
 └── facade/                          # composes 2 Feign clients each, swallows downstream errors
@@ -196,7 +193,6 @@ generically out of whatever JSON came back (still returning a per-status default
 | `CartServiceClient.removeItem` | `DELETE /api/v1/carts/user/{userId}/items/{itemId}` | order-service | `CartController.removeFromCart` — added for GH #13 |
 | `CartServiceClient.updateItem` | `PUT /api/v1/carts/user/{userId}/items/{itemId}` | order-service | `CartController.updateCartItem` — added for GH #6 |
 | `CartServiceClient.clearCart` | `DELETE /api/v1/carts/user/{userId}` | order-service | `CartController.placeOrder`, called after a successful checkout — added for GH #6 |
-| `RoleServiceClient.getAll/getById/create/delete` | `/api/v1/roles/**` | user-service | **Nobody** — unused, dead code |
 | `ProductServiceClient.getAllProducts` | `GET /api/v1/product` | product-service | `ProductFacade.getAllProducts` / `searchProducts` |
 | `ProductServiceClient.getProductById` | `GET /api/v1/product/{id}` | product-service | `ProductFacade.getProductWithDetails` |
 | `CategoryServiceClient.getAllCategories` | `GET /api/v1/categories` | product-service | `ProductFacade.getAllCategories` (facade method itself is unused externally — no controller calls it) |
@@ -331,14 +327,12 @@ coverage and don't need Docker/a Spring context at all.
 
 ## Gotchas
 
-1. **Module is not WebClient-based, contradicting `WebClientConfig` and root `CLAUDE.md`.**
-   `frontend-service/src/main/java/.../config/WebClientConfig.java` defines a `WebClient`
-   `@Bean`, but no class anywhere in `src/main` injects or calls `WebClient` — every
-   outbound call goes through `@FeignClient` interfaces in `client/`. The root
-   `CLAUDE.md` states "`frontend-service` uses `WebClient` against the gateway base URL,
-   forwarding the bearer token via `BearerTokenInterceptor`" — that description is
-   inaccurate: `BearerTokenInterceptor` implements `feign.RequestInterceptor`, not a
-   `WebClient` filter. `WebClientConfig.java` is dead code.
+1. ~~Module is not WebClient-based, contradicting `WebClientConfig` and root `CLAUDE.md`.~~
+   Fixed (issue #51): `config/WebClientConfig.java` defined a `WebClient` `@Bean` that no
+   class anywhere in `src/main` injected or called — every outbound call goes through
+   `@FeignClient` interfaces in `client/`, via `feign.RequestInterceptor`
+   (`BearerTokenInterceptor`), not a `WebClient` filter. The dead bean has been removed
+   and the root `CLAUDE.md` no longer references it.
 2. **`README.md` describes this module as a React app; it is server-rendered Thymeleaf + HTMX.**
    No `package.json`/JS build exists under `frontend-service`.
 3. **`order/orders.html` iterates a model attribute typed as `List<OrderWithDetailsDto>` as if it were `List<OrderDto>`.**
@@ -457,13 +451,12 @@ coverage and don't need Docker/a Spring context at all.
     the inline `<script>` in `user/addresses.html:36-47` listening for
     `htmx:afterSwap`/`htmx:beforeSwap`, so this dead attribute happens not to break
     anything currently, but it is broken markup. Severity: **low**.
-15. **`RoleServiceClient`, `RoleDto`, `RoleRequest` are entirely dead code.** No
-    controller, facade, or template in this module references any of them — there is no
-    role-management UI at all. Severity: **low**.
-16. **`UserLoginDto` and `UserRegisterDto` (in `dto/`, not `dto/request/`) are dead duplicates.**
-    They are never referenced by any client, controller, or facade — the module actually
-    uses `dto/request/UserLoginRequest` and `dto/request/UserRegisterRequest` for the same
-    purpose. Severity: **low**.
+15. ~~`RoleServiceClient`, `RoleDto`, `RoleRequest` are entirely dead code.~~ Removed
+    (issue #51) — no controller, facade, or template in this module referenced any of
+    them; there is no role-management UI at all.
+16. ~~`UserLoginDto` and `UserRegisterDto` (in `dto/`, not `dto/request/`) are dead
+    duplicates.~~ Removed (issue #51) — the module uses `dto/request/UserLoginRequest`
+    and `dto/request/UserRegisterRequest` for the same purpose.
 17. **`InventoryServiceClient.checkAvailability`/`deductStock`/`restoreStock` and
     `CategoryServiceClient.getCategoryById`/`getCategoryByName` and
     `OrderServiceClient.getAllOrders` and `PaymentServiceClient.getPayment` are all

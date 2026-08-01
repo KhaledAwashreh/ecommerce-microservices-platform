@@ -31,8 +31,7 @@ unified file's per-module build `context` is inconsistent with every Dockerfile'
 
 `.env` is gitignored (a committed `.env.example` documents the required keys) and excluded
 from images via `.dockerignore`. It defines values consumed by `docker-compose` var
-substitution: `ZIPKIN_BASE_URL`, an unused `EUREKA_CLIENT_SERVICEURL_DEFAULTZONE` (no
-Eureka server exists anywhere in this repo — dead variable), `SPRING_DATASOURCE_USERNAME`/
+substitution: `ZIPKIN_BASE_URL`, `SPRING_DATASOURCE_USERNAME`/
 `SPRING_DATASOURCE_PASSWORD`, `JWT_SECRET` (HS256 signing secret shared by `api-gateway`
 and `user-service`), and per-service `*_SPRING_DATASOURCE_URL` variables that all point at
 `localhost:5432` — not consumed by either compose file directly (both compose files
@@ -222,18 +221,12 @@ reference — it is not created by any workflow or manifest in this repo.
 ## Local dev entry points
 
 - `./start.sh [-b] [-f]` — hardcodes `COMPOSE_FILE="docker-compose.dev.yml"`. `-b` rebuilds
-  first, `-f` follows logs. After `up -d`, unconditionally prints a service-URL banner that is
-  **wrong for this repo**: it lists `Eureka Dashboard: http://localhost:8761` and
-  `Config Server: http://localhost:8888` — neither a Eureka server nor a Config Server exists
-  anywhere in this codebase (no such module, no such container in either compose file). It
-  also prints `PostgreSQL (Product): localhost:5432`, `(User): localhost:5433`,
-  `(Payment): localhost:5434`, `(Order): localhost:5435` — these port numbers do not match
-  `docker-compose.dev.yml`, which actually publishes `postgres-user` on 5433,
-  `postgres-product` on 5434, `postgres-order` on 5435, `postgres-payment` on 5436 (every
-  service in the printed list is off by one container, and product/user are swapped relative
-  to the actual mapping). The printed banner appears to be leftover from an earlier iteration
-  of this project's architecture (Eureka + Config Server) and was not updated when the
-  Postgres-per-service ports or the service-discovery approach changed.
+  first, `-f` follows logs. After `up -d`, prints a service-URL banner listing API Gateway
+  (`:8765`), Frontend (`:3000`), Zipkin (`:9411`), RedisInsight (`:5540`), and the four
+  per-service Postgres ports matching `docker-compose.dev.yml` (User `5433`, Product `5434`,
+  Order `5435`, Payment `5436`). Previously printed a stale Eureka/Config Server banner and
+  wrong/off-by-one Postgres ports left over from an earlier architecture iteration; fixed
+  per issue #49.
 - `./stop.sh [-v]` — also hardcodes `docker-compose.dev.yml`; `-v` additionally removes
   volumes (data loss, confirmed by an explicit warning echo).
 - `./image.sh` — loops `api-gateway user-service product-service order-service
@@ -247,24 +240,12 @@ reference — it is not created by any workflow or manifest in this repo.
   manifests. Also builds with `context: ./$svc` (module-relative), which — per the Dockerfile
   analysis above — will fail on the `COPY api-gateway/pom.xml ...` step for every module
   except a hypothetical service with no sibling-module dependencies.
-- **`start.makefile`** — present at repo root, **not** wired to any `make` invocation
-  documented elsewhere (root `CLAUDE.md` does not mention it), and broken as written:
-  - Target syntax is missing colons throughout (`start-config` instead of `start-config:`,
-    `start-eureka start-config` instead of `start-eureka: start-config`, etc. — lines 10, 16,
-    22, 27, 31) — this is not valid Makefile syntax; `make` would fail to parse targets with
-    prerequisites this way.
-  - References `CONFIG_SERVICE_DIR=.config-service`, `EUREKA_SERVICE_DIR=.naming-server`,
-    `API_GATEWAY_DIR=.api-gateway` (`start.makefile:2-4`) — none of these directories exist
-    anywhere in the repository (the actual gateway module is `api-gateway/`, not
-    `.api-gateway`, and there is no config-service or naming-server module at all, consistent
-    with there being no Eureka/Config Server anywhere else in the codebase).
-  - `MVN = mvn spring-bootrun` (`start.makefile:7`) — the actual Maven Spring Boot goal is
-    `spring-boot:run`, not `spring-bootrun`; as written this is not a valid Maven goal.
-  - The final `.PHONY` line is also missing its colon (`.PHONY start-config ...` instead of
-    `.PHONY: start-config ...`, line 35).
-  - Net effect: `start.makefile` cannot run as-is against this repository under any
-    interpretation — wrong syntax, wrong module directories, wrong Maven goal, for services
-    (Config Server, Eureka) that do not exist in this codebase.
+- **`start.makefile`** — removed (issue #48). It was not wired to any `make` invocation
+  documented elsewhere, had invalid Makefile syntax (missing colons on target lines), and
+  referenced a Config Server + Eureka topology (`.config-service`, `.naming-server` module
+  directories that never existed in this repo) this project does not use — it uses
+  Kubernetes DNS for discovery. `start.sh` and the compose files are the only supported
+  local-startup paths.
 - `docker-compose -f docker-compose.dev.yml up -d` / `down` — the docker-based path documented
   in root `CLAUDE.md`, and the one `start.sh`/`stop.sh` wrap.
 - Maven: `mvn clean install` (full reactor), `mvn -pl <module> [-am] test`, `mvn clean verify`

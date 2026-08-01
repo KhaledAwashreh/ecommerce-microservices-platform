@@ -78,6 +78,56 @@ class UserServiceImplIntegrationTest extends BaseIntegrationTest {
     // common.exceptions.NoSuchElementException (mapped to 404), conflating "not found"
     // with "not yours" (a 403-shaped condition). Now throws ForbiddenException.
     @Test
+    void update_shouldEvictCaches() {
+        UserResponse created = createUser();
+
+        // Populate both caches that update() is supposed to evict.
+        userService.find(created.getId());
+        userService.findByUsername(created.getUsername());
+
+        Cache usersByIdCache = cacheManager.getCache(CacheConstants.USERS_BY_ID);
+        Cache userByUsernameCache = cacheManager.getCache(CacheConstants.USER_BY_USERNAME);
+
+        assertThat(usersByIdCache.get(created.getId())).isNotNull();
+        assertThat(userByUsernameCache.get(created.getUsername())).isNotNull();
+
+        UserUpdateRequest updateRequest = UserUpdateRequest.builder()
+                .id(created.getId())
+                .requestingUserId(created.getId())
+                .name("Updated Name")
+                .build();
+
+        userService.update(created.getId(), updateRequest);
+
+        assertThat(usersByIdCache.get(created.getId())).isNull();
+        assertThat(userByUsernameCache.get(created.getUsername())).isNull();
+
+        UserResponse refreshed = userService.find(created.getId());
+        assertThat(refreshed.getName()).isEqualTo("Updated Name");
+    }
+
+    @Test
+    void changePassword_shouldEvictCaches() {
+        UserResponse created = createUser();
+
+        // Populate both caches that changePassword() is supposed to evict.
+        userService.find(created.getId());
+        userService.findByUsername(created.getUsername());
+
+        Cache usersByIdCache = cacheManager.getCache(CacheConstants.USERS_BY_ID);
+        Cache userByUsernameCache = cacheManager.getCache(CacheConstants.USER_BY_USERNAME);
+
+        assertThat(usersByIdCache.get(created.getId())).isNotNull();
+        assertThat(userByUsernameCache.get(created.getUsername())).isNotNull();
+
+        UserResponse result = userService.changePassword(created.getUsername(), "Password123!", "NewPassword456!");
+
+        assertThat(result).isNotNull();
+        assertThat(usersByIdCache.get(created.getId())).isNull();
+        assertThat(userByUsernameCache.get(created.getUsername())).isNull();
+    }
+
+    @Test
     void delete_shouldThrowForbiddenAndNotDelete_whenRequestingUserIsNotOwner() {
         UserResponse created = createUser();
         UUID otherUserId = UUID.randomUUID();
