@@ -31,8 +31,7 @@ unified file's per-module build `context` is inconsistent with every Dockerfile'
 
 `.env` is gitignored (a committed `.env.example` documents the required keys) and excluded
 from images via `.dockerignore`. It defines values consumed by `docker-compose` var
-substitution: `ZIPKIN_BASE_URL`, an unused `EUREKA_CLIENT_SERVICEURL_DEFAULTZONE` (no
-Eureka server exists anywhere in this repo — dead variable), `SPRING_DATASOURCE_USERNAME`/
+substitution: `ZIPKIN_BASE_URL`, `SPRING_DATASOURCE_USERNAME`/
 `SPRING_DATASOURCE_PASSWORD`, `JWT_SECRET` (HS256 signing secret shared by `api-gateway`
 and `user-service`), and per-service `*_SPRING_DATASOURCE_URL` variables that all point at
 `localhost:5432` — not consumed by either compose file directly (both compose files

@@ -195,16 +195,17 @@ segment keeps Spring's route matching unambiguous.
 | `spring.data.redis.host/port` | `application.yml` | `localhost`/`6379` | Env vars `SPRING_DATA_REDIS_HOST`/`SPRING_DATA_REDIS_PORT`. `application-local.yml` hardcodes host `redis` (Docker Compose service name) even though it's meant for "running from IDE without Docker" per its own header comment — inconsistent with its stated purpose. |
 | `server.port` | `application.yml` | `8080` | `application-ide.yml` sets `8082`. Test profile (`application-test.yml`) uses `0` (random port). Dockerfile comment claims "Port is dynamically assigned (server.port=0 in application.properties)" — false for the shipped `application.yml`/Docker profile, only true under the `test` profile; see Gotchas. |
 | `spring.cloud.openfeign.client.config.user-service.url` | `application.yml` | `${GATEWAY_URL:http://api-gateway:8765}` | Points Feign at the gateway, not directly at user-service, matching repo convention. |
-| `spring.cloud.config.enabled` / `discovery.enabled` | `application.yml` | `false` | Config server / discovery client disabled even though `bootstrap.properties` configures a `config-server` and Eureka `naming-server` — see Gotchas (vestigial bootstrap file). |
+| `spring.cloud.config.enabled` / `discovery.enabled` | `application.yml` | `false` | Config server / discovery client disabled; this project uses Kubernetes DNS, not Eureka/Config Server (the module's `bootstrap.properties` configured both and was removed as dead config — issue #50). |
 | `management.zipkin.tracing.endpoint` | `application.yml` | `${ZIPKIN_BASE_URL:http://zipkin:9411}/api/v2/spans` | `management.tracing.sampling.probability` = `1.0` (trace everything). |
 | `management.endpoints.web.exposure.include` | `application.yml` | `health,info,metrics,prometheus` | No auth restricting actuator endpoints within this module. |
 
 Profiles present: default (`application.yml`), `local` (`application-local.yml`, IDE-without-Docker),
 `ide` (`application-ide.yml`, product-service in IDE / rest in Docker), `test`
 (`src/test/resources/application-test.yml`, used by `@ActiveProfiles("test")` but largely
-superseded by Testcontainers dynamic properties in `BaseIntegrationTest`). `bootstrap.properties`
-configures Spring Cloud Config + Eureka but `spring.cloud.config.enabled=false` in
-`application.yml` means this bootstrap wiring is effectively inert.
+superseded by Testcontainers dynamic properties in `BaseIntegrationTest`). The module
+previously had a `bootstrap.properties` configuring Spring Cloud Config + Eureka; it was
+removed (issue #50) since `spring.cloud.config.enabled=false` in `application.yml` made it
+inert.
 
 ## Caching
 
@@ -381,12 +382,12 @@ which is very permissive (allows any base type).
     `src/main/resources/application.yml` sets `server.port: 8080`; `server.port: 0` only
     appears in the test profile (`src/test/resources/application-test.yml`), which the
     Docker image never uses.
-20. **Low — vestigial Spring Cloud Config/Eureka bootstrap.** `bootstrap.properties`
-    configures `spring.cloud.config.*` and `eureka.client.serviceUrl.defaultZone` pointing
-    at a `config-server`/`naming-server` that do not otherwise appear wired into this
-    module's active configuration (`application.yml` sets
-    `spring.cloud.config.enabled=false` and `discovery.enabled=false`), so this file is
-    effectively dead configuration carried over from an earlier architecture.
+20. ~~Low — vestigial Spring Cloud Config/Eureka bootstrap.~~ Removed (issue #50).
+    `bootstrap.properties` configured `spring.cloud.config.*` and
+    `eureka.client.serviceUrl.defaultZone` pointing at a `config-server`/`naming-server`
+    that never existed in this repo (`application.yml` set
+    `spring.cloud.config.enabled=false` and `discovery.enabled=false`, making it dead
+    configuration carried over from an earlier architecture).
 21. **Naming deviations (intentional, not to be "fixed"):** package `infastructure/`
     (misspelled, should be `infrastructure/`) and `dataAccess/Dao/` (capital `D`) — called
     out in the root `CLAUDE.md` as known, deliberate deviations from the four-layer

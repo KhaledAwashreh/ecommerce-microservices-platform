@@ -159,7 +159,6 @@ injection point anywhere in the module — dead bean.
 | `resilience4j.timelimiter.*` | `application-local.yml:113-126` only | `timeoutDuration=5s`, per-service instances including `order-service` | Absent from default `application.yml` |
 | `management.zipkin.tracing.endpoint` | all profiles | see above | |
 | `logging.level.org.springframework.cloud.gateway` etc. | `application-local.yml:151-153` | `DEBUG` | Only in local profile |
-| `spring.cloud.config.*`, `eureka.client.*` | `bootstrap.properties` | optional config-server import, Eureka `defaultZone=http://localhost:8761/eureka` | `spring.config.import=optional:configserver:...` — optional, won't fail startup if config-server absent; no `spring-cloud-config-client` or `spring-cloud-starter-netflix-eureka-client` dependency is declared in `pom.xml`, so these properties have no effect (no such starters on the classpath) |
 | `jwt.secret` | `application.yml`, `JwtService` constructor (`@Value`) | none — required | Sourced from env var `JWT_SECRET`, no committed default; missing value fails app startup |
 | `JwtConstants.EXPIRATION_TIME` | `constants/JwtConstants.java:8` | `1000L * 60 * 30` (30 min) | Still hardcoded — not sourced from env/config |
 
@@ -344,13 +343,12 @@ concerned.
     (`ApiGatewayApplicationTests.java`).
 21. **`spring-boot-starter-actuator` declared twice** in `pom.xml` (`pom.xml:39-40` and
     `pom.xml:158-160`) — harmless (Maven dedupes) but indicates copy-paste drift in the POM.
-22. **`bootstrap.properties` references Spring Cloud Config Server and Eureka**
-    (`spring.cloud.config.discovery.*`, `eureka.client.serviceUrl.defaultZone`,
-    `spring.config.import=optional:configserver:...`) but neither `spring-cloud-config-client`
-    nor `spring-cloud-starter-netflix-eureka-client` is a declared dependency in `pom.xml` — these
-    properties have no effect since the supporting starters aren't on the classpath. The
-    `optional:` prefix on `spring.config.import` means a missing config-server won't fail
-    startup, so this is latent/inert rather than a startup risk.
+22. ~~`bootstrap.properties` references Spring Cloud Config Server and Eureka~~ — removed
+    (issue #50). It configured `spring.cloud.config.discovery.*`,
+    `eureka.client.serviceUrl.defaultZone`, and `spring.config.import=optional:configserver:...`,
+    but neither `spring-cloud-config-client` nor `spring-cloud-starter-netflix-eureka-client`
+    was ever a declared dependency in `pom.xml`, so the properties had no effect — this project
+    uses Kubernetes DNS for service discovery, not Eureka/Config Server.
 23. **`Infrastructure/` package is capitalized**, deviating from the root `CLAUDE.md` layered
     convention (`infrastructure/`, lower-case) that other modules follow. `CLAUDE.md` explicitly
     calls out `product-service`'s `infastructure/` misspelling as a known, deliberately

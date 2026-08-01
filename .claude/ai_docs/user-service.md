@@ -161,9 +161,11 @@ notify another service on registration). No `WebClient`/`RestTemplate` usage eit
 
 Profiles: `application.yml` (default/docker), `application-local.yml`, `application-ide.yml`
 (activated via `spring.profiles.active`, not shown as explicitly set anywhere in this
-module — presumably selected by `SPRING_PROFILES_ACTIVE` env var at deploy time),
-`bootstrap.properties` (Spring Cloud Config / Eureka bootstrap, config import is
-`optional:` so absence doesn't fail startup), and test-only `application-test.yml`.
+module — presumably selected by `SPRING_PROFILES_ACTIVE` env var at deploy time), and
+test-only `application-test.yml`. The module previously had a `bootstrap.properties`
+configuring Spring Cloud Config/Eureka; it was removed (issue #50) since it was inert
+(every YAML profile disables config/discovery) and this project uses Kubernetes DNS,
+not Eureka.
 
 | Property | Default | Source / override |
 |---|---|---|
@@ -175,7 +177,6 @@ module — presumably selected by `SPRING_PROFILES_ACTIVE` env var at deploy tim
 | `management.zipkin.tracing.endpoint` | `http://zipkin:9411/api/v2/spans` | env `ZIPKIN_BASE_URL` (default/local); hardcoded `http://localhost:9411/...` in `application-ide.yml`. |
 | `management.tracing.sampling.probability` | `1.0` | 100% trace sampling — fine for dev, would be expensive in real prod. |
 | `GATEWAY_URL` | `http://localhost:8765` | Only set in `application-ide.yml`; unused elsewhere in this module (no outbound HTTP calls reference it — see Outbound dependencies). |
-| `eureka.client.serviceUrl.defaultZone` | `http://naming-server:8761/eureka` | `bootstrap.properties` — but `spring.cloud.config.enabled: false` and `discovery.enabled: false` are set in every YAML profile, so Eureka/Config-server registration is effectively disabled; `bootstrap.properties` looks vestigial. |
 
 JWT config is **not externalized** — see Security.
 
@@ -359,11 +360,10 @@ for up to 10 minutes after a profile edit or password change.
     (server.port=0 in application.properties)`. The shipped `application.yml` sets
     `server.port: 8080`, not `0`; only the test profile (`application-test.yml`) uses
     `0`. **Severity: low.**
-18. **`bootstrap.properties` looks vestigial** — `spring.cloud.config.discovery.enabled=true`
-    and Eureka `defaultZone` are configured (`bootstrap.properties`), but every YAML
-    profile explicitly sets `spring.cloud.config.enabled: false` and
-    `spring.cloud.config.discovery.enabled: false`, and `spring.config.import` for the
-    config server is `optional:`. Net effect: this file currently does nothing observable.
+18. ~~`bootstrap.properties` looks vestigial~~ — removed (issue #50). It configured
+    `spring.cloud.config.discovery.enabled=true` and an Eureka `defaultZone`, but every
+    YAML profile explicitly set `spring.cloud.config.enabled: false` and
+    `spring.cloud.config.discovery.enabled: false`, so it did nothing observable.
     **Severity: low.**
 19. **`AddressEntity.DefaultAddress` field naming** — `dataAccess/entity/AddressEntity.java:46`.
     Field is `private boolean DefaultAddress` (capitalized), producing a non-conventional
