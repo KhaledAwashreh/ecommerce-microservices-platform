@@ -24,8 +24,7 @@ public class PaymentResponseDto {
     private String paymentGateway;
     private Instant createdAt;
     private Instant updatedAt;
-    private String failureReason;
-    
+
     public boolean isSuccessful() {
         return "SUCCESS".equals(status);
     }

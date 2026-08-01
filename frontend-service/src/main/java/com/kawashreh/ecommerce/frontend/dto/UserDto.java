@@ -19,6 +19,4 @@ public class UserDto {
     private java.util.Date birthdate;
     private String phone;
     private String gender;
-    private java.time.Instant createdAt;
-    private java.time.Instant updatedAt;
 }

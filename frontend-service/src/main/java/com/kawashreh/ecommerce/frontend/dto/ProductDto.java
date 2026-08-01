@@ -5,7 +5,6 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -23,8 +22,4 @@ public class ProductDto {
     private Instant createdAt;
     private Instant updatedAt;
     private String thumbnailUrl;
-    private List<ProductVariationDto> variations;
-    private BigDecimal minPrice;
-    private BigDecimal maxPrice;
-    private boolean active;
 }
