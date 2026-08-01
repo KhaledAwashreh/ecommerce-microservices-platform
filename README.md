@@ -38,7 +38,7 @@ graph TB
         Order["Order Service<br/>Orchestration · Stock Validation"]
         Product["Product Service<br/>Products · Variations · Inventory"]
         Payment["Payment Service<br/>Payment Processing"]
-        Frontend["Frontend Service<br/>React / Node.js"]
+        Frontend["Frontend Service<br/>Spring Boot · Thymeleaf · HTMX"]
     end
 
     subgraph Data["Data Layer"]
@@ -93,11 +93,17 @@ graph TB
 | Service | Port | Technology | Responsibility |
 |---------|------|------------|---------------|
 | **API Gateway** | 8765 | Spring Cloud Gateway | Request routing, circuit breaker, retry, rate limiting |
-| **User Service** | Dynamic | Spring Boot + JWT | Authentication, user profiles, addresses |
-| **Product Service** | Dynamic | Spring Boot | Products, variations, inventory management |
-| **Order Service** | Dynamic | Spring Boot + Feign | Order orchestration, stock validation, cart-to-order |
-| **Payment Service** | Dynamic | Spring Boot | Payment processing (simulated gateway) |
-| **Frontend Service** | Dynamic | Spring Boot + HTMX | SSR web client (portfolio showcase) |
+| **User Service** | 8080 | Spring Boot + JWT | Authentication, user profiles, addresses |
+| **Product Service** | 8080 | Spring Boot | Products, variations, inventory management |
+| **Order Service** | 8080 | Spring Boot + Feign | Order orchestration, stock validation, cart-to-order |
+| **Payment Service** | 8080 | Spring Boot | Payment processing (simulated gateway) |
+| **Frontend Service** | 3000 | Spring Boot + HTMX | SSR web client (portfolio showcase) |
+
+> Ports are fixed in the shipped config (`server.port=0`, i.e. a random port, only
+> applies under the `test` profile). User/Product/Order/Payment Service all happen to
+> share 8080 — harmless since each runs in its own container — but only API Gateway
+> (8765) and Frontend Service (3000) are published to the host; reach the others
+> through the gateway or the Docker network.
 
 ---
 
@@ -198,23 +204,30 @@ Order creation flow:
 
 ### Feign Client (Order → Product)
 
-Services discover each other via **Kubernetes DNS** — e.g., `http://product-service:8080`. Feign clients call by service name with Resilience4j protection:
+Services discover each other via **Kubernetes DNS** — e.g., `http://product-service:8080`. Feign clients call by service name with Resilience4j protection. Paths come from each module's centralized `ApiPaths` constants rather than being hardcoded on the annotations:
 
 ```java
 @FeignClient(name = "product-service")
 public interface ProductServiceClient {
 
     @GetMapping("/api/v1/product/{productId}")
-    ProductDto retrieveProduct(@PathVariable("productId") UUID productId);
+    ProductDto retrieveProduct(@PathVariable UUID productId);
 
-    @GetMapping("/api/v1/inventory/{productId}")
-    InventoryDto retrieveInventory(@PathVariable("productId") UUID productId);
+    @GetMapping("/api/v1/inventory/product-variation/{productVariationId}")
+    InventoryDto retrieveInventory(@PathVariable UUID productVariationId);
 
-    @PutMapping("/api/v1/inventory/{productId}/deduct")
-    boolean deductInventory(@PathVariable("productId") UUID productId,
-                           @RequestParam int quantity);
+    @GetMapping("/api/v1/inventory/product-variation/{productVariationId}/availability")
+    Boolean checkInventoryAvailability(@PathVariable UUID productVariationId,
+                                        @RequestParam int quantity);
+
+    @PutMapping("/api/v1/inventory/product-variation/{productVariationId}/deduct")
+    Boolean deductInventory(@PathVariable UUID productVariationId,
+                             @RequestParam int quantity);
+
+    @PutMapping("/api/v1/inventory/product-variation/{productVariationId}/restore")
+    Boolean restoreInventory(@PathVariable UUID productVariationId,
+                              @RequestParam int quantity);
 }
-```
 ```
 
 ---
@@ -285,18 +298,22 @@ Kubernetes manifests under `k8s/`:
 ```
 k8s/
 ├── namespace.yaml              # ecommerce namespace
-├── rbac/                      # RBAC configuration
-│   ├── serviceaccount.yaml    # github-actions service account
-│   ├── role.yaml              # deployment role (namespace-scoped)
-│   └── rolebinding.yaml       # binds role to service account
-├── services/                  # 5 microservices
-│   ├── api-gateway/
-│   ├── user-service/
-│   ├── product-service/
-│   ├── order-service/
-│   └── payment-service/
-│       # each contains: deployment.yaml, service.yaml, configmap.yaml
-└── (infrastructure manifests)
+├── rbac/                       # RBAC configuration
+│   ├── serviceaccount.yaml     # github-actions service account
+│   ├── role.yaml               # deployment role (namespace-scoped)
+│   └── rolebinding.yaml        # binds role to service account
+├── postgres/                   # Deployment, PVC, ConfigMap, Service, init scripts
+├── redis/                      # Deployment, PVC, Service
+└── services/                   # 6 microservices
+    ├── api-gateway/            # + Ingress, HorizontalPodAutoscaler
+    ├── user-service/
+    ├── product-service/        # + NetworkPolicy
+    ├── order-service/          # + NetworkPolicy
+    ├── payment-service/        # + NetworkPolicy
+    └── frontend-service/
+        # each contains: <name>-deployment.yaml, <name>-service.yaml,
+        # <name>-configmap.yaml, <name>-hpa.yaml (filenames are prefixed with
+        # the service name, not literally "deployment.yaml")
 ```
 
 ### Local Development — Apply Manifests
@@ -308,11 +325,9 @@ kubectl apply -f k8s/namespace.yaml
 # Apply RBAC (ServiceAccount, Role, RoleBinding)
 kubectl apply -f k8s/rbac/
 
-# Apply ConfigMaps for all services
-kubectl apply -f k8s/services/*/configmap.yaml
-
-# Deploy all services
-kubectl apply -f k8s/services/
+# Apply everything else — Postgres, Redis, and all services' ConfigMaps,
+# Deployments, Services, HPAs, NetworkPolicies, and the api-gateway Ingress
+kubectl apply -R -f k8s/postgres/ -f k8s/redis/ -f k8s/services/
 ```
 
 ### Postgres and JWT Secrets
@@ -371,12 +386,16 @@ The `deploy.yaml` workflow requires these GitHub secrets configured in your repo
 
 ### Kubernetes — Production Hardening
 
-- [ ] Ingress controller + Ingress rules
-- [ ] Resource `requests`/`limits` on all workloads
-- [ ] Liveness and readiness probes
+- [x] Ingress rules (`k8s/services/api-gateway/api-gateway-ingress.yaml`) — still requires an
+      ingress controller (e.g. ingress-nginx) installed separately per cluster
+- [x] Resource `requests`/`limits` on all workloads
+- [x] Liveness and readiness probes on all workloads
 - [ ] Rolling update strategy configuration
-- [ ] Network policies (zero-trust between namespaces)
-- [ ] Horizontal Pod Autoscaler (HPA) for business services
+- [ ] Network policies (zero-trust between namespaces) — ingress-side policies exist for
+      order/payment/product/user-service, but egress is unrestricted and api-gateway,
+      frontend-service, postgres, and redis have none
+- [x] Horizontal Pod Autoscaler (HPA) for business services — requires a metrics-server
+      installed in-cluster to actually scale
 
 > **Note:** The codebase targets Docker Compose for local development and Docker for production. Kubernetes manifests are provided as a deployment option. Service-to-service communication uses Kubernetes DNS (`product-service`, `payment-service`, etc.). Full Kubernetes-native deployment is planned.
 
@@ -414,8 +433,7 @@ flowchart TB
 ```mermaid
 flowchart LR
     A(["Push / PR\nto main"]) --> B["Checkout\nJava 21 + Maven"]
-    B --> C["Spin up\nPostgreSQL + Redis"]
-    C --> D["mvn clean verify"]
+    B --> D["mvn clean verify"]
     D --> E["JaCoCo\nCoverage Report"]
     E --> F1["Upload to\nCodecov"]
     E --> F2["Upload\nArtifacts"]
@@ -423,9 +441,11 @@ flowchart LR
     F2 --> G
 ```
 
+Integration tests provision their own PostgreSQL and Redis per-module via TestContainers
+during `mvn clean verify` — there's no job-level database service to spin up first.
+
 - Runs on every push and PR to `main`
 - JaCoCo coverage reporting → Codecov
-- Jest coverage for frontend service
 - Coverage artifacts downloadable
 
 ### Docker Image Pipeline (`docker.yml`)
@@ -454,14 +474,15 @@ flowchart LR
     B --> C["Auth to\nKubernetes"]
     C --> D["Apply namespace<br/>RBAC manifests"]
     D --> E["Apply ConfigMaps"]
-    E --> F["Deploy 5 services<br/>Deployments + Services"]
+    E --> F["Deploy 6 services<br/>Deployments + Services"]
     F --> G(["✅ Deployed"])
 ```
 
 - **Trigger:** Automatically after `docker.yml` completes on `main`, or manual via `workflow_dispatch`
 - **Image Tag:** Specified via `workflow_dispatch` input (default: `latest`)
 - **RBAC:** Creates ServiceAccount, Role, and RoleBinding in `ecommerce` namespace
-- **Deploys:** All 5 microservices with ConfigMaps and ClusterIP services
+- **Deploys:** All 6 microservices with ConfigMaps and Services (ClusterIP, except
+  api-gateway which is `LoadBalancer`)
 
 **Required GitHub Secrets:**
 | Secret | Description |
@@ -487,9 +508,12 @@ cd <service> && mvn clean package
 
 | Service | Type | Status |
 |---------|------|--------|
-| Product Service | Unit + Integration (TestContainers) | ✅ Active |
-| Order Service | Unit + Integration (TestContainers) | ✅ Active |
-| Inventory | Integration tests with concurrent scenarios | ✅ Active |
+| Product Service | Unit (controllers) + Integration (TestContainers, incl. concurrent inventory-deduction scenarios) | ✅ Active |
+| Order Service | Unit (service layer) + Integration (TestContainers) | ⚠️ Active, but 2 of the integration tests only assert inside a `catch` block with no `fail()` after the `try` — they pass whether or not the expected exception is actually thrown |
+| User Service | Unit + Integration (TestContainers) | ✅ Active |
+| API Gateway | Unit + Integration (TestContainers) | ✅ Active |
+| Payment Service | Unit only | ⚠️ No TestContainers integration test is ever run — the `BaseIntegrationTest` scaffolding exists but has no subclass |
+| Frontend Service | Unit (controllers, mocked dependencies) only | ⚠️ Same as Payment Service — `BaseIntegrationTest` exists but is unused |
 
 ### Testing — Coverage Expansion
 
