@@ -15,6 +15,8 @@ public final class ProductReviewMapper {
                 .product(ProductMapper.toEntity(d.getProduct()))
                 .review(d.getReview())
                 .stars(d.getStars())
+                .createdAt(d.getCreatedAt())
+                .updated_at(d.getUpdatedAt())
                 .build();
     }
 
@@ -26,6 +28,8 @@ public final class ProductReviewMapper {
                 .product(ProductMapper.toDomain(e.getProduct()))
                 .review(e.getReview())
                 .stars(e.getStars())
+                .createdAt(e.getCreatedAt())
+                .updatedAt(e.getUpdated_at())
                 .build();
     }
 

@@ -30,9 +30,6 @@ public class InventoryEntity {
     @Column(name = "quantity", nullable = false)
     private int quantity;
 
-    @Column(name = "reserved_quantity", nullable = false)
-    private int reservedQuantity;
-
     @Column(name = "warehouse_location")
     private String warehouseLocation;
 

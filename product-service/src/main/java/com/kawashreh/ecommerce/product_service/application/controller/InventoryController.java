@@ -44,6 +44,14 @@ public class InventoryController {
         return ResponseEntity.ok(success);
     }
 
+    // GH #30: restoreStock is now lock-protected and rejects non-positive quantities, but
+    // has no ceiling on how much can be restored, and this endpoint has no caller
+    // restriction - a caller could still inflate stock past what was ever deducted. A real
+    // ceiling needs a deducted-quantity ledger this module doesn't have; the sole current
+    // caller (order-service's restoreDeductedInventory) only ever restores exactly what it
+    // previously deducted, so this is a trust-boundary gap, not an active bug, but it's
+    // real and unaddressed - same class of issue as the other "no ownership/role check"
+    // gotchas already documented for this module's controllers.
     @PutMapping(ApiPaths.PRODUCT_VARIATION_RESTORE)
     public ResponseEntity<Boolean> restoreStock(
             @PathVariable UUID productVariationId,

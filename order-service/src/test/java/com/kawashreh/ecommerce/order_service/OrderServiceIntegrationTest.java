@@ -92,7 +92,6 @@ class OrderServiceIntegrationTest {
         InventoryDto mockInventory = InventoryDto.builder()
                 .productVariationId(productVariationId)
                 .quantity(10)
-                .reservedQuantity(0)
                 .warehouseLocation("WAREHOUSE-A")
                 .build();
 
@@ -144,7 +143,6 @@ class OrderServiceIntegrationTest {
         InventoryDto lowInventory = InventoryDto.builder()
                 .productVariationId(productVariationId)
                 .quantity(1)
-                .reservedQuantity(0)
                 .build();
 
         when(productServiceClient.retrieveInventory(any(UUID.class))).thenReturn(lowInventory);

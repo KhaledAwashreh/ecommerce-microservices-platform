@@ -17,15 +17,9 @@ public class InventoryDto {
 
     private int quantity;
 
-    private int reservedQuantity;
-
     private String warehouseLocation;
 
     private Instant createdAt;
 
     private Instant updatedAt;
-
-    public int getAvailableQuantity() {
-        return quantity - reservedQuantity;
-    }
 }
