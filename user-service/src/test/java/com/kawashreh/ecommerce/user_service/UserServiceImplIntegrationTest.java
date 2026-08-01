@@ -7,6 +7,7 @@ import com.kawashreh.ecommerce.user_service.domain.enums.Gender;
 import com.kawashreh.ecommerce.user_service.domain.service.UserService;
 import com.kawashreh.ecommerce.user_service.domain.service.dto.UserCreateRequest;
 import com.kawashreh.ecommerce.user_service.domain.service.dto.UserResponse;
+import com.kawashreh.ecommerce.user_service.domain.service.dto.UserUpdateRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.Cache;
@@ -64,6 +65,56 @@ class UserServiceImplIntegrationTest extends BaseIntegrationTest {
         userService.delete(created.getId(), created.getId());
 
         assertThat(userRepository.findById(created.getId())).isEmpty();
+        assertThat(usersByIdCache.get(created.getId())).isNull();
+        assertThat(userByUsernameCache.get(created.getUsername())).isNull();
+    }
+
+    @Test
+    void update_shouldEvictCaches() {
+        UserResponse created = createUser();
+
+        // Populate both caches that update() is supposed to evict.
+        userService.find(created.getId());
+        userService.findByUsername(created.getUsername());
+
+        Cache usersByIdCache = cacheManager.getCache(CacheConstants.USERS_BY_ID);
+        Cache userByUsernameCache = cacheManager.getCache(CacheConstants.USER_BY_USERNAME);
+
+        assertThat(usersByIdCache.get(created.getId())).isNotNull();
+        assertThat(userByUsernameCache.get(created.getUsername())).isNotNull();
+
+        UserUpdateRequest updateRequest = UserUpdateRequest.builder()
+                .id(created.getId())
+                .requestingUserId(created.getId())
+                .name("Updated Name")
+                .build();
+
+        userService.update(created.getId(), updateRequest);
+
+        assertThat(usersByIdCache.get(created.getId())).isNull();
+        assertThat(userByUsernameCache.get(created.getUsername())).isNull();
+
+        UserResponse refreshed = userService.find(created.getId());
+        assertThat(refreshed.getName()).isEqualTo("Updated Name");
+    }
+
+    @Test
+    void changePassword_shouldEvictCaches() {
+        UserResponse created = createUser();
+
+        // Populate both caches that changePassword() is supposed to evict.
+        userService.find(created.getId());
+        userService.findByUsername(created.getUsername());
+
+        Cache usersByIdCache = cacheManager.getCache(CacheConstants.USERS_BY_ID);
+        Cache userByUsernameCache = cacheManager.getCache(CacheConstants.USER_BY_USERNAME);
+
+        assertThat(usersByIdCache.get(created.getId())).isNotNull();
+        assertThat(userByUsernameCache.get(created.getUsername())).isNotNull();
+
+        UserResponse result = userService.changePassword(created.getUsername(), "Password123!", "NewPassword456!");
+
+        assertThat(result).isNotNull();
         assertThat(usersByIdCache.get(created.getId())).isNull();
         assertThat(userByUsernameCache.get(created.getUsername())).isNull();
     }

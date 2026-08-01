@@ -184,6 +184,10 @@ public class UserServiceImpl implements UserService {
         return jwtService.generateToken(user.getId(), user.getUsername(), role);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = CacheConstants.USERS_BY_ID, key = "#id"),
+            @CacheEvict(value = CacheConstants.USER_BY_USERNAME, allEntries = true)
+    })
     @Override
     public UserResponse update(UUID id, UserUpdateRequest request) {
         // TODO (investigate SpEL): Replace manual ownership check with
@@ -222,6 +226,10 @@ public class UserServiceImpl implements UserService {
                 .toList();
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = CacheConstants.USER_BY_USERNAME, key = "#username"),
+            @CacheEvict(value = CacheConstants.USERS_BY_ID, allEntries = true)
+    })
     @Override
     public UserResponse changePassword(String username, String oldPassword, String newPassword) {
         User user = repository.findByUsernameWithAccount(username)

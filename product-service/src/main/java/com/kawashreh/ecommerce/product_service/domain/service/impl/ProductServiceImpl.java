@@ -34,6 +34,7 @@ public class ProductServiceImpl implements ProductService {
         return repository.findById(id).map(ProductMapper::toDomain).orElse(null);
     }
 
+    @CacheEvict(value = CacheConstants.product_by_id, allEntries = true)
     @Override
     public void save(Product product) {
         repository.save(ProductMapper.toEntity(product));
