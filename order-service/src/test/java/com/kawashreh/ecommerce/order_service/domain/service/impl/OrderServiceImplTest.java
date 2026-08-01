@@ -140,7 +140,6 @@ class OrderServiceImplTest {
         InventoryDto inventory = InventoryDto.builder()
                 .productVariationId(productVariationId)
                 .quantity(availableQuantity)
-                .reservedQuantity(0)
                 .build();
 
         when(productServiceClient.retrieveProduct(any(UUID.class))).thenReturn(product);

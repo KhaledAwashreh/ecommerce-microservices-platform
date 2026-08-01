@@ -222,7 +222,7 @@ public class OrderServiceImpl implements OrderService {
                     throw new IllegalArgumentException("Inventory not found for product: " + item.getProductSku());
                 }
 
-                int availableStock = inventory.getAvailableQuantity();
+                int availableStock = inventory.getQuantity();
                 if (availableStock < item.getQuantity()) {
                     logger.warn("Insufficient stock for product {}: requested {}, available {}",
                             item.getProductSku(), item.getQuantity(), availableStock);

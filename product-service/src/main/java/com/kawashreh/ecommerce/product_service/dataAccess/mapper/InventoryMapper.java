@@ -15,7 +15,6 @@ public final class InventoryMapper {
                 .id(entity.getId())
                 .productVariationId(entity.getProductVariation().getId())
                 .quantity(entity.getQuantity())
-                .reservedQuantity(entity.getReservedQuantity())
                 .warehouseLocation(entity.getWarehouseLocation())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
@@ -29,7 +28,6 @@ public final class InventoryMapper {
         return InventoryEntity.builder()
                 .id(inventory.getId())
                 .quantity(inventory.getQuantity())
-                .reservedQuantity(inventory.getReservedQuantity())
                 .warehouseLocation(inventory.getWarehouseLocation())
                 .build();
     }
