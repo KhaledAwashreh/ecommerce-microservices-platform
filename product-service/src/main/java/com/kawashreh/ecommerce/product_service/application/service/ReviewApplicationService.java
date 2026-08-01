@@ -1,6 +1,7 @@
 package com.kawashreh.ecommerce.product_service.application.service;
 
 
+import com.kawashreh.ecommerce.common.exceptions.NoSuchElementException;
 import com.kawashreh.ecommerce.product_service.application.dto.ProductReviewDto;
 import com.kawashreh.ecommerce.product_service.domain.model.Product;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductReview;
@@ -28,19 +29,29 @@ public class ReviewApplicationService {
     public ProductReview createReview(ProductReviewDto dto) {
 
         Product product = productService.find(dto.getProductId());
-        UserDto user = userServiceClient.retrieveUser(dto.getUserId());
-        ProductReview review = null;
-
-        if (Objects.nonNull(user) && Objects.nonNull(product) && !product.getOwnerId().equals(user.getId())) {
-             review = ProductReview.builder()
-                    .product(product)
-                    .userId(dto.getUserId())
-                    .review(dto.getReview())
-                    .stars(dto.getStars())
-                    .build();
-
-            productReviewService.save(review, product);
+        if (Objects.isNull(product)) {
+            // GH #41: throw instead of returning null so the controller no longer responds
+            // 201 Created with an empty body on failure.
+            throw new NoSuchElementException("Product not found: " + dto.getProductId());
         }
+
+        UserDto user = userServiceClient.retrieveUser(dto.getUserId());
+        if (Objects.isNull(user)) {
+            throw new NoSuchElementException("User not found: " + dto.getUserId());
+        }
+
+        if (product.getOwnerId().equals(user.getId())) {
+            throw new IllegalArgumentException("Cannot review your own product: " + dto.getProductId());
+        }
+
+        ProductReview review = ProductReview.builder()
+                .product(product)
+                .userId(dto.getUserId())
+                .review(dto.getReview())
+                .stars(dto.getStars())
+                .build();
+
+        productReviewService.save(review, product);
         return review;
     }
 }
