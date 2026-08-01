@@ -71,6 +71,11 @@ public class ProductVariationController {
         dto.setId(productVariationId);
         ProductVariation variation = ProductVariationHttpMapper.toDomain(dto);
         variation.setProduct(existing.getProduct());
+        // GH #28: Inventory.quantity is authoritative for stock; deductStock/restoreStock
+        // are the only paths allowed to change stockQuantity (kept in sync with Inventory).
+        // Discard any client-supplied stockQuantity here rather than let a PUT silently
+        // desync the two.
+        variation.setStockQuantity(existing.getStockQuantity());
 
         service.update(variation);
         return ResponseEntity.ok(ProductVariationHttpMapper.toDto(variation));

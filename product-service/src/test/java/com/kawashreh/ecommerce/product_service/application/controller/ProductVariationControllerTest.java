@@ -173,7 +173,7 @@ class ProductVariationControllerTest {
     }
 
     @Test
-    void update_shouldReturn200_andUpdateStockAndPrice_whenFound() throws Exception {
+    void update_shouldReturn200_andUpdatePrice_whenFound() throws Exception {
         UUID variationId = UUID.randomUUID();
         Product product = Product.builder().id(UUID.randomUUID()).build();
         ProductVariation existing = ProductVariation.builder()
@@ -197,10 +197,39 @@ class ProductVariationControllerTest {
                         .content(objectMapper.writeValueAsString(requestDto)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sku").value("SKU-UPDATED"))
-                .andExpect(jsonPath("$.price").value(59.99))
-                .andExpect(jsonPath("$.stockQuantity").value(7));
+                .andExpect(jsonPath("$.price").value(59.99));
 
         verify(productVariationService).update(any(ProductVariation.class));
+    }
+
+    // Regression test for GH #28: stockQuantity is synced from Inventory by
+    // InventoryServiceImpl.deductStock/restoreStock exclusively; a PUT here must not let a
+    // caller silently desync the two by supplying an arbitrary stockQuantity.
+    @Test
+    void update_shouldIgnoreClientSuppliedStockQuantity_andKeepExistingValue() throws Exception {
+        UUID variationId = UUID.randomUUID();
+        Product product = Product.builder().id(UUID.randomUUID()).build();
+        ProductVariation existing = ProductVariation.builder()
+                .id(variationId)
+                .sku("SKU-OLD")
+                .price(BigDecimal.valueOf(10.00))
+                .stockQuantity(1)
+                .product(product)
+                .build();
+
+        given(productVariationService.find(variationId)).willReturn(existing);
+
+        ProductVariationDto requestDto = ProductVariationDto.builder()
+                .sku("SKU-UPDATED")
+                .price(BigDecimal.valueOf(59.99))
+                .stockQuantity(999)
+                .build();
+
+        mockMvc.perform(put("/api/v1/product-variation/{productVariationId}", variationId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestDto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stockQuantity").value(1));
     }
 
     @Test
