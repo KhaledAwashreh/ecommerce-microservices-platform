@@ -3,6 +3,7 @@ package com.kawashreh.ecommerce.order_service.domain.service.impl;
 import com.kawashreh.ecommerce.order_service.dataAccess.entity.OrderEntity;
 import com.kawashreh.ecommerce.order_service.dataAccess.repository.OrderRepository;
 import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
+import com.kawashreh.ecommerce.order_service.domain.exception.InvalidOrderStateException;
 import com.kawashreh.ecommerce.order_service.domain.model.Order;
 import com.kawashreh.ecommerce.order_service.domain.model.OrderItem;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.client.PaymentClient;
@@ -24,6 +25,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -389,5 +391,81 @@ class OrderServiceImplTest {
 
         assertThat(tx).isNotNull();
         assertThat(tx.propagation()).isEqualTo(Propagation.NOT_SUPPORTED);
+    }
+
+    // --- GH #43: order status transitions must be guarded --------------------------
+
+    private OrderEntity existingEntityWithStatus(UUID orderId, OrderStatus status) {
+        return OrderEntity.builder()
+                .id(orderId)
+                .buyer(buyerId)
+                .seller(sellerId)
+                .storeId(storeId)
+                .status(status)
+                .selectedItems(new ArrayList<>())
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+    }
+
+    @Test
+    void update_rejectsBackwardTransition_fromConfirmedToPending() {
+        UUID orderId = UUID.randomUUID();
+        when(repository.findById(orderId)).thenReturn(Optional.of(existingEntityWithStatus(orderId, OrderStatus.CONFIRMED)));
+
+        Order order = sampleOrder(2);
+        order.setId(orderId);
+        order.setStatus(OrderStatus.PENDING);
+
+        assertThatThrownBy(() -> orderService.update(order))
+                .isInstanceOf(InvalidOrderStateException.class);
+
+        verify(repository, never()).save(any(OrderEntity.class));
+    }
+
+    @Test
+    void update_rejectsSkippingStates_fromPendingToShipped() {
+        UUID orderId = UUID.randomUUID();
+        when(repository.findById(orderId)).thenReturn(Optional.of(existingEntityWithStatus(orderId, OrderStatus.PENDING)));
+
+        Order order = sampleOrder(2);
+        order.setId(orderId);
+        order.setStatus(OrderStatus.SHIPPED);
+
+        assertThatThrownBy(() -> orderService.update(order))
+                .isInstanceOf(InvalidOrderStateException.class);
+
+        verify(repository, never()).save(any(OrderEntity.class));
+    }
+
+    @Test
+    void update_rejectsAnyTransition_outOfTerminalCancelledState() {
+        UUID orderId = UUID.randomUUID();
+        when(repository.findById(orderId)).thenReturn(Optional.of(existingEntityWithStatus(orderId, OrderStatus.CANCELLED)));
+
+        Order order = sampleOrder(2);
+        order.setId(orderId);
+        order.setStatus(OrderStatus.CONFIRMED);
+
+        assertThatThrownBy(() -> orderService.update(order))
+                .isInstanceOf(InvalidOrderStateException.class);
+
+        verify(repository, never()).save(any(OrderEntity.class));
+    }
+
+    @Test
+    void update_allowsLegalForwardTransition_fromConfirmedToShipped() {
+        UUID orderId = UUID.randomUUID();
+        when(repository.findById(orderId)).thenReturn(Optional.of(existingEntityWithStatus(orderId, OrderStatus.CONFIRMED)));
+        when(repository.save(any(OrderEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Order order = sampleOrder(2);
+        order.setId(orderId);
+        order.setStatus(OrderStatus.SHIPPED);
+
+        Order result = orderService.update(order);
+
+        assertThat(result.getStatus()).isEqualTo(OrderStatus.SHIPPED);
+        verify(repository, times(1)).save(any(OrderEntity.class));
     }
 }

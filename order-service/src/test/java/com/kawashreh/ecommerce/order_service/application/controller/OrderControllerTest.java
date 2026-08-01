@@ -3,6 +3,7 @@ package com.kawashreh.ecommerce.order_service.application.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kawashreh.ecommerce.order_service.application.dto.OrderDto;
 import com.kawashreh.ecommerce.order_service.application.dto.OrderItemDto;
+import com.kawashreh.ecommerce.order_service.domain.exception.InvalidOrderStateException;
 import com.kawashreh.ecommerce.order_service.domain.model.Order;
 import com.kawashreh.ecommerce.order_service.domain.service.OrderService;
 import com.kawashreh.ecommerce.order_service.infrastructure.security.JwtAuthFilter;
@@ -27,6 +28,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -147,5 +149,37 @@ class OrderControllerTest {
                 .andExpect(status().isCreated());
 
         verify(orderService).create(any(Order.class));
+    }
+
+    @Test
+    void updateOrder_shouldReturnConflict_whenServiceRejectsTheStatusTransition() throws Exception {
+        // GH #43: OrderServiceImpl.update throws InvalidOrderStateException for an illegal
+        // status transition; the controller must map that to 409, not let it fall through
+        // to a 500.
+        UUID orderId = UUID.randomUUID();
+        OrderDto orderDto = OrderDto.builder()
+                .id(orderId)
+                .storeId(UUID.randomUUID())
+                .seller(UUID.randomUUID())
+                .buyer(UUID.randomUUID())
+                .selectedItems(List.of(OrderItemDto.builder()
+                        .id(UUID.randomUUID())
+                        .productSku(UUID.randomUUID())
+                        .quantity(2)
+                        .unitPrice(BigDecimal.TEN)
+                        .createdAt(Instant.now())
+                        .updatedAt(Instant.now())
+                        .build()))
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+
+        given(orderService.update(any(Order.class)))
+                .willThrow(new InvalidOrderStateException("Cannot transition order status from CONFIRMED to PENDING"));
+
+        mockMvc.perform(put("/api/v1/orders/{id}", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(orderDto)))
+                .andExpect(status().isConflict());
     }
 }
