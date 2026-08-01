@@ -66,7 +66,6 @@ class InventoryServiceIntegrationTest extends BaseIntegrationTest {
         InventoryEntity inventory = InventoryEntity.builder()
                 .productVariation(variation)
                 .quantity(10)
-                .reservedQuantity(0)
                 .warehouseLocation("WAREHOUSE-A")
                 .build();
 
@@ -79,7 +78,6 @@ class InventoryServiceIntegrationTest extends BaseIntegrationTest {
 
         assertThat(inventory).isNotNull();
         assertThat(inventory.getQuantity()).isEqualTo(10);
-        assertThat(inventory.getReservedQuantity()).isEqualTo(0);
     }
 
     @Test
@@ -159,5 +157,71 @@ class InventoryServiceIntegrationTest extends BaseIntegrationTest {
 
         var finalInventory = inventoryService.findByProductVariationId(productVariationId);
         assertThat(finalInventory.getQuantity()).isEqualTo(0);
+    }
+
+    // --- GH #28: ProductVariationEntity.stockQuantity must stay in sync with
+    // Inventory.quantity, the only two stock-mutating operations in the module. ---
+
+    @Test
+    void deductStock_shouldKeepProductVariationStockQuantityInSync() {
+        boolean result = inventoryService.deductStock(productVariationId, 3);
+        assertThat(result).isTrue();
+
+        var variation = productVariationRepository.findById(productVariationId).orElseThrow();
+        var inventory = inventoryRepository.findByProductVariationId(productVariationId).orElseThrow();
+
+        assertThat(variation.getStockQuantity()).isEqualTo(inventory.getQuantity());
+        assertThat(variation.getStockQuantity()).isEqualTo(7);
+    }
+
+    @Test
+    void restoreStock_shouldKeepProductVariationStockQuantityInSync() {
+        inventoryService.deductStock(productVariationId, 5);
+
+        boolean result = inventoryService.restoreStock(productVariationId, 5);
+        assertThat(result).isTrue();
+
+        var variation = productVariationRepository.findById(productVariationId).orElseThrow();
+        var inventory = inventoryRepository.findByProductVariationId(productVariationId).orElseThrow();
+
+        assertThat(variation.getStockQuantity()).isEqualTo(inventory.getQuantity());
+        assertThat(variation.getStockQuantity()).isEqualTo(10);
+    }
+
+    // --- GH #30: restoreStock had no lock and no guard, unlike deductStock. ---
+
+    @Test
+    void restoreStock_shouldRejectNonPositiveQuantity() {
+        boolean zeroResult = inventoryService.restoreStock(productVariationId, 0);
+        boolean negativeResult = inventoryService.restoreStock(productVariationId, -5);
+
+        assertThat(zeroResult).isFalse();
+        assertThat(negativeResult).isFalse();
+
+        // A negative "restore" must never silently deduct stock.
+        var inventory = inventoryService.findByProductVariationId(productVariationId);
+        assertThat(inventory.getQuantity()).isEqualTo(10);
+    }
+
+    @Test
+    void restoreStock_concurrentRestoration_shouldSumCorrectlyUnderLock() throws InterruptedException {
+        var inventory = inventoryRepository.findByProductVariationId(productVariationId).get();
+        inventory.setQuantity(0);
+        inventoryRepository.save(inventory);
+
+        Thread thread1 = new Thread(() -> inventoryService.restoreStock(productVariationId, 5));
+        Thread thread2 = new Thread(() -> inventoryService.restoreStock(productVariationId, 5));
+
+        thread1.start();
+        thread2.start();
+
+        thread1.join();
+        thread2.join();
+
+        var finalInventory = inventoryService.findByProductVariationId(productVariationId);
+        assertThat(finalInventory.getQuantity()).isEqualTo(10);
+
+        var finalVariation = productVariationRepository.findById(productVariationId).orElseThrow();
+        assertThat(finalVariation.getStockQuantity()).isEqualTo(10);
     }
 }
