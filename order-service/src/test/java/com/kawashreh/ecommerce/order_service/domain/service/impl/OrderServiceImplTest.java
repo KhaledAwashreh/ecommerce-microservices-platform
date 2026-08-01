@@ -1,5 +1,6 @@
 package com.kawashreh.ecommerce.order_service.domain.service.impl;
 
+import com.kawashreh.ecommerce.common.exceptions.NoSuchElementException;
 import com.kawashreh.ecommerce.order_service.dataAccess.entity.OrderEntity;
 import com.kawashreh.ecommerce.order_service.dataAccess.repository.OrderRepository;
 import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
@@ -373,6 +374,41 @@ class OrderServiceImplTest {
                         "hold a DB transaction open across the remote inventory calls")
                 .isNotNull();
         assertThat(tx.propagation()).isEqualTo(Propagation.NOT_SUPPORTED);
+    }
+
+    @Test
+    void update_throwsNoSuchElement_whenOrderDoesNotExist() {
+        // GH #42: update() must not call repository.save() unconditionally for an id that
+        // doesn't exist - that either silently inserts a new row (id was client-supplied,
+        // so isNew() is false and Spring Data routes to merge()) or blows up with a
+        // provider-specific error, neither of which is the intended 404. Guard with an
+        // existence check that raises a clean NoSuchElementException instead.
+        UUID missingId = UUID.randomUUID();
+        when(repository.existsById(missingId)).thenReturn(false);
+
+        Order order = sampleOrder(1);
+        order.setId(missingId);
+
+        assertThatThrownBy(() -> orderService.update(order))
+                .isInstanceOf(NoSuchElementException.class)
+                .hasMessageContaining(missingId.toString());
+
+        verify(repository, never()).save(any(OrderEntity.class));
+    }
+
+    @Test
+    void delete_throwsNoSuchElement_whenOrderDoesNotExist() {
+        // GH #42: delete() must not call repository.deleteById() unconditionally - Spring
+        // Data throws EmptyResultDataAccessException for a missing id, which is unhandled
+        // in this module and surfaces as a 500. Guard with an existence check instead.
+        UUID missingId = UUID.randomUUID();
+        when(repository.existsById(missingId)).thenReturn(false);
+
+        assertThatThrownBy(() -> orderService.delete(missingId))
+                .isInstanceOf(NoSuchElementException.class)
+                .hasMessageContaining(missingId.toString());
+
+        verify(repository, never()).deleteById(any(UUID.class));
     }
 
     @Test

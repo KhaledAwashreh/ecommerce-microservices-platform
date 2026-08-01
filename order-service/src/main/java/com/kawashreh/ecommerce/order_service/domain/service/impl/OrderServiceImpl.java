@@ -1,5 +1,6 @@
 package com.kawashreh.ecommerce.order_service.domain.service.impl;
 
+import com.kawashreh.ecommerce.common.exceptions.NoSuchElementException;
 import com.kawashreh.ecommerce.order_service.dataAccess.mapper.OrderMapper;
 import com.kawashreh.ecommerce.order_service.dataAccess.repository.OrderRepository;
 import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
@@ -353,6 +354,12 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public Order update(Order order) {
+        // GH #42: repository.save() on an id-supplied entity routes to merge(), which for a
+        // non-existent id surfaces as a provider-specific error, not a clean 404. Guard with
+        // an explicit existence check first.
+        if (!repository.existsById(order.getId())) {
+            throw new NoSuchElementException("Order not found: " + order.getId());
+        }
         var entity = OrderMapper.toEntity(order);
         entity.getSelectedItems().forEach(item -> item.setOrder(entity));
         var updated = repository.save(entity);
@@ -361,6 +368,11 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public void delete(UUID id) {
+        // GH #42: deleteById() throws EmptyResultDataAccessException (uncaught -> 500) for a
+        // missing id. Guard with an explicit existence check so callers get a clean 404.
+        if (!repository.existsById(id)) {
+            throw new NoSuchElementException("Order not found: " + id);
+        }
         repository.deleteById(id);
     }
 
