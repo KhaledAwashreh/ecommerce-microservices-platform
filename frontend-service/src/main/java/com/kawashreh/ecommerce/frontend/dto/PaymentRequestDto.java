@@ -16,9 +16,5 @@ public class PaymentRequestDto {
     private UUID orderId;
     private UUID buyerId;
     private String paymentMethod;
-    private String cardNumber;
-    private String cardHolderName;
-    private String expiryDate;
-    private String cvv;
     private BigDecimal amount;
 }

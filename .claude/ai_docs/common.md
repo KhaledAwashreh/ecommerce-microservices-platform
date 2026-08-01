@@ -3,7 +3,7 @@
 ## Purpose
 
 `common` is a shared Maven library (`com.kawashreh.ecommerce:common`, packaging `jar`) holding
-one error DTO and three `RuntimeException` subclasses used to standardize error responses across
+one error DTO and five `RuntimeException` subclasses used to standardize error responses across
 services. It has a single external dependency (`jackson-annotations`) and no Spring dependency of
 its own — the classes are plain Java, framework-agnostic. In practice it is consumed by exactly
 two of the six other modules.
@@ -16,11 +16,15 @@ common/src/main/java/com/kawashreh/ecommerce/common/
 │   └── ErrorResponse.java              # status, message, timestamp; Jackson-serializable
 └── exceptions/
     ├── DuplicateEntityException.java   # extends RuntimeException
+    ├── ForbiddenException.java         # extends RuntimeException — added for GH #37 (403: resource exists, caller doesn't own it)
     ├── IllegalArgumentException.java   # extends RuntimeException — shadows java.lang.IllegalArgumentException
-    └── NoSuchElementException.java     # extends RuntimeException — shadows java.util.NoSuchElementException
+    ├── NoSuchElementException.java     # extends RuntimeException — shadows java.util.NoSuchElementException
+    └── UnauthorizedException.java      # extends RuntimeException — added for GH #37 (401: failed authentication, e.g. bad login credentials)
 ```
 
-No `src/test` directory exists for this module.
+No `src/test` directory exists for this module — `ForbiddenException`/`UnauthorizedException`
+have no dedicated tests here either, consistent with the other three exceptions; they're
+exercised indirectly via `user-service`'s `exception/GlobalExceptionHandlerTest.java`.
 
 ## Domain model
 
@@ -28,8 +32,10 @@ No `src/test` directory exists for this module.
 |---|---|---|---|
 | `ErrorResponse` | `common/src/main/java/com/kawashreh/ecommerce/common/dto/ErrorResponse.java` | `int status`, `String message`, `LocalDateTime timestamp`; single `@JsonCreator` constructor, getters only (immutable, no setters) | Jackson-annotated (`@JsonCreator`/`@JsonProperty`) so it round-trips through `ObjectMapper` on both serialize and deserialize sides. |
 | `DuplicateEntityException` | `.../exceptions/DuplicateEntityException.java` | `RuntimeException` subclass, `(String message)` and `(String message, Throwable cause)` ctors | Plain marker/carrier exception, no extra state. |
+| `ForbiddenException` | `.../exceptions/ForbiddenException.java` | Same two ctors as above | **Added for GH #37.** For "resource exists but the caller doesn't own/can't access it" — used by `user-service`'s `UserServiceImpl.update/delete` and `AddressServiceImpl.update/delete` ownership checks, mapped to 403 by `user-service`'s `GlobalExceptionHandler`. Previously these threw `NoSuchElementException` (→ 404), conflating "not found" with "not yours" (see point 2 below). |
 | `IllegalArgumentException` (`com.kawashreh.ecommerce.common.exceptions`) | `.../exceptions/IllegalArgumentException.java` | Same two ctors as above | Same simple name as `java.lang.IllegalArgumentException`. See Gotchas. |
 | `NoSuchElementException` (`com.kawashreh.ecommerce.common.exceptions`) | `.../exceptions/NoSuchElementException.java` | Same two ctors as above | Same simple name as `java.util.NoSuchElementException`. See Gotchas. |
+| `UnauthorizedException` | `.../exceptions/UnauthorizedException.java` | Same two ctors as above | **Added for GH #37.** For a failed authentication attempt — used by `user-service`'s `UserController.login` on bad credentials, mapped to 401. Previously threw `NoSuchElementException` (→ 404), which wasn't defensible for a login failure either way. |
 
 No JPA entities, repositories, or persistence code in this module.
 
@@ -62,14 +68,16 @@ None. No `common/src/test` directory exists.
    declaration (`common/src/main/java/com/kawashreh/ecommerce/common/exceptions/IllegalArgumentException.java`).
    Nothing throws it, catches it, or imports it. Every `throw new IllegalArgumentException(...)` in
    the repo resolves to `java.lang.IllegalArgumentException` (see Cross-module usage §2).
-2. **`common.exceptions.NoSuchElementException` is used for authorization checks, not
-   "not found."** In `user-service`, ownership-check failures are thrown as this exception
-   (`UserServiceImpl.java:152`, `:187`; `AddressServiceImpl.java:86`, `:103`) and then mapped to
-   HTTP 404 by `GlobalExceptionHandler.handleNotFound` (`user-service/.../exception/GlobalExceptionHandler.java:17-25`),
-   even though the resource exists and the real condition is "you don't own this" (403-shaped, not
-   404-shaped). The same exception/mapping is reused for login failure
-   (`UserController.java:70`, `"Invalid username or password"` → 404), where 401 would be the
-   conventional status.
+2. **(Fixed for GH #37)** `common.exceptions.NoSuchElementException` used to be reused for
+   authorization checks, not just "not found." In `user-service`, ownership-check failures
+   (`UserServiceImpl.update/delete`, `AddressServiceImpl.update/delete`) and login failure
+   (`UserController.login`) all threw this exception and were all mapped to HTTP 404 by
+   `GlobalExceptionHandler.handleNotFound`, even though in the ownership case the resource
+   exists (403-shaped, not 404-shaped) and in the login case there's no resource at all
+   (401-shaped). Two new exceptions were added instead of reusing/repurposing
+   `NoSuchElementException`: `ForbiddenException` (403, ownership checks) and
+   `UnauthorizedException` (401, login). `NoSuchElementException`/404 is now reserved for
+   actual "this doesn't exist" cases (e.g. `AddressServiceImpl.create`'s "User not found").
 3. **Only two of six consumer-capable modules depend on `common`.** `user-service` and
    `frontend-service` declare the dependency in their `pom.xml` and both genuinely use it — there
    is no "declares but doesn't use" case. `order-service`, `product-service`, `payment-service`,
@@ -84,13 +92,18 @@ None. No `common/src/test` directory exists.
    `message` guarantee for arbitrary exceptions). `api-gateway`'s circuit-breaker fallback
    (`api-gateway/src/main/java/com/kawashreh/ecommerce/api_gateway/FallbackController.java:13-16`)
    returns a **plain-text** body (`"Service is currently unavailable..."`), not JSON at all.
-   `frontend-service`'s `GlobalExceptionHandler.extractMessage`
-   (`frontend-service/.../exception/GlobalExceptionHandler.java:60-74`) tries to
-   `objectMapper.readValue(ex.contentUTF8(), ErrorResponse.class)` on every Feign error body; for
-   any non-user-service backend this JSON-parse will fail (wrong shape or plain text) and silently
-   fall back to the generic `"Service error"` string via the `catch (Exception e)` at line 71-73 —
-   so real backend error messages from order-service/product-service/payment-service never reach
-   the user, only user-service's do.
+   **(Fixed for GH #36)** `frontend-service`'s `GlobalExceptionHandler.extractMessage`
+   (`frontend-service/.../exception/GlobalExceptionHandler.java`) used to try
+   `objectMapper.readValue(ex.contentUTF8(), ErrorResponse.class)` on every Feign error body and
+   fall back to a generic `"Service error"` string on any parse failure — which for any
+   non-user-service backend was every time (wrong shape or plain text), so real backend error
+   messages from order-service/product-service/payment-service never reached the user. It now
+   also falls back to reading the JSON `"message"` key generically when the body isn't
+   `ErrorResponse`'s shape, and still falls back to a per-status default (not always
+   `"Service error"`) if no usable message is found anywhere (including non-JSON bodies like
+   `api-gateway`'s plain-text fallback). This was fixed on the frontend side only — the four
+   services without a `GlobalExceptionHandler`/`ErrorResponse` are unchanged; see point 3 above,
+   which is still accurate.
 5. Sibling shadowing dead code discovered in the same investigation (not part of `common`, but
    directly adjacent): `user-service` defines its own
    `com.kawashreh.ecommerce.user_service.exception.MethodArgumentNotValidException`

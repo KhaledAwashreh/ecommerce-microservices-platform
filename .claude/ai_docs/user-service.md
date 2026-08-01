@@ -122,9 +122,9 @@ only `spring-security-crypto` for Argon2).
 | GET | `?username=` | query `username` | `UserDto` or empty body | 200 / 404 | None. |
 | GET | `/search?q=` | query `q` (optional) | `List<UserDto>` | 200 | None. |
 | POST | `/register` | body `UserRegisterDto` (**not** `@Valid`) | `UserDto` | 201 | None — public registration. |
-| POST | `/login` | body `UserLoginDto` | JWT string (`Content-Type` not JSON, `String` body) | 202 on success / throws `NoSuchElementException` → 404 on bad credentials | None (public). |
-| PUT | `/{userId}` | body `UserUpdateRequest` (**not** `@Valid`), header `X-User-ID: UUID` (required) | `UserDto` or empty body | 200 / 404 | Manual check in `UserServiceImpl.update`: `X-User-ID` must equal path `{userId}` or throws `NoSuchElementException` (→ 404, not 403). |
-| DELETE | `/{userId}` | header `X-User-ID: UUID` (required) | — | 204 | Same manual self-only check in `UserServiceImpl.delete`. |
+| POST | `/login` | body `UserLoginDto` | JWT string (`Content-Type` not JSON, `String` body) | 202 on success / throws `UnauthorizedException` → **401** on bad credentials (fixed for GH #37; was `NoSuchElementException` → 404) | None (public). |
+| PUT | `/{userId}` | body `UserUpdateRequest` (**not** `@Valid`), header `X-User-ID: UUID` (required) | `UserDto` or empty body | 200 / 404 (user truly doesn't exist) / **403** (fixed for GH #37; was 404) | Manual check in `UserServiceImpl.update`: `X-User-ID` must equal path `{userId}` or throws `ForbiddenException` (→ 403). |
+| DELETE | `/{userId}` | header `X-User-ID: UUID` (required) | — | 204 / **403** (fixed for GH #37; was 404) | Same manual self-only check in `UserServiceImpl.delete`, now throws `ForbiddenException`. |
 
 Note: `login` returns HTTP 202 Accepted for a successful login, not 200 — unusual choice,
 kept as-is since it is deliberate code, not a typo of e.g. 200/201.
@@ -137,8 +137,8 @@ kept as-is since it is deliberate code, not a typo of e.g. 200/201.
 | GET | `/{addressId}` | path `addressId` | `CreateAddressResponse` or empty | 200 / 404 | None. |
 | GET | `/search` | header `X-User-ID: UUID` (required), query `q` (optional) | `List<CreateAddressResponse>` | 200 / 400 (missing header) | GH #59 fix: scoped to the caller's own addresses via `X-User-ID`; the endpoint no longer accepts a caller-supplied `userId` query param. |
 | POST | `` | body `CreateAddressRequest` (`@Valid`), header `X-User-ID: UUID` (required) | `CreateAddressResponse` | 201 | Address is created under the `X-User-ID` supplied by caller — no check that this equals any authenticated identity beyond gateway trust. |
-| PUT | `/{addressId}` | body `AddressUpdateRequest` (`@Valid`), header `X-User-ID` (required) | `CreateAddressResponse` or empty | 200 / 404 | Manual check in `AddressServiceImpl.update`: address's owning user must equal `X-User-ID`, else `NoSuchElementException` (→404). |
-| DELETE | `/{addressId}` | header `X-User-ID` (required) | — | **200** (`ResponseEntity.ok().build()`, not 204) | Same manual ownership check in `AddressServiceImpl.delete`. |
+| PUT | `/{addressId}` | body `AddressUpdateRequest` (`@Valid`), header `X-User-ID` (required) | `CreateAddressResponse` or empty | 200 / 404 (address truly doesn't exist) / **403** (fixed for GH #37; was 404) | Manual check in `AddressServiceImpl.update`: address's owning user must equal `X-User-ID`, else `ForbiddenException` (→403). |
+| DELETE | `/{addressId}` | header `X-User-ID` (required) | — | **200** (`ResponseEntity.ok().build()`, not 204) / **403** (fixed for GH #37; was 404) | Same manual ownership check in `AddressServiceImpl.delete`, now throws `ForbiddenException`. |
 
 ### RoleController (`/api/v1/roles`)
 
@@ -236,14 +236,32 @@ for up to 10 minutes after a profile edit or password change.
   the service layer (`domain/service/UserService.java:11-13`,
   `domain/service/AddressService.java:11-13`) — i.e. the current state is acknowledged
   as a stopgap in the code itself.
-- Failed ownership checks throw `common`'s `NoSuchElementException`, which
-  `GlobalExceptionHandler` maps to **404 Not Found** — not 403 Forbidden. Not
-  necessarily wrong (avoids confirming a resource's existence to a non-owner) but
-  conflates "not found" and "not yours" under one status/exception type.
-- `login()` does not check `Account.canLogin()` (`activated && !archived && emailVerified`)
-  — an unactivated, unverified, or archived account can still authenticate successfully
-  as long as the password matches. `Account.activate()`/`canLogin()` exist but are never
-  invoked anywhere in `src/main`.
+- **(Fixed for GH #37)** Failed ownership checks now throw `common`'s new
+  `ForbiddenException`, which `GlobalExceptionHandler` maps to **403 Forbidden** — not
+  404 Not Found. Previously both this case and a genuine "resource doesn't exist" case
+  threw `common`'s `NoSuchElementException` (→ 404), making the two indistinguishable
+  from the caller's side and from the code (an accident, not a deliberate "don't confirm
+  existence to a non-owner" design choice — nothing in the code or docs said otherwise).
+  A real "not found" (e.g. `GET /{userId}` for a nonexistent user, or
+  `AddressServiceImpl.create` for a nonexistent user) still throws/returns 404 as before;
+  only the ownership-mismatch branches changed. Login failure is a third, separate case:
+  `UserController.login` now throws `common`'s new `UnauthorizedException` (→ **401**),
+  not `NoSuchElementException`/404 — a wrong password was never a "not found" or
+  "forbidden" condition. See `exception/GlobalExceptionHandlerTest.java` for the status
+  mapping and `UserServiceImplIntegrationTest`/`AddressServiceImplIntegrationTest`/
+  `UserControllerTest` for the three call sites.
+- **(Fixed for GH #32/#33)** `AccountMapper` now maps `archived` in both directions, and
+  `login()` (`domain/service/impl/UserServiceImpl.java`) now rejects an archived account
+  after a correct password check, returning `null` (→ 401 "Invalid username or password"
+  via `UserController.login`), same as a wrong password. This is intentionally scoped to
+  `archived` only, not the full `Account.canLogin()` predicate
+  (`activated && !archived && emailVerified`): nothing in this codebase ever sets
+  `activated`/`emailVerified` true (there is no activation or email-verification flow,
+  and `Account.activate()` still has zero callers), so enforcing the full predicate would
+  reject every account, including ones freshly registered — a far larger behavior change
+  than either issue asked for. `Account.canLogin()` remains defined but effectively only
+  half-wired; fully honoring it is a follow-up that needs a registration/verification flow
+  decision, not something this fix invented on its own.
 
 ## Tests
 
@@ -294,10 +312,12 @@ for up to 10 minutes after a profile edit or password change.
    gateway. There is no defense-in-depth if that assumption is ever violated (e.g. a
    misconfigured route, a compromised gateway, or direct pod-to-pod access inside the
    cluster). **Severity: high** (design-level, not a code bug per se).
-6. **`login()` ignores account activation/verification state** — `domain/service/impl/UserServiceImpl.java:158-180`.
-   `Account.canLogin()` (`activated && !archived && emailVerified`) is defined but never
-   called; a correct password alone is sufficient to receive a token regardless of
-   account status. **Severity: medium.**
+6. **(Fixed for GH #33) `login()` now rejects archived accounts.** `Account.canLogin()`
+   (`activated && !archived && emailVerified`) is still defined but only its `archived`
+   half is enforced in `login()` — see the Security section note above for why the
+   `activated`/`emailVerified` portion is deliberately not (yet) enforced. **Severity now:
+   low** (remaining gap is `activated`/`emailVerified` not being enforceable without a
+   registration/verification flow that doesn't exist yet).
 7. **Insecure Jackson default typing in Redis cache serializer** — `infrastructure/cache/CacheConfig.java:34-40`.
    `activateDefaultTyping(BasicPolymorphicTypeValidator.builder().allowIfBaseType(Object.class).build(), NON_FINAL, PROPERTY)`
    embeds `@class` type info in every cached JSON value and allows deserialization of
@@ -306,11 +326,11 @@ for up to 10 minutes after a profile edit or password change.
    polymorphic-deserialization gadget-chain risk. **Severity: medium** (requires a
    secondary Redis-write vector to exploit, but the validator itself provides no
    meaningful restriction).
-8. **`AccountMapper` never maps the `archived` field** — `dataAccess/mapper/AccountMapper.java`.
-   `Account.archived`/`AccountEntity.archived` exist on both sides but neither
-   `toEntity` nor `toDomain` sets it — `archived` is silently always `false` after any
-   round-trip through this mapper, even if the DB row has `archived = true`.
-   **Severity: medium.**
+8. **(Fixed for GH #32) `AccountMapper` now maps the `archived` field** —
+   `dataAccess/mapper/AccountMapper.java`. Previously neither `toEntity` nor `toDomain`
+   set it, so `archived` was silently always `false` after any round-trip through this
+   mapper even if the DB row had `archived = true`; this is what let `login()`'s new
+   archived check (GH #33) actually work end-to-end.
 9. **Stale caches on profile update/password change** — `UserServiceImpl.update()`
    (`domain/service/impl/UserServiceImpl.java:182-204`) and `.changePassword()`
    (`:221-254`) don't evict `usersById` or `userByUsername`. A `find`/`findByUsername`

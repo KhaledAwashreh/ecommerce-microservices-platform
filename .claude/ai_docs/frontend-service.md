@@ -168,6 +168,17 @@ collection on failure — no retry, no circuit breaker configuration is defined 
 module (Resilience4j lives in `api-gateway`, not here). `GlobalExceptionHandler` catches
 any exception that a controller lets propagate (i.e. anything not caught by a facade
 first) and redirects back to a caller-appropriate path with `?error=<message>`.
+**(Fixed for GH #36)** `extractMessage` (`exception/GlobalExceptionHandler.java`) used to
+assume every Feign error body was `common.ErrorResponse`'s shape, which only holds for
+user-service — order-service/product-service/payment-service have no
+`GlobalExceptionHandler` of their own and fall back to Spring Boot's default error body
+(different shape, and a timestamp format `ErrorResponse`'s constructor can't parse), and
+`api-gateway`'s fallback controller returns plain text. The real message from those was
+silently discarded and replaced with a generic "Service error". It now tries
+`common.ErrorResponse` first, then falls back to reading just the `"message"` key
+generically out of whatever JSON came back (still returning a per-status default like
+"Resource not found" if no usable message is found anywhere, rather than always
+"Service error"). See `exception/GlobalExceptionHandlerTest.java`.
 
 | Client method | Gateway path called | Owning service (per root `CLAUDE.md`) | Used by |
 |---|---|---|---|
@@ -213,22 +224,31 @@ no routing gaps.
 
 ### DTO field parity vs upstream services
 
-Fields below exist on the frontend DTO but have **no counterpart** on the corresponding
-upstream service's DTO — they always deserialize as `null`/`false` from a real gateway
-response:
+**(Fixed for GH #34)** The fields below used to exist on the frontend DTO with **no
+counterpart** on the corresponding upstream service's DTO, so they always deserialized
+as `null`/`false` from a real gateway response — silent data loss the UI rendered as
+blanks instead of failing. Per field, the fix direction was "the upstream service
+should provide it" or "the frontend should stop declaring it"; since none of these
+fields were read by any template/controller in this module (checked directly — one
+exception below), and adding them upstream would have been a cross-service DTO change
+outside this issue's scope, they were removed from the frontend DTO. A regression test,
+`dto/DtoUpstreamParityTest.java`, asserts each frontend DTO's field set is a subset of
+its upstream counterpart's, to catch this class of drift going forward (this is the
+"contract-auditor" case the issue called out).
 
-| Frontend DTO | Extra field(s) with no upstream counterpart | Upstream DTO checked |
+| Frontend DTO | Removed field(s) (had no upstream counterpart) | Upstream DTO checked |
 |---|---|---|
-| `dto/OrderItemDto.java:19-21` | `productName`, `variationName`, `totalPrice` | `order-service/.../application/dto/OrderItemDto.java` (has only `id, productSku, quantity, unitPrice, createdAt, updatedAt, createdBy, updatedBy`) |
-| `dto/OrderDto.java:40-43` | `subtotal`, `discountTotal`, `taxTotal`, `totalAmount` | `order-service/.../application/dto/OrderDto.java` (has no such fields; has `discountsApplied`, which frontend's `OrderDto` lacks entirely) |
-| `dto/ProductDto.java:26-29` | `variations`, `minPrice`, `maxPrice`, `active` | `product-service/.../application/dto/ProductDto.java` (stops at `thumbnailUrl`) |
-| `dto/PaymentRequestDto.java:19-22` | `cardNumber`, `cardHolderName`, `expiryDate`, `cvv` | `payment-service/.../application/dto/PaymentRequestDto.java` (has only `orderId, buyerId, amount, paymentMethod`) — moot in practice since `PaymentServiceClient.processPayment` has no callers (see Gotchas) |
-| `dto/PaymentResponseDto.java:27` | `failureReason` | `payment-service/.../application/dto/PaymentResponseDto.java` |
-| `dto/UserDto.java:22-23` | `createdAt`, `updatedAt` | upstream user-service response DTO has no such fields |
+| `dto/OrderItemDto.java` | `productName`, `variationName`, `totalPrice` | `order-service/.../application/dto/OrderItemDto.java` (has only `id, productSku, quantity, unitPrice, createdAt, updatedAt, createdBy, updatedBy`) |
+| `dto/OrderDto.java` | `subtotal`, `discountTotal`, `taxTotal`, `totalAmount` | `order-service/.../application/dto/OrderDto.java` (has no such fields; has `discountsApplied`, which frontend's `OrderDto` still lacks) |
+| `dto/ProductDto.java` | `variations`, `minPrice`, `maxPrice`, `active` | `product-service/.../application/dto/ProductDto.java` (stops at `thumbnailUrl`) |
+| `dto/PaymentRequestDto.java` | `cardNumber`, `cardHolderName`, `expiryDate`, `cvv` | `payment-service/.../application/dto/PaymentRequestDto.java` (has only `orderId, buyerId, amount, paymentMethod`) — moot in practice since `PaymentServiceClient.processPayment` has no callers (see Gotchas) |
+| `dto/PaymentResponseDto.java` | `failureReason` | `payment-service/.../application/dto/PaymentResponseDto.java`. **Exception**: this one *was* read, by `order/detail.html`'s "Failure Reason" block (`payment.failureReason ?: 'Unknown error'`). Since the field was always null in practice (this bug), that Elvis fallback always fired anyway — the template now renders the same static "Unknown error" text directly instead of reading a field that never carried real data. If a real failure reason is wanted here later, it needs to be added to payment-service's `PaymentResponseDto` first (a separate, cross-service change). |
+| `dto/UserDto.java` | `createdAt`, `updatedAt` | upstream user-service HTTP-facing `UserDto` has no such fields (the internal `domain/service/dto/UserResponse` does, but that's not what crosses the wire to this module) |
 
-`OrderDto.getTotalPrice()` (`dto/OrderDto.java:49-56`) exists specifically to work around
-the missing `totalAmount`/`subtotal` fields by deriving a total client-side from
-`selectedItems` instead of trusting a field that would otherwise always be null.
+`OrderDto.getTotalPrice()` (`dto/OrderDto.java`) still exists and is unaffected — it
+derives a total client-side from `selectedItems`, which is a distinct, deliberate
+workaround for the (still-real) `totalAmount`/`subtotal` gap, not something this fix
+removed.
 
 Fields that do line up cleanly (checked, not listed above): `UserRegisterRequest` /
 upstream registration DTO, `UserLoginRequest`, `UserUpdateRequest`, `AddressDto` /
@@ -486,18 +506,15 @@ from the two real test classes above.
     module, it renders `product/list` with an empty product list. This is inconsistent
     with the rest of the module's auth pattern (redirect-to-login) and silently hides all
     products from anonymous visitors with no explanation in the UI. Severity: **low**.
-24. **Several frontend DTOs carry fields with no upstream counterpart — always null in
-    practice.** See "DTO field parity vs upstream services" above for the full list
-    (`OrderItemDto.productName/variationName/totalPrice`,
-    `OrderDto.subtotal/discountTotal/taxTotal/totalAmount`,
-    `ProductDto.variations/minPrice/maxPrice/active`,
-    `PaymentRequestDto.cardNumber/cardHolderName/expiryDate/cvv`,
-    `PaymentResponseDto.failureReason`, `UserDto.createdAt/updatedAt`). Templates that
-    render these fields directly (e.g. `product/detail.html` uses hardcoded `$29.99`
-    rather than `product.minPrice`, so this is partly masked in the UI, but
-    `order/orders.html`'s reliance on `order.totalPrice` — itself only rescued by the
-    client-side `getTotalPrice()` computation — is a direct symptom of the
-    `OrderDto.totalAmount` gap). Severity: **medium** (silent data loss, not a crash).
+24. **(Fixed for GH #34) Frontend DTOs no longer carry fields with no upstream
+    counterpart.** See "DTO field parity vs upstream services" above — the fields were
+    removed rather than backfilled upstream, since none were actually consumed by any
+    template/controller in this module except `PaymentResponseDto.failureReason`, whose
+    one reader (`order/detail.html`) always rendered its Elvis fallback anyway (the field
+    was always null). `order/orders.html`'s reliance on `order.totalPrice` is unaffected —
+    that's `OrderDto.getTotalPrice()`, a computed method, not one of the removed fields;
+    the underlying `OrderDto.totalAmount` gap (no upstream field, hence the client-side
+    workaround) still exists and was out of scope for this fix.
 25. **Open design note not yet implemented:** `.github/issues/convert-address-htmx-event-based.md`
     proposes converting the address add/edit flow from "form returns the grid fragment
     directly" (current behavior, `hx-target="#address-grid" hx-swap="outerHTML"` on the

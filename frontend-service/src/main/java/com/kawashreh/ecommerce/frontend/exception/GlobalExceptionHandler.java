@@ -1,5 +1,6 @@
 package com.kawashreh.ecommerce.frontend.exception;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kawashreh.ecommerce.common.dto.ErrorResponse;
 import com.kawashreh.ecommerce.common.exceptions.DuplicateEntityException;
@@ -58,19 +59,52 @@ public class GlobalExceptionHandler {
     }
 
     private String extractMessage(FeignException ex) {
-        if (ex.contentUTF8() == null || ex.contentUTF8().isBlank()) {
-            return switch (ex.status()) {
-                case 404 -> "Resource not found";
-                case 409 -> "Resource already exists";
-                case 400 -> "Invalid request";
-                default -> "Service error";
-            };
+        String body = ex.contentUTF8();
+        if (body != null && !body.isBlank()) {
+            String message = tryExtractMessage(body);
+            if (message != null && !message.isBlank()) {
+                return message;
+            }
         }
+        return switch (ex.status()) {
+            case 404 -> "Resource not found";
+            case 409 -> "Resource already exists";
+            case 400 -> "Invalid request";
+            default -> "Service error";
+        };
+    }
+
+    /**
+     * Only user-service returns common.ErrorResponse's shape. order-service,
+     * product-service, and payment-service have no GlobalExceptionHandler of their own
+     * and fall back to Spring Boot's default error body instead - a different shape
+     * (and a timestamp format ErrorResponse's constructor can't parse), and
+     * api-gateway's fallback controller can return a plain-text, non-JSON body. Rather
+     * than assuming one shape, try common.ErrorResponse first, then fall back to
+     * reading just the "message" field generically out of whatever JSON came back.
+     * Returns null (letting the caller apply a per-status default) if neither works.
+     */
+    private String tryExtractMessage(String body) {
         try {
-            return objectMapper.readValue(ex.contentUTF8(), ErrorResponse.class).getMessage();
-        } catch (Exception e) {
-            return "Service error";
+            ErrorResponse errorResponse = objectMapper.readValue(body, ErrorResponse.class);
+            if (errorResponse.getMessage() != null && !errorResponse.getMessage().isBlank()) {
+                return errorResponse.getMessage();
+            }
+        } catch (Exception ignored) {
+            // Not common.ErrorResponse's shape - fall through and try generically.
         }
+
+        try {
+            JsonNode node = objectMapper.readTree(body);
+            JsonNode messageNode = node.get("message");
+            if (messageNode != null && messageNode.isTextual()) {
+                return messageNode.asText();
+            }
+        } catch (Exception ignored) {
+            // Not JSON at all (e.g. api-gateway's plain-text fallback body).
+        }
+
+        return null;
     }
 
     private ModelAndView redirectWithError(HttpServletRequest request, String message) {

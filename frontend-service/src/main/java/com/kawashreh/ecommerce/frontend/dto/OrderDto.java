@@ -40,11 +40,6 @@ public class OrderDto {
     private UUID createdBy;
     private UUID updatedBy;
 
-    private BigDecimal subtotal;
-    private BigDecimal discountTotal;
-    private BigDecimal taxTotal;
-    private BigDecimal totalAmount;
-
     /**
      * Computes total price from order items (quantity * unitPrice per item).
      * Used by the orders template to display order totals.

@@ -1,7 +1,7 @@
 package com.kawashreh.ecommerce.user_service.domain.service.impl;
 
 import com.kawashreh.ecommerce.common.exceptions.DuplicateEntityException;
-import com.kawashreh.ecommerce.common.exceptions.NoSuchElementException;
+import com.kawashreh.ecommerce.common.exceptions.ForbiddenException;
 import com.kawashreh.ecommerce.user_service.constants.CacheConstants;
 import com.kawashreh.ecommerce.user_service.dataAccess.mapper.AccountMapper;
 import com.kawashreh.ecommerce.user_service.dataAccess.mapper.UserMapper;
@@ -153,7 +153,7 @@ public class UserServiceImpl implements UserService {
         // TODO (investigate SpEL): Replace manual ownership check with
         //   @PreAuthorize SpEL once security context is available at service layer.
         if (!requestingUserId.equals(id)) {
-            throw new NoSuchElementException("You can only delete your own account");
+            throw new ForbiddenException("You can only delete your own account");
         }
 
         repository.deleteById(id);
@@ -180,6 +180,18 @@ public class UserServiceImpl implements UserService {
             return null;
         }
 
+        // GH #33: reject archived (banned/deleted) accounts even with a correct password.
+        // Scoped to `archived` specifically rather than the full Account.canLogin()
+        // (activated && !archived && emailVerified): nothing in this codebase ever sets
+        // `activated`/`emailVerified` true (registration has no activation or email-
+        // verification step), so enforcing the full predicate here would reject every
+        // account, including ones just registered - a much larger behavior change than
+        // this issue describes. Archived is the one flag with a real, working lifecycle
+        // (see GH #32's AccountMapper fix), so it's the one enforced here.
+        if (account.isArchived()) {
+            return null;
+        }
+
         String role = user.getRole() != null ? user.getRole().getName() : null;
         return jwtService.generateToken(user.getId(), user.getUsername(), role);
     }
@@ -189,7 +201,7 @@ public class UserServiceImpl implements UserService {
         // TODO (investigate SpEL): Replace manual ownership check with
         //   @PreAuthorize SpEL once security context is available at service layer.
         if (!request.getRequestingUserId().equals(id)) {
-            throw new NoSuchElementException("You can only edit your own profile");
+            throw new ForbiddenException("You can only edit your own profile");
         }
 
         UserEntity entity = repository.findById(id).orElse(null);

@@ -92,7 +92,7 @@
                 </div>
                 <div th:if="${payment.isFailed()}" class="col-span-2 md:col-span-4">
                     <p class="text-sm text-gray-500">Failure Reason</p>
-                    <p class="text-red-600" th:text="${payment.failureReason ?: 'Unknown error'}">Declined</p>
+                    <p class="text-red-600">Unknown error</p>
                 </div>
             </div>
             <div th:if="${payment == null}" class="text-gray-500">
