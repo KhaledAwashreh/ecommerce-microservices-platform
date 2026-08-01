@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -163,11 +164,8 @@ class OrderServiceIntegrationTest {
                 .updatedAt(Instant.now())
                 .build();
 
-        try {
-            orderService.create(order);
-        } catch (Exception e) {
-            assertThat(e.getMessage()).contains("Insufficient stock");
-        }
+        assertThatThrownBy(() -> orderService.create(order))
+                .hasMessageContaining("Insufficient stock");
     }
 
     @Test
@@ -189,11 +187,8 @@ class OrderServiceIntegrationTest {
                 .updatedAt(Instant.now())
                 .build();
 
-        try {
-            orderService.create(order);
-        } catch (Exception e) {
-            assertThat(e.getMessage()).contains("Product not found");
-        }
+        assertThatThrownBy(() -> orderService.create(order))
+                .hasMessageContaining("Product not found");
     }
 
     @Test
