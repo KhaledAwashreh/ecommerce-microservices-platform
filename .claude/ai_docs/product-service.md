@@ -11,6 +11,21 @@
 > document is otherwise still accurate as of the fix; it has not been fully
 > regenerated.
 
+> **Amendment (GH #27/#38/#39 fixes):** three schema issues below are now fixed and the
+> sections that described them are stale in places:
+> - GH #27: `ProductVariationEntity.attributes`' `@JoinColumn` is now
+>   `product_variation_id`, not `category_id`.
+> - GH #38: `infra/models/Attachment.java` (and the now-empty `infra/` package) was
+>   deleted — nothing referenced it, so per the issue's fix direction it was removed
+>   rather than wired up. No `attachment` table is generated anymore.
+> - GH #39: `CategoryEntity` now maps to table `categories` (was `categry`), and
+>   `ProductEntity`'s product↔category join table is now named `product_categories`
+>   (was `category`).
+>
+> Regression coverage for all three lives in
+> `product-service/src/test/java/.../SchemaIntegrationTest.java`, asserted against a real
+> Postgres Testcontainer. The rest of this document has not been fully regenerated.
+
 ## Purpose
 
 Owns products, product variations, categories, inventory, and product reviews for the
@@ -44,28 +59,28 @@ com.kawashreh.ecommerce.product_service
 │   └── http/
 │       ├── client/         UserServiceClient (Feign, calls user-service through the gateway)
 │       └── dto/             UserDto
-└── infra/models/Attachment.java   # SEPARATE, unrelated package from "infastructure" — dead @Entity, see Gotchas
 ```
+(GH #38: the `infra/models/Attachment.java` orphan `@Entity` and its package were deleted —
+nothing referenced it.)
 
 ## Domain model
 
 | Domain POJO | Entity | Table | Notes |
 |---|---|---|---|
 | `Product` | `ProductEntity` | `Product` (mixed-case table name) | `ownerId` (UUID), `categories` (List\<Category>), timestamps, `thumbnailUrl`. |
-| `Category` | `CategoryEntity` | `categry` (misspelled) | id/name/description only. |
+| `Category` | `CategoryEntity` | `categories` (GH #39: renamed from the misspelled `categry`) | id/name/description only. |
 | `ProductVariation` | `ProductVariationEntity` | `product_variation` | sku (unique), `stockQuantity` (duplicate of `Inventory.quantity`, see Gotchas), price, isActive, `attachments` (`List<UUID>` `@ElementCollection`), `attributes` (`List<Attribute>`), owning `Product`. |
-| `Attribute` | `AttributeEntity` | `attribute` | Generic name/value pair, `@OneToMany` from `ProductVariationEntity` via a miswired join column (see Gotchas). |
+| `Attribute` | `AttributeEntity` | `attribute` | Generic name/value pair, `@OneToMany` from `ProductVariationEntity` (GH #27: FK column is `product_variation_id`, previously miswired as `category_id`). |
 | `Inventory` | `InventoryEntity` | `inventory` | `quantity`, `reservedQuantity` (defined, never written — see Gotchas), `warehouseLocation`, `getAvailableQuantity() = quantity - reservedQuantity`. One inventory row per `ProductVariation` (`@ManyToOne` FK `product_variation_id`, not enforced unique at JPA level). |
 | `ProductReview` | `ProductReviewEntity` | `productReview` | `userId`, owning `Product` (`@ManyToOne`, required), `review`, `stars` (`int`, no range validation), timestamps (never auto-populated — see Gotchas). |
-| n/a | `Attachment` (`infra/models`) | `attachment` (implicit) | Isolated, unused `@Entity` — dead code, see Gotchas. |
 
 Domain models are plain Lombok `@Data @Builder` classes, separate from JPA entities, mapped
 by hand-written static mapper classes in `dataAccess/mapper` (entity↔domain) and
 `application/mapper` (domain↔HTTP DTO), matching the repo's layered convention.
 
-`Product.categories` maps through a `@ManyToMany` on `ProductEntity` using a join table
-literally named `category` (`@JoinTable(name = "category", ...)`) — see Gotchas for why this
-collides in meaning (not in name) with the misspelled `categry` table.
+`Product.categories` maps through a `@ManyToMany` on `ProductEntity` using a join table now
+named `product_categories` (GH #39: renamed from `category`, which collided in meaning with
+the category entity table's old, misspelled `categry` name).
 
 ## Persistence
 
@@ -328,22 +343,17 @@ which is very permissive (allows any base type).
    module. Both dead overloads were removed. (There is still no search/filter
    functionality — by name, category, price, etc. — despite `Product`/`ProductVariation`
    having natural search fields; that part of the observation still stands.)
-10. **Medium — miswired `@OneToMany` join column.** `ProductVariationEntity.java:58-60`:
-    `attributes` is mapped `@OneToMany @JoinColumn(name = "category_id", nullable = false)`
-    against `AttributeEntity` — `category_id` is a copy-paste leftover (there is no
-    `category_id` concept on attributes/variations); the FK should reference the owning
-    product variation. With `ddl-auto=update` this silently creates an ill-named
-    `category_id` column on the `attribute` table.
-11. **Medium — table-naming collision/confusion.** `CategoryEntity` maps to table `categry`
-    (`CategoryEntity.java:18`, misspelled), while `ProductEntity`'s `@ManyToMany` join table
-    for products↔categories is separately named `category` (`ProductEntity.java:40`,
-    `ProductEntity.java:38-44`). Two different tables with near-identical, easily-confused
-    names, neither of which is the "obvious" one for the other's purpose.
-12. **Medium — dead `Attachment` entity.** `infra/models/Attachment.java` is a standalone
-    `@Entity` in a package (`infra`) that is unrelated to the module's `infastructure`
-    package. It is never referenced by any repository, service, or the
-    `ProductVariation.attachments` (`List<UUID>`) field it appears intended to back. With
-    `ddl-auto=update` it still creates an orphan `attachment` table in the database.
+10. ~~**Miswired `@OneToMany` join column.**~~ Fixed in GH #27:
+    `ProductVariationEntity.attributes`'s `@JoinColumn` is now `product_variation_id`,
+    not the copy-pasted `category_id`.
+11. ~~**Table-naming collision/confusion.**~~ Fixed in GH #39: `CategoryEntity` now maps
+    to `categories` (was the misspelled `categry`), and `ProductEntity`'s `@ManyToMany`
+    join table for products↔categories is now named `product_categories` (was
+    `category`).
+12. ~~**Dead `Attachment` entity.**~~ Fixed in GH #38: `infra/models/Attachment.java` and
+    the `infra` package were deleted — nothing referenced it (not
+    `ProductVariation.attachments`, which is a separate `List<UUID>` `@ElementCollection`
+    unrelated to this entity), so no orphan `attachment` table is generated anymore.
 13. **Medium — `Inventory.reservedQuantity` is fully plumbed but never written.** The field
     exists on the entity, domain model, and DTO, and `getAvailableQuantity()` (domain and
     DTO) computes `quantity - reservedQuantity`, but no code path anywhere increments or

@@ -1,5 +1,6 @@
 package com.kawashreh.ecommerce.order_service.domain.service.impl;
 
+import com.kawashreh.ecommerce.common.exceptions.NoSuchElementException;
 import com.kawashreh.ecommerce.order_service.dataAccess.mapper.OrderMapper;
 import com.kawashreh.ecommerce.order_service.dataAccess.repository.OrderRepository;
 import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
@@ -370,12 +371,13 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public Order update(Order order) {
-        // GH #43: only guard the transition when the order already exists - repository
-        // holds the only source of truth for "current" status, and an update against an
-        // id that doesn't exist yet has no prior status to violate a transition against
-        // (that not-found case is a separate, pre-existing concern, not this issue's scope).
-        repository.findById(order.getId())
-                .ifPresent(existing -> validateStatusTransition(existing.getStatus(), order.getStatus()));
+        // GH #42: repository.save() on an id-supplied entity routes to merge(), which for a
+        // non-existent id surfaces as a provider-specific error, not a clean 404. Guard with
+        // an explicit existence check first, and reuse that lookup (GH #43) to validate the
+        // requested status transition against the order's current persisted status.
+        var existing = repository.findById(order.getId())
+                .orElseThrow(() -> new NoSuchElementException("Order not found: " + order.getId()));
+        validateStatusTransition(existing.getStatus(), order.getStatus());
 
         var entity = OrderMapper.toEntity(order);
         entity.getSelectedItems().forEach(item -> item.setOrder(entity));
@@ -402,6 +404,11 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public void delete(UUID id) {
+        // GH #42: deleteById() throws EmptyResultDataAccessException (uncaught -> 500) for a
+        // missing id. Guard with an explicit existence check so callers get a clean 404.
+        if (!repository.existsById(id)) {
+            throw new NoSuchElementException("Order not found: " + id);
+        }
         repository.deleteById(id);
     }
 
