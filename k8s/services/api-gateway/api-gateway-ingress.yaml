@@ -1,0 +1,27 @@
+# External entrypoint into the cluster. The api-gateway Service is type
+# LoadBalancer, which stays <pending> forever on clusters without cloud LB
+# support (kind, minikube, bare metal). This Ingress gives those clusters a
+# working path in via any installed ingress controller (ingressClassName
+# below assumes ingress-nginx — swap it for your controller's class name).
+#
+# No host is set, so it matches any Host header; add one (and a TLS block)
+# once this is served from a real domain.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-gateway
+  namespace: ecommerce
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 80
