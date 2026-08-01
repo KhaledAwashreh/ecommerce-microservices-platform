@@ -222,18 +222,12 @@ reference — it is not created by any workflow or manifest in this repo.
 ## Local dev entry points
 
 - `./start.sh [-b] [-f]` — hardcodes `COMPOSE_FILE="docker-compose.dev.yml"`. `-b` rebuilds
-  first, `-f` follows logs. After `up -d`, unconditionally prints a service-URL banner that is
-  **wrong for this repo**: it lists `Eureka Dashboard: http://localhost:8761` and
-  `Config Server: http://localhost:8888` — neither a Eureka server nor a Config Server exists
-  anywhere in this codebase (no such module, no such container in either compose file). It
-  also prints `PostgreSQL (Product): localhost:5432`, `(User): localhost:5433`,
-  `(Payment): localhost:5434`, `(Order): localhost:5435` — these port numbers do not match
-  `docker-compose.dev.yml`, which actually publishes `postgres-user` on 5433,
-  `postgres-product` on 5434, `postgres-order` on 5435, `postgres-payment` on 5436 (every
-  service in the printed list is off by one container, and product/user are swapped relative
-  to the actual mapping). The printed banner appears to be leftover from an earlier iteration
-  of this project's architecture (Eureka + Config Server) and was not updated when the
-  Postgres-per-service ports or the service-discovery approach changed.
+  first, `-f` follows logs. After `up -d`, prints a service-URL banner listing API Gateway
+  (`:8765`), Frontend (`:3000`), Zipkin (`:9411`), RedisInsight (`:5540`), and the four
+  per-service Postgres ports matching `docker-compose.dev.yml` (User `5433`, Product `5434`,
+  Order `5435`, Payment `5436`). Previously printed a stale Eureka/Config Server banner and
+  wrong/off-by-one Postgres ports left over from an earlier architecture iteration; fixed
+  per issue #49.
 - `./stop.sh [-v]` — also hardcodes `docker-compose.dev.yml`; `-v` additionally removes
   volumes (data loss, confirmed by an explicit warning echo).
 - `./image.sh` — loops `api-gateway user-service product-service order-service
