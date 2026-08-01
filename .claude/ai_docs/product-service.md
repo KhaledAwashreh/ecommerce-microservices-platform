@@ -300,18 +300,23 @@ which is very permissive (allows any base type).
    matching the pattern `user-service` already uses. `ProductVariationController`'s `create`
    has the same null-on-failure shape but was intentionally left as-is: GH #41 only named
    `ProductController`/`ProductReviewController`.
-5. **Fixed (GH #30, together with GH #28) — inventory `restoreStock` now locked and
-   guarded.** `InventoryServiceImpl.restoreStock` now rejects non-positive quantities up
+5. **Partially fixed (GH #30) — inventory `restoreStock` now locked and guarded, but not
+   ceilinged.** `InventoryServiceImpl.restoreStock` now rejects non-positive quantities up
    front and acquires the same `findByProductVariationIdWithLock` pessimistic lock
    `deductStock` uses before restoring — this isn't redundant with the atomic
    `restoreQuantity` UPDATE: the lock is what makes the GH #28 stock-quantity sync (below)
    race-free, since syncing reads the pre-update quantity and adds to it in application code
    (a classic read-modify-write that needs serializing against a concurrent restore/deduct on
-   the same row). A strict ceiling on total restorable quantity (e.g. bounded by what was
-   actually deducted) was considered but not implemented — it would need a
-   deducted-quantity ledger that doesn't exist anywhere in this module, and the sole caller
-   (order-service, via `restoreDeductedInventory`) already only ever restores exactly what it
-   previously deducted.
+   the same row). This closes the issue's concurrency half ("no lock") but **not** the
+   upper-bound half ("or upper bound") from the issue's own title: there is still no ceiling
+   on how much a single call can restore, and `InventoryController.restoreStock`
+   (`application/controller/InventoryController.java`) is a plain, unauthenticated
+   `@PutMapping` — a caller could still inflate stock past what was ever deducted. A real
+   ceiling needs a deducted-quantity ledger that doesn't exist anywhere in this module; the
+   sole current caller (order-service, via `restoreDeductedInventory`) only ever restores
+   exactly what it previously deducted, so this is a live trust-boundary gap rather than an
+   active bug today — same class of issue as this module's other "no ownership/role check"
+   gaps, flagged rather than built around with an ad hoc, unjustified limit.
 6. **Fixed (GH #14) — `ProductVariationController` now exists.** `ProductVariationService` /
    `ProductVariationServiceImpl` (create/update/delete/find/findByProductId) are wired to a
    new `ProductVariationController` (`/api/v1/product-variation`, see HTTP API section above),
