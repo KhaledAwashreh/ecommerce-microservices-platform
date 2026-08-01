@@ -206,9 +206,13 @@ create(order):
 For every `OrderItem` in `order.getSelectedItems()`:
 1. `productServiceClient.retrieveProduct(item.getProductSku())` — 404/null -> `IllegalArgumentException`.
 2. `productServiceClient.retrieveInventory(item.getProductSku())` — null -> `IllegalArgumentException`.
-3. Compares `inventory.getAvailableQuantity()` (`quantity - reservedQuantity`,
-   `infrastructure/http/dto/InventoryDto.java:31-33`) against `item.getQuantity()`; throws
-   `InsufficientStockException` if insufficient.
+3. Compares `inventory.getQuantity()` against `item.getQuantity()`; throws
+   `InsufficientStockException` if insufficient. (Previously compared
+   `inventory.getAvailableQuantity()` = `quantity - reservedQuantity`, but product-service's
+   `reservedQuantity` was never written by anything — see product-service ai_doc GH #29 —
+   so `getAvailableQuantity()` always equaled `quantity` anyway; the field and method were
+   removed from both sides as dead weight, `infrastructure/http/dto/InventoryDto.java` now
+   only carries `quantity`.)
 4. Any other exception from the Feign calls is caught and rewrapped as
    `IllegalArgumentException("Unable to validate product availability: " + msg)`.
 

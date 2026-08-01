@@ -55,8 +55,8 @@ com.kawashreh.ecommerce.product_service
 | `Category` | `CategoryEntity` | `categry` (misspelled) | id/name/description only. |
 | `ProductVariation` | `ProductVariationEntity` | `product_variation` | sku (unique), `stockQuantity` (duplicate of `Inventory.quantity`, see Gotchas), price, isActive, `attachments` (`List<UUID>` `@ElementCollection`), `attributes` (`List<Attribute>`), owning `Product`. |
 | `Attribute` | `AttributeEntity` | `attribute` | Generic name/value pair, `@OneToMany` from `ProductVariationEntity` via a miswired join column (see Gotchas). |
-| `Inventory` | `InventoryEntity` | `inventory` | `quantity`, `reservedQuantity` (defined, never written — see Gotchas), `warehouseLocation`, `getAvailableQuantity() = quantity - reservedQuantity`. One inventory row per `ProductVariation` (`@ManyToOne` FK `product_variation_id`, not enforced unique at JPA level). |
-| `ProductReview` | `ProductReviewEntity` | `productReview` | `userId`, owning `Product` (`@ManyToOne`, required), `review`, `stars` (`int`, no range validation), timestamps (never auto-populated — see Gotchas). |
+| `Inventory` | `InventoryEntity` | `inventory` | `quantity`, `warehouseLocation`. One inventory row per `ProductVariation` (`@ManyToOne` FK `product_variation_id`, not enforced unique at JPA level). **GH #29 fix:** `reservedQuantity`/`getAvailableQuantity()` were removed (were fully plumbed but never written anywhere, making the "reserved" concept permanently inert) — see Gotchas. `deductStock`/`restoreStock` now also keep `ProductVariationEntity.stockQuantity` in sync (GH #28), see Gotchas. |
+| `ProductReview` | `ProductReviewEntity` | `productReview` | `userId`, owning `Product` (`@ManyToOne`, required), `review`, `stars` (`int`, no range validation), `createdAt`/`updatedAt` now auto-populated via `@CreationTimestamp`/`@UpdateTimestamp` (GH #26 fix). |
 | n/a | `Attachment` (`infra/models`) | `attachment` (implicit) | Isolated, unused `@Entity` — dead code, see Gotchas. |
 
 Domain models are plain Lombok `@Data @Builder` classes, separate from JPA entities, mapped
@@ -94,7 +94,7 @@ collides in meaning (not in name) with the misspelled `categry` table.
 |---|---|---|---|---|---|
 | GET | `/api/v1/product` | — | `List<ProductDto>` | 200 | none enforced in this module |
 | GET | `/api/v1/product/{productId}` | — | `ProductDto` | 200 / 404 if not found | none |
-| POST | `/api/v1/product` | `ProductDto` | `ProductDto` | 201 (even on failure — see Gotchas) | none |
+| POST | `/api/v1/product` | `ProductDto` | `ProductDto` | 201 / 404 if the owning user doesn't exist (GH #41 fix, `ErrorResponse` body) | none |
 | DELETE | `/api/v1/product/{productId}` | — | — | 204 (always, even if id doesn't exist) | none |
 
 No PUT/update endpoint exists even though `ProductService.update()` is implemented
@@ -126,7 +126,7 @@ No PUT/update endpoint exists even though `ProductService.update()` is implement
 | GET | `/api/v1/productReview` | — | `List<ProductReviewDto>` | 200 | none |
 | GET | `/api/v1/productReview/{productId}` | — | `List<ProductReviewDto>` (reviews for a product) | 200 | none |
 | GET | `/api/v1/productReview/{reviewId}` | — | `ProductReviewDto` (single review) | 200 / 404 | none |
-| POST | `/api/v1/productReview` | `ProductReviewDto` | `ProductReviewDto` | 201 (even on failure — see Gotchas) | none |
+| POST | `/api/v1/productReview` | `ProductReviewDto` | `ProductReviewDto` | 201 / 404 (unknown user or product) / 400 (self-review attempt) (GH #41 fix, `ErrorResponse` body) | none |
 | DELETE | `/api/v1/productReview/{reviewId}` | — | — | 204 (always) | none |
 
 **Critical:** `getReviewsForProduct` (`GET /{productId}`) and `findById` (`GET
@@ -283,25 +283,35 @@ which is very permissive (allows any base type).
    `ProductVariation` has no `productId` property (it has `product`, a `Product` object).
    This would break every update/delete of a product variation at runtime (untested — no
    test covers `ProductVariationServiceImpl`).
-3. **High — wrong field mapped.** `ProductReviewHttpMapper.java:20`: `toDto` sets
-   `.createdAt(review.getProduct().getCreatedAt())` — the *product's* creation timestamp,
-   not the review's. `review.getUpdatedAt()` is also never mapped into the DTO at all. Also
-   NPE risk: `review.getProduct()` is dereferenced unguarded on this line even though line
-   17 null-checks it for `productId`.
-4. **High — POST endpoints return 201 with a null/empty body on business-rule failure.**
-   `ProductController.java:47-52`: if `ProductApplicationService.createProduct` returns
-   `null` (user-service lookup failed), the controller still responds `201 Created` with an
-   empty body instead of a 4xx. Same pattern in `ProductReviewController.java:58-64` when
-   `ReviewApplicationService.createReview` returns `null` (self-review attempt, unknown
-   user, or unknown product).
-5. **High — inventory `restoreStock` unbounded and unlocked.**
-   `InventoryRepository.java:27-29` (`restoreQuantity`) and
-   `InventoryServiceImpl.java:66-75`: unlike `deductStock`, `restoreStock` takes no
-   pessimistic lock and has no upper-bound guard (no check against original/reserved
-   quantity), so a caller can restore more stock than was ever deducted, and there is no
-   protection against double-restore races (two concurrent restores of the same quantity
-   both succeed additively, which may or may not be desired but is inconsistent with the
-   locked, guarded `deductStock` path).
+3. **Fixed (GH #26) — wrong field mapped / NPE risk.** `ProductReviewHttpMapper.toDto` used
+   to set `.createdAt(review.getProduct().getCreatedAt())` — the *product's* creation
+   timestamp, not the review's — never mapped `updatedAt`, and dereferenced
+   `review.getProduct()` unguarded. Now maps `review.getCreatedAt()`/`review.getUpdatedAt()`
+   directly. Fixed together with the compounding issue in old Gotcha #17 below
+   (`ProductReviewEntity` timestamps were never populated in the first place).
+4. **Fixed (GH #41) — POST endpoints no longer return 201 with a null/empty body on
+   business-rule failure.** `ProductApplicationService.createProduct` and
+   `ReviewApplicationService.createReview` used to return `null` on failure (unknown
+   user/product, self-review attempt), and the controllers wrapped whatever they got in a
+   `201 Created`. Both application services now throw `common`'s `NoSuchElementException`
+   (unknown user/product -> 404) or `IllegalArgumentException` (self-review -> 400) instead,
+   handled by a new module-wide `application/exception/GlobalExceptionHandler`
+   (`@RestControllerAdvice`, returns `common`'s `ErrorResponse`) — product-service's first,
+   matching the pattern `user-service` already uses. `ProductVariationController`'s `create`
+   has the same null-on-failure shape but was intentionally left as-is: GH #41 only named
+   `ProductController`/`ProductReviewController`.
+5. **Fixed (GH #30, together with GH #28) — inventory `restoreStock` now locked and
+   guarded.** `InventoryServiceImpl.restoreStock` now rejects non-positive quantities up
+   front and acquires the same `findByProductVariationIdWithLock` pessimistic lock
+   `deductStock` uses before restoring — this isn't redundant with the atomic
+   `restoreQuantity` UPDATE: the lock is what makes the GH #28 stock-quantity sync (below)
+   race-free, since syncing reads the pre-update quantity and adds to it in application code
+   (a classic read-modify-write that needs serializing against a concurrent restore/deduct on
+   the same row). A strict ceiling on total restorable quantity (e.g. bounded by what was
+   actually deducted) was considered but not implemented — it would need a
+   deducted-quantity ledger that doesn't exist anywhere in this module, and the sole caller
+   (order-service, via `restoreDeductedInventory`) already only ever restores exactly what it
+   previously deducted.
 6. **Fixed (GH #14) — `ProductVariationController` now exists.** `ProductVariationService` /
    `ProductVariationServiceImpl` (create/update/delete/find/findByProductId) are wired to a
    new `ProductVariationController` (`/api/v1/product-variation`, see HTTP API section above),
@@ -343,18 +353,28 @@ which is very permissive (allows any base type).
     package. It is never referenced by any repository, service, or the
     `ProductVariation.attachments` (`List<UUID>`) field it appears intended to back. With
     `ddl-auto=update` it still creates an orphan `attachment` table in the database.
-13. **Medium — `Inventory.reservedQuantity` is fully plumbed but never written.** The field
-    exists on the entity, domain model, and DTO, and `getAvailableQuantity()` (domain and
-    DTO) computes `quantity - reservedQuantity`, but no code path anywhere increments or
-    decrements `reservedQuantity` — it is permanently `0` outside of what a test or manual
-    DB write sets. `checkAvailability` also only compares against `quantity`, not
-    `getAvailableQuantity()`, making the "reserved" concept entirely inert.
-14. **Medium — duplicate stock field.** `ProductVariation`/`ProductVariationEntity` carries
-    its own `stockQuantity` in addition to the separate `Inventory.quantity` row keyed by
-    `productVariationId`. Nothing in this module keeps them in sync — `deductStock`/
-    `restoreStock` only touch `InventoryEntity.quantity`; `stockQuantity` is set once at
-    variation creation and never updated by the inventory operations, so the two numbers
-    can diverge.
+13. **Fixed (GH #29) — `Inventory.reservedQuantity` removed.** It was fully plumbed
+    (entity, domain model, DTO, `getAvailableQuantity()`) but no code path anywhere ever
+    incremented or decremented it — permanently `0`, and `checkAvailability` compared
+    against raw `quantity` anyway, so the "reserved" concept was entirely inert. Rather than
+    build out a full reserve/release flow (which would require changing order-service's
+    checkout flow from "validate then immediately deduct" to a genuine two-phase
+    reserve/confirm — out of scope for this fix), the field, `getAvailableQuantity()`, and
+    all references were removed from `Inventory`/`InventoryEntity`/`InventoryDto` and their
+    mappers, and from order-service's own `InventoryDto` copy (which now reads `getQuantity()`
+    directly in `OrderServiceImpl.validateInventoryAvailability`).
+14. **Fixed (GH #28) — duplicate stock field kept in sync.** `ProductVariation`/
+    `ProductVariationEntity` still carries its own `stockQuantity` in addition to the
+    separate `Inventory.quantity` row keyed by `productVariationId`, but `Inventory` is now
+    treated as authoritative: `InventoryServiceImpl.deductStock`/`restoreStock` — the only
+    two code paths in the module that ever mutate stock — now also write the resulting
+    quantity onto the associated `ProductVariationEntity.stockQuantity` in the same
+    transaction, so the two numbers can no longer drift apart from an order being placed.
+    (A full derived-read/removal of `ProductVariation.stockQuantity` was considered per the
+    issue's suggestion, but was out of scope: there is no inventory-creation endpoint in this
+    module, so a derived read has no reliable fallback for a variation without an `Inventory`
+    row yet, and `frontend-service`'s `ProductVariationDto` already carries the field on the
+    wire contract.)
 15. **Medium — hardcoded HTTP paths bypass `ApiPaths`.** `CategoryController.java:16`
     (`/api/v1/categories`) and `ProductReviewController.java:17`
     (`/api/v1/productReview`) hardcode their base paths instead of using constants in
