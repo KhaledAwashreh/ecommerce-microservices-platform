@@ -28,10 +28,12 @@ public interface ProductServiceClient {
     @PutMapping(ApiPaths.INVENTORY_BASE + ApiPaths.INVENTORY_DEDUCT)
     Boolean deductInventory(
             @PathVariable UUID productVariationId,
+            @RequestParam UUID orderItemId,
             @RequestParam int quantity);
 
     @PutMapping(ApiPaths.INVENTORY_BASE + ApiPaths.INVENTORY_RESTORE)
     Boolean restoreInventory(
             @PathVariable UUID productVariationId,
+            @RequestParam UUID orderItemId,
             @RequestParam int quantity);
 }
