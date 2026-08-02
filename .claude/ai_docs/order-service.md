@@ -272,7 +272,7 @@ then re-throws a new `RuntimeException` wrapping the original cause.
 
 ### What "compensating" actually means here
 
-**There is no inventory-restore call anywhere in this flow.** `ProductServiceClient`
+`ProductServiceClient`
 declares `restoreInventory(UUID productVariationId, UUID orderItemId, int quantity)`
 (`infrastructure/http/client/ProductServiceClient.java`, backed by
 `ApiPaths.INVENTORY_RESTORE = /api/v1/inventory/product-variation/{id}/restore`). It **is**
