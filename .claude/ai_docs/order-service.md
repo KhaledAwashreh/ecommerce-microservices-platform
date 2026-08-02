@@ -252,7 +252,10 @@ deduction and the compensating update.
 ### Step 4 — deduct inventory, confirm or compensate
 
 `updateProductInventory` calls, per item:
-1. `productServiceClient.deductInventory(item.getProductSku(), item.getQuantity())` —
+1. `productServiceClient.deductInventory(item.getProductSku(), item.getId(), item.getQuantity())`
+   (GH #30 added the `orderItemId` middle argument, sourced from the persisted
+   `OrderItemEntity` - see Gotchas for why `saved.getSelectedItems()` is used instead of
+   the pre-save domain `Order`'s items) —
    if it returns `false` (not an exception, just a falsy boolean), a `RuntimeException` is
    thrown.
 2. On success it re-fetches the product (`retrieveProduct`, a second, redundant Feign call
@@ -270,10 +273,13 @@ then re-throws a new `RuntimeException` wrapping the original cause.
 ### What "compensating" actually means here
 
 **There is no inventory-restore call anywhere in this flow.** `ProductServiceClient`
-declares `restoreInventory(UUID productVariationId, int quantity)`
-(`infrastructure/http/client/ProductServiceClient.java:33-36`, backed by
-`ApiPaths.INVENTORY_RESTORE = /api/v1/inventory/product-variation/{id}/restore`), but it
-is **never invoked from any code in this module** (confirmed by grep across `src/main`).
+declares `restoreInventory(UUID productVariationId, UUID orderItemId, int quantity)`
+(`infrastructure/http/client/ProductServiceClient.java`, backed by
+`ApiPaths.INVENTORY_RESTORE = /api/v1/inventory/product-variation/{id}/restore`). It **is**
+invoked, by `restoreDeductedInventory` (see `OrderServiceImpl`, issue #7's compensating-
+transaction fix) - the rest of this paragraph and the "no restore" narrative around it
+predates that fix and is stale; not rewritten here as it's a pre-existing doc-drift issue
+tracked separately under GH #52, out of scope for GH #30.
 The only "compensation" performed is a local DB status flip to `CANCELLED` — deducted
 stock is not restored via any call to `product-service`. If `deductInventory` returns
 `true` for item 1 of a multi-item order and then fails validating/deducting item 2, the
@@ -338,7 +344,7 @@ working create path, and the plain one already existed and worked.
 
 | Client | `@FeignClient` name | Target base path | Used by | Notes |
 |---|---|---|---|---|
-| `ProductServiceClient` | `product-service` | `/api/v1/product`, `/api/v1/inventory` | `OrderServiceImpl` (`retrieveProduct`, `retrieveInventory`, `deductInventory`) | `checkInventoryAvailability` and `restoreInventory` are declared but **never called** anywhere in `src/main`. |
+| `ProductServiceClient` | `product-service` | `/api/v1/product`, `/api/v1/inventory` | `OrderServiceImpl` (`retrieveProduct`, `retrieveInventory`, `deductInventory`, `restoreInventory`) | `checkInventoryAvailability` is declared but never called anywhere in `src/main`. `restoreInventory` **is** called (see `restoreDeductedInventory`) - this row was previously stale on that point. |
 | `PaymentClient` | `payment-service` | `/api/v1/payment` | `OrderServiceImpl.create` (`processPayment`), issue #9 | ~~Was fully dead~~ — now wired: `create()` calls `paymentClient.processPayment` after confirming inventory. A prior version of this doc and issue #51 both called it dead; that's stale as of issue #9. |
 
 `UserServiceClient` (`user-service`, `/api/v1/user/{userId}`) used to be declared here too —
