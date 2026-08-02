@@ -102,6 +102,7 @@ class OrderServiceImplTest {
                 .storeId(storeId)
                 .selectedItems(new ArrayList<>(List.of(
                         OrderItem.builder()
+                                .id(UUID.randomUUID())
                                 .productSku(productVariationId)
                                 .quantity(quantity)
                                 .unitPrice(BigDecimal.valueOf(99.99))
@@ -123,11 +124,13 @@ class OrderServiceImplTest {
                 .storeId(storeId)
                 .selectedItems(new ArrayList<>(List.of(
                         OrderItem.builder()
+                                .id(UUID.randomUUID())
                                 .productSku(sku1)
                                 .quantity(qty1)
                                 .unitPrice(BigDecimal.valueOf(9.99))
                                 .build(),
                         OrderItem.builder()
+                                .id(UUID.randomUUID())
                                 .productSku(sku2)
                                 .quantity(qty2)
                                 .unitPrice(BigDecimal.valueOf(19.99))
@@ -192,7 +195,7 @@ class OrderServiceImplTest {
         stubHappyPathValidation(10);
         stubHappyPathPayment();
         List<OrderStatus> savedStatuses = stubSaveToReturnSameEntityAndRecordStatuses();
-        when(productServiceClient.deductInventory(any(UUID.class), anyInt())).thenReturn(true);
+        when(productServiceClient.deductInventory(any(UUID.class), any(UUID.class), anyInt())).thenReturn(true);
 
         Order result = orderService.create(sampleOrder(2));
 
@@ -210,7 +213,7 @@ class OrderServiceImplTest {
         // CANCELLED, never leave stock deducted with no successful charge.
         stubHappyPathValidation(10);
         List<OrderStatus> savedStatuses = stubSaveToReturnSameEntityAndRecordStatuses();
-        when(productServiceClient.deductInventory(any(UUID.class), anyInt())).thenReturn(true);
+        when(productServiceClient.deductInventory(any(UUID.class), any(UUID.class), anyInt())).thenReturn(true);
         when(paymentClient.processPayment(any(PaymentDto.class)))
                 .thenThrow(new RuntimeException("payment-service-unreachable"));
 
@@ -220,7 +223,7 @@ class OrderServiceImplTest {
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Order creation failed");
 
-        verify(productServiceClient, times(1)).restoreInventory(eq(productVariationId), eq(2));
+        verify(productServiceClient, times(1)).restoreInventory(eq(productVariationId), any(UUID.class), eq(2));
         verify(repository, times(2)).save(any(OrderEntity.class));
         assertThat(savedStatuses).containsExactly(OrderStatus.PENDING, OrderStatus.CANCELLED);
     }
@@ -234,7 +237,7 @@ class OrderServiceImplTest {
         // instead surface loudly for manual reconciliation.
         stubHappyPathValidation(10);
         stubHappyPathPayment();
-        when(productServiceClient.deductInventory(any(UUID.class), anyInt())).thenReturn(true);
+        when(productServiceClient.deductInventory(any(UUID.class), any(UUID.class), anyInt())).thenReturn(true);
         when(repository.save(any(OrderEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0)) // 1st call: PENDING insert succeeds
                 .thenThrow(new RuntimeException("db-unreachable"));  // 2nd call: CONFIRMED save fails
@@ -246,7 +249,7 @@ class OrderServiceImplTest {
                 .hasMessageContaining("manual reconciliation required");
 
         verify(paymentClient, times(1)).processPayment(any(PaymentDto.class));
-        verify(productServiceClient, never()).restoreInventory(any(UUID.class), anyInt());
+        verify(productServiceClient, never()).restoreInventory(any(UUID.class), any(UUID.class), anyInt());
         verify(repository, times(2)).save(any(OrderEntity.class));
     }
 
@@ -254,7 +257,7 @@ class OrderServiceImplTest {
     void create_savesPendingThenCancelled_andRethrows_whenInventoryDeductionFails() {
         stubHappyPathValidation(10);
         List<OrderStatus> savedStatuses = stubSaveToReturnSameEntityAndRecordStatuses();
-        when(productServiceClient.deductInventory(any(UUID.class), anyInt())).thenReturn(false);
+        when(productServiceClient.deductInventory(any(UUID.class), any(UUID.class), anyInt())).thenReturn(false);
 
         Order order = sampleOrder(2);
 
@@ -275,8 +278,8 @@ class OrderServiceImplTest {
         UUID sku2 = UUID.randomUUID();
         stubHappyPathValidation(100);
         List<OrderStatus> savedStatuses = stubSaveToReturnSameEntityAndRecordStatuses();
-        when(productServiceClient.deductInventory(eq(sku1), eq(2))).thenReturn(true);
-        when(productServiceClient.deductInventory(eq(sku2), eq(3))).thenReturn(false);
+        when(productServiceClient.deductInventory(eq(sku1), any(UUID.class), eq(2))).thenReturn(true);
+        when(productServiceClient.deductInventory(eq(sku2), any(UUID.class), eq(3))).thenReturn(false);
 
         Order order = multiItemOrder(sku1, 2, sku2, 3);
 
@@ -284,8 +287,8 @@ class OrderServiceImplTest {
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Order creation failed");
 
-        verify(productServiceClient, times(1)).restoreInventory(eq(sku1), eq(2));
-        verify(productServiceClient, never()).restoreInventory(eq(sku2), anyInt());
+        verify(productServiceClient, times(1)).restoreInventory(eq(sku1), any(UUID.class), eq(2));
+        verify(productServiceClient, never()).restoreInventory(eq(sku2), any(UUID.class), anyInt());
         assertThat(savedStatuses).containsExactly(OrderStatus.PENDING, OrderStatus.CANCELLED);
     }
 
@@ -298,9 +301,9 @@ class OrderServiceImplTest {
         UUID sku2 = UUID.randomUUID();
         stubHappyPathValidation(100);
         List<OrderStatus> savedStatuses = stubSaveToReturnSameEntityAndRecordStatuses();
-        when(productServiceClient.deductInventory(eq(sku1), eq(2))).thenReturn(true);
-        when(productServiceClient.deductInventory(eq(sku2), eq(3))).thenReturn(false);
-        when(productServiceClient.restoreInventory(eq(sku1), eq(2)))
+        when(productServiceClient.deductInventory(eq(sku1), any(UUID.class), eq(2))).thenReturn(true);
+        when(productServiceClient.deductInventory(eq(sku2), any(UUID.class), eq(3))).thenReturn(false);
+        when(productServiceClient.restoreInventory(eq(sku1), any(UUID.class), eq(2)))
                 .thenThrow(new RuntimeException("restore-service-unreachable"));
 
         Order order = multiItemOrder(sku1, 2, sku2, 3);
@@ -310,7 +313,7 @@ class OrderServiceImplTest {
                 .hasMessageContaining("Order creation failed")
                 .hasMessageNotContaining("restore-service-unreachable");
 
-        verify(productServiceClient, times(1)).restoreInventory(eq(sku1), eq(2));
+        verify(productServiceClient, times(1)).restoreInventory(eq(sku1), any(UUID.class), eq(2));
         assertThat(savedStatuses).containsExactly(OrderStatus.PENDING, OrderStatus.CANCELLED);
     }
 
@@ -325,7 +328,7 @@ class OrderServiceImplTest {
                 .hasMessageContaining("Insufficient stock");
 
         verify(repository, never()).save(any());
-        verify(productServiceClient, never()).deductInventory(any(UUID.class), anyInt());
+        verify(productServiceClient, never()).deductInventory(any(UUID.class), any(UUID.class), anyInt());
     }
 
     @Test
@@ -335,7 +338,7 @@ class OrderServiceImplTest {
         stubHappyPathValidation(10);
         stubHappyPathPayment();
         when(repository.save(any(OrderEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(productServiceClient.deductInventory(any(UUID.class), anyInt())).thenReturn(true);
+        when(productServiceClient.deductInventory(any(UUID.class), any(UUID.class), anyInt())).thenReturn(true);
 
         UUID shippingAddressId = UUID.randomUUID();
         Order order = sampleOrder(2);
@@ -354,7 +357,7 @@ class OrderServiceImplTest {
         stubHappyPathValidation(10);
         stubHappyPathPayment();
         when(repository.save(any(OrderEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(productServiceClient.deductInventory(any(UUID.class), anyInt())).thenReturn(true);
+        when(productServiceClient.deductInventory(any(UUID.class), any(UUID.class), anyInt())).thenReturn(true);
 
         Order order = sampleOrder(2);
         assertThat(order.getShippingAddressId()).isNull();
