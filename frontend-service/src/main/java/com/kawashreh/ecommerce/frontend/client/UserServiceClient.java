@@ -17,7 +17,8 @@ import java.util.UUID;
 
 /**
  * Feign client for User Service.
- * Uses Kubernetes DNS for service discovery: http://user-service:8080
+ * Routed through the API gateway ({@code ${api.gateway.base-url}}), not direct
+ * Kubernetes DNS to user-service.
  */
 @FeignClient(name = "user-service-UI-client", url = "${api.gateway.base-url}/api/v1/user")
 public interface UserServiceClient{
