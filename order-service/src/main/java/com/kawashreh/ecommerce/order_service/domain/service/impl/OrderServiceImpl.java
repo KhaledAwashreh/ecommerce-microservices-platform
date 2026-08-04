@@ -1,6 +1,8 @@
 package com.kawashreh.ecommerce.order_service.domain.service.impl;
 
 import com.kawashreh.ecommerce.common.exceptions.NoSuchElementException;
+import com.kawashreh.ecommerce.order_service.dataAccess.entity.OrderEntity;
+import com.kawashreh.ecommerce.order_service.dataAccess.entity.OrderItemEntity;
 import com.kawashreh.ecommerce.order_service.dataAccess.mapper.OrderMapper;
 import com.kawashreh.ecommerce.order_service.dataAccess.repository.OrderRepository;
 import com.kawashreh.ecommerce.order_service.domain.enums.OrderStatus;
@@ -84,7 +86,7 @@ public class OrderServiceImpl implements OrderService {
         // Issue #7: populated by updateProductInventory as each item's deduction succeeds,
         // so that on partial failure we compensate EXACTLY the items that were actually
         // deducted - not the whole order, not a guess.
-        List<OrderItem> deductedItems = new ArrayList<>();
+        List<OrderItemEntity> deductedItems = new ArrayList<>();
         // Issue #9: tracks whether invokePayment returned successfully (buyer was actually
         // charged) so the catch block below can tell "failed before any charge happened"
         // (safe to restore inventory and cancel) apart from "charge succeeded, but the
@@ -92,7 +94,7 @@ public class OrderServiceImpl implements OrderService {
         // cancel - see the branch below).
         boolean paymentCompleted = false;
         try {
-            updateProductInventory(order, deductedItems); // remote calls only, no DB transaction held
+            updateProductInventory(saved, deductedItems); // remote calls only, no DB transaction held
 
             // Issue #9: order-service orchestrates payment using the previously-unused
             // PaymentClient. `saved` was already committed as PENDING in its own
@@ -200,10 +202,10 @@ public class OrderServiceImpl implements OrderService {
      * behavior rather than inline retry or dead-lettering; revisit if such infrastructure is
      * added.
      */
-    private void restoreDeductedInventory(List<OrderItem> deductedItems, UUID orderId) {
-        for (OrderItem item : deductedItems) {
+    private void restoreDeductedInventory(List<OrderItemEntity> deductedItems, UUID orderId) {
+        for (OrderItemEntity item : deductedItems) {
             try {
-                Boolean restored = productServiceClient.restoreInventory(item.getProductSku(), item.getQuantity());
+                Boolean restored = productServiceClient.restoreInventory(item.getProductSku(), item.getId(), item.getQuantity());
                 if (Boolean.TRUE.equals(restored)) {
                     logger.info("Restored {} units of product {} for cancelled order {}",
                             item.getQuantity(), item.getProductSku(), orderId);
@@ -264,10 +266,14 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private void updateProductInventory(Order order, List<OrderItem> deductedItems) {
-        for (OrderItem item : order.getSelectedItems()) {
+    // GH #30: iterates saved.getSelectedItems() (persisted OrderItemEntity, generated ids
+    // populated by cascade-persist inside repository.save() above) rather than
+    // order.getSelectedItems() (pre-save domain OrderItem, id always null at this point) -
+    // product-service's deduction ledger needs a real, stable orderItemId to key on.
+    private void updateProductInventory(OrderEntity savedEntity, List<OrderItemEntity> deductedItems) {
+        for (OrderItemEntity item : savedEntity.getSelectedItems()) {
             try {
-                boolean deducted = productServiceClient.deductInventory(item.getProductSku(), item.getQuantity());
+                boolean deducted = productServiceClient.deductInventory(item.getProductSku(), item.getId(), item.getQuantity());
                 if (!deducted) {
                     logger.error("Failed to deduct inventory for product: {}", item.getProductSku());
                     throw new RuntimeException("Failed to deduct inventory for product: " + item.getProductSku());
@@ -430,9 +436,9 @@ public class OrderServiceImpl implements OrderService {
         var saved = repository.save(entity); // own transaction, commits immediately
 
         // Issue #7: see create() above for the tracking/compensation rationale.
-        List<OrderItem> deductedItems = new ArrayList<>();
+        List<OrderItemEntity> deductedItems = new ArrayList<>();
         try {
-            updateProductInventory(order, deductedItems); // remote calls only, no DB transaction held
+            updateProductInventory(saved, deductedItems); // remote calls only, no DB transaction held
 
             saved.setStatus(OrderStatus.CONFIRMED);
             var confirmed = repository.save(saved); // own transaction, commits

@@ -99,7 +99,7 @@ class OrderServiceIntegrationTest {
         when(productServiceClient.retrieveInventory(any(UUID.class))).thenReturn(mockInventory);
         when(productServiceClient.checkInventoryAvailability(eq(productVariationId), any(Integer.class)))
                 .thenReturn(true);
-        when(productServiceClient.deductInventory(eq(productVariationId), any(Integer.class)))
+        when(productServiceClient.deductInventory(eq(productVariationId), any(UUID.class), any(Integer.class)))
                 .thenReturn(true);
 
         when(paymentClient.processPayment(any(PaymentDto.class))).thenAnswer(invocation -> {

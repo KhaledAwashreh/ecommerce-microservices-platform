@@ -10,7 +10,7 @@ public interface InventoryService {
 
     boolean checkAvailability(UUID productVariationId, int quantity);
 
-    boolean deductStock(UUID productVariationId, int quantity);
+    boolean deductStock(UUID productVariationId, UUID orderItemId, int quantity);
 
-    boolean restoreStock(UUID productVariationId, int quantity);
+    boolean restoreStock(UUID productVariationId, UUID orderItemId, int quantity);
 }

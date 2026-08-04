@@ -1,7 +1,9 @@
 package com.kawashreh.ecommerce.product_service.domain.service.impl;
 
+import com.kawashreh.ecommerce.product_service.dataAccess.dao.InventoryDeductionRepository;
 import com.kawashreh.ecommerce.product_service.dataAccess.dao.InventoryRepository;
 import com.kawashreh.ecommerce.product_service.dataAccess.dao.ProductVariationRepository;
+import com.kawashreh.ecommerce.product_service.dataAccess.entity.InventoryDeductionEntity;
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.InventoryEntity;
 import com.kawashreh.ecommerce.product_service.domain.model.Inventory;
 import com.kawashreh.ecommerce.product_service.domain.service.InventoryService;
@@ -18,11 +20,14 @@ public class InventoryServiceImpl implements InventoryService {
     private static final Logger logger = LoggerFactory.getLogger(InventoryServiceImpl.class);
 
     private final InventoryRepository inventoryRepository;
+    private final InventoryDeductionRepository inventoryDeductionRepository;
     private final ProductVariationRepository productVariationRepository;
 
     public InventoryServiceImpl(InventoryRepository inventoryRepository,
+                                 InventoryDeductionRepository inventoryDeductionRepository,
                                  ProductVariationRepository productVariationRepository) {
         this.inventoryRepository = inventoryRepository;
+        this.inventoryDeductionRepository = inventoryDeductionRepository;
         this.productVariationRepository = productVariationRepository;
     }
 
@@ -42,13 +47,23 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     @Transactional
-    public boolean deductStock(UUID productVariationId, int quantity) {
+    public boolean deductStock(UUID productVariationId, UUID orderItemId, int quantity) {
         // Acquire pessimistic lock first (SELECT ... FOR UPDATE)
         var inventoryOpt = inventoryRepository.findByProductVariationIdWithLock(productVariationId);
 
         if (inventoryOpt.isEmpty()) {
             logger.warn("Inventory not found for variation: {}", productVariationId);
             return false;
+        }
+
+        // GH #30: a ledger row already existing for this orderItemId means this call is a
+        // retry (e.g. a Feign retry) of a deduct that already succeeded. Return success
+        // without deducting again - orderItemId is unique, so re-inserting would fail
+        // anyway, and re-deducting would double-decrement stock for one logical deduction.
+        if (inventoryDeductionRepository.findByOrderItemIdWithLock(orderItemId).isPresent()) {
+            logger.info("Deduct for orderItemId {} already recorded - treating as a retry, not deducting again",
+                    orderItemId);
+            return true;
         }
 
         // Atomic UPDATE with WHERE condition (protected by lock)
@@ -59,7 +74,16 @@ public class InventoryServiceImpl implements InventoryService {
             // ProductVariationEntity.stockQuantity mirror in sync so the two can't diverge.
             int newQuantity = inventoryOpt.get().getQuantity() - quantity;
             productVariationRepository.updateStockQuantity(productVariationId, newQuantity);
-            logger.info("Deducted {} units from inventory for variation {}", quantity, productVariationId);
+
+            inventoryDeductionRepository.save(InventoryDeductionEntity.builder()
+                    .orderItemId(orderItemId)
+                    .productVariationId(productVariationId)
+                    .deductedQuantity(quantity)
+                    .restoredQuantity(0)
+                    .build());
+
+            logger.info("Deducted {} units from inventory for variation {} (orderItemId {})",
+                    quantity, productVariationId, orderItemId);
             return true;
         }
 
@@ -72,7 +96,7 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     @Transactional
-    public boolean restoreStock(UUID productVariationId, int quantity) {
+    public boolean restoreStock(UUID productVariationId, UUID orderItemId, int quantity) {
         // GH #30: guard against non-positive amounts - unlike deductStock's WHERE-guarded
         // update, restoreQuantity is an unconditional add, so a zero/negative quantity would
         // otherwise silently no-op or deduct stock while still being reported as a "restore".
@@ -90,12 +114,38 @@ public class InventoryServiceImpl implements InventoryService {
             return false;
         }
 
+        // GH #30 (upper-bound fix): a restore must correspond to a real, previously
+        // recorded deduction for this exact orderItemId, and can never push the total
+        // restored past what was actually deducted.
+        var ledgerOpt = inventoryDeductionRepository.findByOrderItemIdWithLock(orderItemId);
+        if (ledgerOpt.isEmpty()) {
+            logger.warn("Rejected restore for orderItemId {}: no matching deduction recorded", orderItemId);
+            return false;
+        }
+
+        var ledger = ledgerOpt.get();
+        if (ledger.getRestoredQuantity() == ledger.getDeductedQuantity()) {
+            logger.info("orderItemId {} is already fully restored - idempotent no-op", orderItemId);
+            return true;
+        }
+
+        if (ledger.getRestoredQuantity() + quantity > ledger.getDeductedQuantity()) {
+            logger.warn("Rejected restore for orderItemId {}: {} already restored + {} requested exceeds " +
+                            "{} deducted", orderItemId, ledger.getRestoredQuantity(), quantity, ledger.getDeductedQuantity());
+            return false;
+        }
+
         int updated = inventoryRepository.restoreQuantity(productVariationId, quantity);
         if (updated > 0) {
             // GH #28: keep ProductVariationEntity.stockQuantity in sync, same as deductStock.
             int newQuantity = inventoryOpt.get().getQuantity() + quantity;
             productVariationRepository.updateStockQuantity(productVariationId, newQuantity);
-            logger.info("Restored {} units to inventory for variation {}", quantity, productVariationId);
+
+            ledger.setRestoredQuantity(ledger.getRestoredQuantity() + quantity);
+            inventoryDeductionRepository.save(ledger);
+
+            logger.info("Restored {} units to inventory for variation {} (orderItemId {})",
+                    quantity, productVariationId, orderItemId);
             return true;
         }
 

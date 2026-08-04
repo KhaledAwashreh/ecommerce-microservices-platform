@@ -100,7 +100,14 @@ the category entity table's old, misspelled `categry` name).
   - `InventoryRepository` — `findByProductVariationId`,
     `findByProductVariationIdWithLock` (`@Lock(PESSIMISTIC_WRITE)`), and two `@Modifying`
     JPQL bulk updates: `deductQuantity` (conditional `WHERE ... quantity >= :quantity`,
-    returns rows-updated) and `restoreQuantity` (unconditional add, no upper bound).
+    returns rows-updated) and `restoreQuantity` (unconditional add - bounded at the service
+    layer instead, see `InventoryDeductionRepository` below and Gotcha #5).
+  - `InventoryDeductionRepository` (GH #30) — ledger of deductions keyed by
+    `orderItemId` (unique). `findByOrderItemId`, `findByOrderItemIdWithLock`
+    (`@Lock(PESSIMISTIC_WRITE)`). Backs `InventoryDeductionEntity`
+    (`deductedQuantity`/`restoredQuantity` per order item), created by `deductStock` and
+    updated by `restoreStock` - this is what makes `restoreStock`'s ceiling real instead of
+    a documented gap.
 
 ## HTTP API
 
@@ -132,8 +139,8 @@ No PUT/update endpoint exists even though `ProductService.update()` is implement
 |---|---|---|---|---|---|
 | GET | `/api/v1/inventory/product-variation/{productVariationId}` | — | `InventoryDto` | 200 / 404 | none |
 | GET | `/api/v1/inventory/product-variation/{productVariationId}/availability?quantity=` | — | `Boolean` | 200 (`false` if not found, indistinguishable from "not enough stock") | none |
-| PUT | `/api/v1/inventory/product-variation/{productVariationId}/deduct?quantity=` | — | `Boolean` | 200 (`false` on failure, no 4xx) | none |
-| PUT | `/api/v1/inventory/product-variation/{productVariationId}/restore?quantity=` | — | `Boolean` | 200 (`false` on failure, no 4xx) | none |
+| PUT | `/api/v1/inventory/product-variation/{productVariationId}/deduct?quantity=&orderItemId=` | — | `Boolean` | 200 (`false` on failure, no 4xx) | none |
+| PUT | `/api/v1/inventory/product-variation/{productVariationId}/restore?quantity=&orderItemId=` | — | `Boolean` | 200 (`false` on failure, no 4xx) | none |
 
 ### ProductReviewController — `/api/v1/productReview` (hardcoded, not in `ApiPaths`)
 
@@ -317,23 +324,26 @@ which is very permissive (allows any base type).
    matching the pattern `user-service` already uses. `ProductVariationController`'s `create`
    has the same null-on-failure shape but was intentionally left as-is: GH #41 only named
    `ProductController`/`ProductReviewController`.
-5. **Partially fixed (GH #30) — inventory `restoreStock` now locked and guarded, but not
-   ceilinged.** `InventoryServiceImpl.restoreStock` now rejects non-positive quantities up
-   front and acquires the same `findByProductVariationIdWithLock` pessimistic lock
-   `deductStock` uses before restoring — this isn't redundant with the atomic
-   `restoreQuantity` UPDATE: the lock is what makes the GH #28 stock-quantity sync (below)
-   race-free, since syncing reads the pre-update quantity and adds to it in application code
-   (a classic read-modify-write that needs serializing against a concurrent restore/deduct on
-   the same row). This closes the issue's concurrency half ("no lock") but **not** the
-   upper-bound half ("or upper bound") from the issue's own title: there is still no ceiling
-   on how much a single call can restore, and `InventoryController.restoreStock`
-   (`application/controller/InventoryController.java`) is a plain, unauthenticated
-   `@PutMapping` — a caller could still inflate stock past what was ever deducted. A real
-   ceiling needs a deducted-quantity ledger that doesn't exist anywhere in this module; the
-   sole current caller (order-service, via `restoreDeductedInventory`) only ever restores
-   exactly what it previously deducted, so this is a live trust-boundary gap rather than an
-   active bug today — same class of issue as this module's other "no ownership/role check"
-   gaps, flagged rather than built around with an ad hoc, unjustified limit.
+5. **Fixed (GH #30) — inventory `restoreStock` is now locked, guarded, AND ceilinged.**
+   `InventoryServiceImpl.deductStock`/`restoreStock` both take an `orderItemId` parameter
+   and are backed by `InventoryDeductionEntity`/`InventoryDeductionRepository`, a ledger
+   keyed by `orderItemId` (unique) recording `deductedQuantity`/`restoredQuantity`.
+   `deductStock` creates a ledger row on success and is now idempotent per `orderItemId`
+   (a repeat call - e.g. a Feign retry - returns `true` without deducting again, since a
+   ledger row already exists). `restoreStock` looks up the ledger row under the same
+   pessimistic lock used for the `Inventory` row (this lock ordering - inventory row, then
+   ledger row - is consistent in both methods, avoiding a lock-order-inversion deadlock)
+   and: rejects if no ledger row exists for that `orderItemId` (nothing was ever deducted
+   to restore against); is an idempotent no-op if `restoredQuantity == deductedQuantity`
+   already; rejects if `restoredQuantity + quantity` would exceed `deductedQuantity`
+   (**the actual ceiling**); otherwise restores and increments `restoredQuantity`. This
+   closes both halves of the issue's title ("no lock or upper bound") - the concurrency
+   half was fixed earlier at `38595d6`, the upper-bound half by this ledger. A genuinely
+   concurrent *first* deduct for a brand-new `orderItemId` that somehow races itself (two
+   callers submitting the exact same new order item id at once) can still hit the
+   ledger table's unique constraint and throw `DataIntegrityViolationException` rather
+   than being caught and idempotently handled - left as-is since order-service's actual
+   caller never does this (each order item is deducted exactly once, sequentially).
 6. **Fixed (GH #14) — `ProductVariationController` now exists.** `ProductVariationService` /
    `ProductVariationServiceImpl` (create/update/delete/find/findByProductId) are wired to a
    new `ProductVariationController` (`/api/v1/product-variation`, see HTTP API section above),

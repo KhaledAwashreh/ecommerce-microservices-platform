@@ -39,24 +39,22 @@ public class InventoryController {
     @PutMapping(ApiPaths.PRODUCT_VARIATION_DEDUCT)
     public ResponseEntity<Boolean> deductStock(
             @PathVariable UUID productVariationId,
+            @RequestParam UUID orderItemId,
             @RequestParam int quantity) {
-        boolean success = inventoryService.deductStock(productVariationId, quantity);
+        boolean success = inventoryService.deductStock(productVariationId, orderItemId, quantity);
         return ResponseEntity.ok(success);
     }
 
-    // GH #30: restoreStock is now lock-protected and rejects non-positive quantities, but
-    // has no ceiling on how much can be restored, and this endpoint has no caller
-    // restriction - a caller could still inflate stock past what was ever deducted. A real
-    // ceiling needs a deducted-quantity ledger this module doesn't have; the sole current
-    // caller (order-service's restoreDeductedInventory) only ever restores exactly what it
-    // previously deducted, so this is a trust-boundary gap, not an active bug, but it's
-    // real and unaddressed - same class of issue as the other "no ownership/role check"
-    // gotchas already documented for this module's controllers.
+    // GH #30: restoreStock is now bounded by a deduction ledger keyed by orderItemId
+    // (InventoryServiceImpl.restoreStock) - a restore can never exceed what was actually
+    // deducted for the same order item, and a repeat call for an already-fully-restored
+    // orderItemId is an idempotent no-op rather than a double-credit.
     @PutMapping(ApiPaths.PRODUCT_VARIATION_RESTORE)
     public ResponseEntity<Boolean> restoreStock(
             @PathVariable UUID productVariationId,
+            @RequestParam UUID orderItemId,
             @RequestParam int quantity) {
-        boolean success = inventoryService.restoreStock(productVariationId, quantity);
+        boolean success = inventoryService.restoreStock(productVariationId, orderItemId, quantity);
         return ResponseEntity.ok(success);
     }
 }
