@@ -1,6 +1,7 @@
 package com.kawashreh.ecommerce.order_service.infrastructure.http.client;
 
 import com.kawashreh.ecommerce.order_service.domain.exception.ProductServiceException;
+import com.kawashreh.ecommerce.order_service.domain.exception.ProductServiceUnavailableException;
 import feign.Response;
 import feign.codec.ErrorDecoder;
 import org.slf4j.Logger;
@@ -28,7 +29,10 @@ public class ProductServiceErrorDecoder implements ErrorDecoder {
                     "Bad request to Product Service: " + response.reason(),
                     extractProductIdFromMethodKey(methodKey),
                     400);
-            case 503 -> new ProductServiceException(
+            // GH #63: a distinct, retryable type - see ProductServiceUnavailableException.
+            // resilience4j.retry.instances.product-service.retryExceptions keys on this
+            // class specifically so only this transient case (not 404/400 below) is retried.
+            case 503 -> new ProductServiceUnavailableException(
                     "Product Service unavailable",
                     extractProductIdFromMethodKey(methodKey),
                     503);

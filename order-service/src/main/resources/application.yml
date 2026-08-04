@@ -76,6 +76,13 @@ resilience4j:
         permittedNumberOfCallsInHalfOpenState: 3
         waitDurationInOpenState: 5s
         failureRateThreshold: 50
+  # GH #63: only deductInventory/restoreInventory (ProductServiceClient) carry @Retry(name
+  # = "product-service") - see that interface for why those two specifically. Which
+  # exceptions actually trigger a retry is NOT set here via retryExceptions - a plain
+  # class-list doesn't work for this client (Spring Cloud's Feign circuit breaker wrapping
+  # re-throws every failure as NoFallbackAvailableException, hiding the real cause from a
+  # class-list check) - see Resilience4jRetryConfiguration for the programmatic
+  # RetryConfigCustomizer that classifies retryable vs. permanent failures instead.
   retry:
     instances:
       product-service:
