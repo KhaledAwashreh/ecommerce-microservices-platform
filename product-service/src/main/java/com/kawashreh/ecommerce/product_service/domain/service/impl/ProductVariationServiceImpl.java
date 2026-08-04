@@ -35,8 +35,9 @@ public class ProductVariationServiceImpl implements ProductVariationService {
     }
 
     @Override
-    public void save(ProductVariation productVariation) {
-        repository.save(ProductVariationMapper.toEntity(productVariation));
+    public ProductVariation save(ProductVariation productVariation) {
+        ProductVariationEntity saved = repository.save(ProductVariationMapper.toEntity(productVariation));
+        return ProductVariationMapper.toDomain(saved);
     }
 
 

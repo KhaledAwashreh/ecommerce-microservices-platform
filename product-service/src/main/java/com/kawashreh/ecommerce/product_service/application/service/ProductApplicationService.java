@@ -29,7 +29,6 @@ public class ProductApplicationService {
             // 201 Created with an empty body on failure.
             throw new NoSuchElementException("User not found: " + product.getOwnerId());
         }
-        productService.save(product);
-        return product;
+        return productService.save(product);
     }
 }

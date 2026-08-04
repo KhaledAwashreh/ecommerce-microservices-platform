@@ -28,7 +28,13 @@ public class ProductServiceImpl implements ProductService {
         return ProductMapper.toDomainList(entities);
     }
 
-    @Cacheable(value = CacheConstants.product_by_id, key = "#id" )
+    // unless = "#result == null": CacheConfig disables caching null values
+    // (disableCachingNullValues()), and without this, @Cacheable's own attempt to store
+    // a null result for a not-found id throws "Cache does not allow 'null' values"
+    // instead of returning a clean 404 - a not-found lookup on any id crashed instead of
+    // 404ing. Found live via a smoke test hitting GET /api/v1/product/{id} for an id
+    // that doesn't exist.
+    @Cacheable(value = CacheConstants.product_by_id, key = "#id", unless = "#result == null")
     @Override
     public Product find(UUID id) {
         return repository.findById(id).map(ProductMapper::toDomain).orElse(null);
@@ -36,8 +42,9 @@ public class ProductServiceImpl implements ProductService {
 
     @CacheEvict(value = CacheConstants.product_by_id, allEntries = true)
     @Override
-    public void save(Product product) {
-        repository.save(ProductMapper.toEntity(product));
+    public Product save(Product product) {
+        ProductEntity saved = repository.save(ProductMapper.toEntity(product));
+        return ProductMapper.toDomain(saved);
     }
 
     @CacheEvict(value = CacheConstants.product_by_id, allEntries = true)

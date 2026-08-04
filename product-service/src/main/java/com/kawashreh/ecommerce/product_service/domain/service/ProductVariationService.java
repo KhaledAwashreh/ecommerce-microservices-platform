@@ -12,7 +12,7 @@ public interface ProductVariationService {
 
     public ProductVariation find(UUID id);
 
-    public void save(ProductVariation productVariation);
+    public ProductVariation save(ProductVariation productVariation);
 
     public void update(ProductVariation productVariation);
 
