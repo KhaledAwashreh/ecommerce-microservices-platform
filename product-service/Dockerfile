@@ -31,7 +31,8 @@ WORKDIR /app
 # Install curl for health check
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Port is dynamically assigned (server.port=0 in application.properties)
+# server.port is fixed to 8080 in application.yml; port 0 (dynamic) only applies
+# under the test profile (application-test.yml), not this image.
 COPY --from=builder /app/product-service/target/*.jar app.jar
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
