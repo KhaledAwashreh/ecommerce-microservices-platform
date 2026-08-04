@@ -18,14 +18,6 @@ spring:
             redis-rate-limiter.requestedTokens: 1
             key-resolver: "#{@ipKeyResolver}"
       routes:
-        - id: httpbin
-          uri: http://httpbin.org:80
-          predicates:
-            - Path=/get
-          filters:
-            - AddRequestHeader=MyHeader,MyURI
-            - AddRequestParameter=Param,Value
-
         - id: user-service
           uri: ${USER_SERVICE_URL:http://user-service:8080}
           predicates:
@@ -124,6 +116,17 @@ spring:
                 name: payment-service
                 fallbackUri: forward:/fallback
 
+        # Catch-all so non-API paths reach the SSR frontend. Required in this (default)
+        # profile: the k8s Ingress (api-gateway-ingress.yaml) forwards "/" for everything
+        # to this gateway with no separate frontend-service ingress rule, and the k8s
+        # Deployment sets no SPRING_PROFILES_ACTIVE, so it runs this profile. Harmless for
+        # docker-compose, where frontend-service is also reachable directly on :3000. Must
+        # stay last so it doesn't shadow the more specific /api/v1/** routes above (GH #52).
+        - id: frontend-service
+          uri: http://frontend-service:3000
+          predicates:
+            - Path=/**
+
 jwt:
   # No default: a missing JWT_SECRET env var must fail startup, not fall back to a
   # committed value. Must match user-service's jwt.secret (same signing key, HS256).
@@ -154,6 +157,21 @@ management:
 
 
 resilience4j:
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 5s
+        cancelRunningFuture: true
+    instances:
+      user-service:
+        baseConfig: default
+      product-service:
+        baseConfig: default
+      order-service:
+        baseConfig: default
+      payment-service:
+        baseConfig: default
+
   circuitbreaker:
     configs:
       default:
@@ -164,10 +182,13 @@ resilience4j:
         waitDurationInOpenState: 10000
         slowCallDurationThreshold: 2000
         permittedNumberOfCallsInHalfOpenState: 3
+        minimumNumberOfCalls: 5
     instances:
       user-service:
         baseConfig: default
       product-service:
+        baseConfig: default
+      order-service:
         baseConfig: default
       payment-service:
         baseConfig: default
