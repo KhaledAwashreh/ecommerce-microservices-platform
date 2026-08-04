@@ -108,10 +108,21 @@ public class CartServiceImpl implements CartService {
         if (cartEntity == null) return null;
 
         var itemEntity = CartItemMapper.toEntity(item);
+        // CartItemEntity.id is @GeneratedValue(strategy = GenerationType.UUID) - the server
+        // assigns it - but CartItemDto.id is @NonNull, so every real HTTP client is forced
+        // to send some id, which CartItemMapper.toEntity carries straight onto the new
+        // entity. A non-null id on a "new" entity makes Spring Data's isNew() check treat it
+        // as already existing, so save() calls merge() instead of persist() - Hibernate then
+        // tries to update a row that was never inserted and throws
+        // ObjectOptimisticLockingFailureException. Same root cause, and same fix, as
+        // OrderServiceImpl.create(); found live via a smoke test where adding any item to a
+        // cart failed 100% of the time.
+        itemEntity.setId(null);
         itemEntity.setCart(cartEntity);
-        cartItemRepository.save(itemEntity);
+        var savedItem = cartItemRepository.save(itemEntity);
 
-        cartEntity.getCartItems().add(itemEntity);
+        cartEntity.getCartItems().add(savedItem);
+        applyTotals(cartEntity);
         cartRepository.save(cartEntity);
         return CartMapper.toDomain(cartEntity);
     }
@@ -126,6 +137,7 @@ public class CartServiceImpl implements CartService {
         if (itemEntity.isPresent()) {
             cartItemRepository.delete(itemEntity.get());
             cartEntity.getCartItems().remove(itemEntity.get());
+            applyTotals(cartEntity);
             cartRepository.save(cartEntity);
         }
 
@@ -184,15 +196,38 @@ public class CartServiceImpl implements CartService {
         var cartEntity = cartRepository.findById(cartId).orElse(null);
         if (cartEntity == null) return null;
 
+        applyTotals(cartEntity);
+        var saved = cartRepository.save(cartEntity);
+        return CartMapper.toDomain(saved);
+    }
+
+    /**
+     * Recomputes {@code subtotal} from the cart's line items and derives {@code totalPrice}
+     * from it. {@code totalPrice} was previously never assigned anywhere in this module, so
+     * every cart reported a payable total of 0.00 no matter what it contained - found live
+     * via a smoke test where a cart holding 3 x 9.99 correctly showed subtotal 29.97 but
+     * still reported totalPrice 0.00.
+     * <p>
+     * Callers must invoke this after ANY mutation of the cart's items. Previously only the
+     * quantity-change endpoint did, so adding or removing an item left the stored totals
+     * stale (a freshly-filled cart showed 0.00 until an unrelated quantity edit happened to
+     * refresh it).
+     */
+    private void applyTotals(com.kawashreh.ecommerce.order_service.dataAccess.entity.CartEntity cartEntity) {
         BigDecimal subtotal = cartEntity.getCartItems().stream()
                 .map(CartItemMapper::toDomain)
                 .map(CartItem::getLineTotal)
+                .filter(java.util.Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         cartEntity.setSubtotal(subtotal);
+        cartEntity.setTotalPrice(
+                subtotal.subtract(orZero(cartEntity.getDiscountTotal()))
+                        .add(orZero(cartEntity.getTaxTotal()))
+                        .add(orZero(cartEntity.getShippingTotal())));
+    }
 
-
-        var saved = cartRepository.save(cartEntity);
-        return CartMapper.toDomain(saved);
+    private static BigDecimal orZero(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
     }
 }
