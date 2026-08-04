@@ -113,7 +113,13 @@ public class UserServiceImpl implements UserService {
                 .toList();
     }
 
-    @Cacheable(value = CacheConstants.USERS_BY_ID, key = "#id")
+    // unless = "#result == null": CacheConfig disables caching null values
+    // (disableCachingNullValues()), and without this, @Cacheable's own attempt to store
+    // a null result for a not-found id throws "Cache does not allow 'null' values"
+    // instead of returning a clean 404 - a not-found lookup on any id crashed instead of
+    // 404ing. Found live via a smoke test (product-service had the identical bug on its
+    // own findById cache).
+    @Cacheable(value = CacheConstants.USERS_BY_ID, key = "#id", unless = "#result == null")
     @Override
     public UserResponse find(UUID id) {
         return repository.findById(id)
@@ -130,7 +136,7 @@ public class UserServiceImpl implements UserService {
                 .orElse(null);
     }
 
-    @Cacheable(value = CacheConstants.USER_BY_USERNAME, key = "#username")
+    @Cacheable(value = CacheConstants.USER_BY_USERNAME, key = "#username", unless = "#result == null")
     @Override
     public UserResponse findByUsername(String username) {
         return repository.findByUsernameWithAccount(username)
