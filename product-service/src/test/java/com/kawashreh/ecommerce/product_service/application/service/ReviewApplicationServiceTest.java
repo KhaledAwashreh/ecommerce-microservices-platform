@@ -90,8 +90,16 @@ class ReviewApplicationServiceTest {
         verify(productReviewService, never()).save(any(), any());
     }
 
+    /**
+     * Also covers a second regression found live via a smoke test: createReview used to
+     * call productReviewService.save(...) and then return the pre-save `review` object it
+     * had just built, discarding what was actually persisted. Since the id (and the
+     * @CreationTimestamp fields) are generated on insert, POST /api/v1/productReview
+     * responded 201 with "id": null - useless to any client that needs to reference the
+     * review it just created. Must return what save() actually returned.
+     */
     @Test
-    void createReview_shouldSaveAndReturnReview_whenValid() {
+    void createReview_shouldReturnWhatPersistenceActuallySaved_notTheStalePreSaveInput() {
         applicationService = new ReviewApplicationService(productReviewService, userServiceClient, productService);
         UUID productId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
@@ -103,14 +111,23 @@ class ReviewApplicationServiceTest {
                 .stars(5)
                 .build();
         Product product = Product.builder().id(productId).ownerId(ownerId).build();
+        ProductReview persisted = ProductReview.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .product(product)
+                .review("Nice")
+                .stars(5)
+                .build();
 
         given(productService.find(productId)).willReturn(product);
         given(userServiceClient.retrieveUser(userId)).willReturn(UserDto.builder().id(userId).build());
+        given(productReviewService.save(any(ProductReview.class), any(Product.class))).willReturn(persisted);
 
         ProductReview result = applicationService.createReview(dto);
 
-        assertThat(result).isNotNull();
+        assertThat(result).isSameAs(persisted);
+        assertThat(result.getId()).isNotNull();
         assertThat(result.getUserId()).isEqualTo(userId);
-        verify(productReviewService).save(result, product);
+        verify(productReviewService).save(any(ProductReview.class), any(Product.class));
     }
 }

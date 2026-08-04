@@ -125,4 +125,47 @@ class ProductReviewControllerTest {
                         .content(body))
                 .andExpect(status().isBadRequest());
     }
+
+    /**
+     * Regression: ProductReviewDto.stars carried no Bean Validation at all and the
+     * controller had no @Valid, so a rating of 99 (or a negative one) was accepted and
+     * persisted with a 201. This was a known, documented gap in this module's ai_doc
+     * ("stars (int, no range validation)"); found live via a smoke test posting stars=99.
+     */
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {0, -1, 6, 99})
+    void create_shouldReturn400_whenStarsOutOfRange(int stars) throws Exception {
+        String body = """
+                {"productId": "%s", "userId": "%s", "review": "Nice", "stars": %d}
+                """.formatted(UUID.randomUUID(), UUID.randomUUID(), stars);
+
+        mockMvc.perform(post("/api/v1/productReview")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+
+        org.mockito.Mockito.verifyNoInteractions(reviewApplicationService);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {1, 3, 5})
+    void create_shouldAccept_whenStarsInRange(int stars) throws Exception {
+        given(reviewApplicationService.createReview(org.mockito.ArgumentMatchers.any()))
+                .willReturn(ProductReview.builder()
+                        .id(UUID.randomUUID())
+                        .userId(UUID.randomUUID())
+                        .product(Product.builder().id(UUID.randomUUID()).build())
+                        .review("Nice")
+                        .stars(stars)
+                        .build());
+
+        String body = """
+                {"productId": "%s", "userId": "%s", "review": "Nice", "stars": %d}
+                """.formatted(UUID.randomUUID(), UUID.randomUUID(), stars);
+
+        mockMvc.perform(post("/api/v1/productReview")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+    }
 }

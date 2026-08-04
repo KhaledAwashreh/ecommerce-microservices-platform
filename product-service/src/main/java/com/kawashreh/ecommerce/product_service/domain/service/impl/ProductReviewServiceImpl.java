@@ -39,8 +39,14 @@ public class ProductReviewServiceImpl implements ProductReviewService {
     public ProductReview save(ProductReview productReview, Product product) {
 
         if(!productReview.getUserId().equals(product.getOwnerId())) {
-            repository.save(ProductReviewMapper.toEntity(productReview));
-            return productReview;
+            // Return what was actually persisted, not the pre-save input: ids (and the
+            // @CreationTimestamp/@UpdateTimestamp fields) are generated on insert, so
+            // returning the input left the create response with a null id and null
+            // timestamps. Same bug, and same fix, as ProductServiceImpl/
+            // ProductVariationServiceImpl.save(); found live via a smoke test where
+            // POST /api/v1/productReview returned 201 with "id": null.
+            var saved = repository.save(ProductReviewMapper.toEntity(productReview));
+            return ProductReviewMapper.toDomain(saved);
         }
 
         return null;

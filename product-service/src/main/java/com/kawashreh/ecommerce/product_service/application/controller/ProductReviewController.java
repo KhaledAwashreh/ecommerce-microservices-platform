@@ -6,6 +6,7 @@ import com.kawashreh.ecommerce.product_service.application.service.ReviewApplica
 import com.kawashreh.ecommerce.product_service.constants.ApiPaths;
 import com.kawashreh.ecommerce.product_service.domain.model.ProductReview;
 import com.kawashreh.ecommerce.product_service.domain.service.ProductReviewService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -57,7 +58,7 @@ public class ProductReviewController {
     }
 
     @PostMapping
-    public ResponseEntity<ProductReviewDto> create(@RequestBody ProductReviewDto dto) {
+    public ResponseEntity<ProductReviewDto> create(@RequestBody @Valid ProductReviewDto dto) {
 
         ProductReview review = reviewApplicationService.createReview(dto);
 
