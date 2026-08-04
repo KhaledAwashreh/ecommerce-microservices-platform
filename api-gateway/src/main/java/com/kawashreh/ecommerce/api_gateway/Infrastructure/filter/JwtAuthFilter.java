@@ -1,6 +1,6 @@
 package com.kawashreh.ecommerce.api_gateway.Infrastructure.filter;
 
-import com.kawashreh.ecommerce.api_gateway.Infrastructure.http.client.ReactiveUserServiceClient;
+import com.kawashreh.ecommerce.api_gateway.Infrastructure.http.dto.UserDto;
 import com.kawashreh.ecommerce.api_gateway.Infrastructure.security.JwtService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,17 +15,16 @@ import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.UUID;
 
 @Component
 public class JwtAuthFilter implements WebFilter {
 
     private static final Logger log = LoggerFactory.getLogger(JwtAuthFilter.class);
 
-    private final ReactiveUserServiceClient userServiceClient;
     private final JwtService jwtService;
 
-    public JwtAuthFilter(ReactiveUserServiceClient userServiceClient, JwtService jwtService) {
-        this.userServiceClient = userServiceClient;
+    public JwtAuthFilter(JwtService jwtService) {
         this.jwtService = jwtService;
     }
 
@@ -45,40 +44,41 @@ public class JwtAuthFilter implements WebFilter {
 
         String token = authHeader.substring(7);
 
-        return Mono.fromCallable(() -> jwtService.extractUsername(token))
-                .flatMap(username -> {
-                    if (username == null) {
-                        log.warn("Could not extract username from token");
+        // Self-contained: identity comes entirely from the token's own verified claims
+        // (embedded at issuance by user-service), never from a callback to user-service.
+        // This filter previously called ReactiveUserServiceClient.retrieveByUsername on
+        // every request to fetch a UserDto to validate against - an unauthenticated
+        // internal HTTP call that broke outright once user-service's own JwtAuthFilter
+        // (GH #17) started requiring auth on every non-public path, since the gateway
+        // never attached a token to its own internal lookup. That made every protected
+        // route through the gateway fail with 401.
+        return Mono.fromCallable(() -> jwtService.validateToken(token))
+                .flatMap(valid -> {
+                    if (!valid) {
+                        log.warn("Token validation failed");
                         return unauthorized(exchange);
                     }
-                    return userServiceClient.retrieveByUsername(username)
-                            .flatMap(userDetails -> {
-                                if (jwtService.validateToken(token, userDetails)) {
-                                    log.info("Token validated for user: {}", userDetails.getUsername());
-                                    // GH #19: the role fetched here used to be discarded - null
-                                    // authorities and no role header downstream, so services
-                                    // couldn't do role-based checks even if they wanted to.
-                                    // Read the role from the token's own claims (embedded at
-                                    // issuance by user-service) rather than userDetails, since
-                                    // the user-service response this client consumes does not
-                                    // currently serialize role.
-                                    String role = jwtService.extractClaim(token, claims -> claims.get("role", String.class));
-                                    List<SimpleGrantedAuthority> authorities = role != null
-                                            ? List.of(new SimpleGrantedAuthority("ROLE_" + role))
-                                            : List.of();
-                                    UsernamePasswordAuthenticationToken authentication =
-                                            new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
-                                    ServerWebExchange mutatedExchange = exchange.mutate()
-                                            .request(r -> r.header("X-User-Name", userDetails.getUsername())
-                                                            .header("X-User-ID", userDetails.getId().toString())
-                                                            .header("X-User-Role", role != null ? role : ""))
-                                            .build();
-                                    return chain.filter(mutatedExchange)
-                                            .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication));
-                                }
-                                log.warn("Token validation failed for user: {}", userDetails.getUsername());
-                                return unauthorized(exchange);
-                            });
+                    String username = jwtService.extractUsername(token);
+                    UUID userId = jwtService.extractUserId(token);
+                    String role = jwtService.extractRole(token);
+                    if (username == null || userId == null) {
+                        log.warn("Token missing required claims (username/userId)");
+                        return unauthorized(exchange);
+                    }
+                    log.info("Token validated for user: {}", username);
+                    List<SimpleGrantedAuthority> authorities = role != null
+                            ? List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                            : List.of();
+                    UserDto userDetails = UserDto.builder().id(userId).username(username).build();
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
+                    ServerWebExchange mutatedExchange = exchange.mutate()
+                            .request(r -> r.header("X-User-Name", username)
+                                            .header("X-User-ID", userId.toString())
+                                            .header("X-User-Role", role != null ? role : ""))
+                            .build();
+                    return chain.filter(mutatedExchange)
+                            .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication));
                 })
                 .onErrorResume(e -> {
                     log.error("JWT filter error for path {}: {}", path, e.getMessage());

@@ -1,8 +1,8 @@
 package com.kawashreh.ecommerce.api_gateway.Infrastructure.security;
 
-import com.kawashreh.ecommerce.api_gateway.Infrastructure.http.dto.UserDto;
 import com.kawashreh.ecommerce.api_gateway.constants.JwtConstants;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
@@ -14,6 +14,7 @@ import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 @Component
@@ -51,6 +52,15 @@ public class JwtService {
         return extractClaim(token, Claims::getSubject);
     }
 
+    public UUID extractUserId(String token) {
+        String userId = extractClaim(token, claims -> claims.get("userId", String.class));
+        return userId != null ? UUID.fromString(userId) : null;
+    }
+
+    public String extractRole(String token) {
+        return extractClaim(token, claims -> claims.get("role", String.class));
+    }
+
     public Date extractExpiration(String token) {
         return extractClaim(token, Claims::getExpiration);
     }
@@ -72,8 +82,24 @@ public class JwtService {
         return extractExpiration(token).before(new Date());
     }
 
-    public Boolean validateToken(String token, UserDto userDetails) {
-        final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+    /**
+     * Self-contained validation: verifies signature + expiration by parsing the
+     * token with the shared secret. Does not call out to another service - mirrors
+     * user-service's JwtService.validateToken. Previously this took a UserDto
+     * fetched from user-service via an unauthenticated internal HTTP call
+     * (ReactiveUserServiceClient.retrieveByUsername); that call started failing
+     * outright once user-service's own JwtAuthFilter (GH #17) began requiring auth
+     * on every non-public path, since the gateway never attached a token to its own
+     * internal lookup - breaking authentication for every protected route through
+     * the gateway. The token already carries userId/role as claims embedded at
+     * issuance (see user-service's JwtService.generateToken), so no callback was
+     * ever necessary.
+     */
+    public boolean validateToken(String token) {
+        try {
+            return !isTokenExpired(token);
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
     }
 }
