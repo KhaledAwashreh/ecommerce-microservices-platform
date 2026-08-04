@@ -15,7 +15,6 @@ import com.kawashreh.ecommerce.user_service.domain.service.dto.AddressResponse;
 import com.kawashreh.ecommerce.user_service.domain.service.dto.AddressSearchRequest;
 import com.kawashreh.ecommerce.user_service.domain.service.dto.AddressUpdateRequest;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -68,12 +67,23 @@ public class AddressServiceImpl implements AddressService {
                 .collect(Collectors.toList());
     }
 
-    @Cacheable(value = CacheConstants.ADDRESS_BY_ID, key = "#id")
+    // Found during GH #64 review: this had no ownership scoping at all - any
+    // authenticated user could read any other user's address by UUID. Not caching
+    // by id alone anymore: with @Cacheable keyed only on #id, a cache hit skips this
+    // method body entirely (Spring's declarative caching short-circuits on hit), which
+    // would have skipped the ownership check below for every caller after the first.
     @Override
-    public AddressResponse find(UUID id) {
-        return repository.findById(id)
-                .map(this::toResponse)
-                .orElse(null);
+    public AddressResponse find(UUID id, UUID requestingUserId) {
+        AddressEntity entity = repository.findById(id).orElse(null);
+        if (entity == null) {
+            return null;
+        }
+
+        if (!entity.getUser().getId().equals(requestingUserId)) {
+            throw new ForbiddenException("You can only view your own addresses");
+        }
+
+        return toResponse(entity);
     }
 
     @CacheEvict(value = CacheConstants.ADDRESS_BY_ID, key = "#id")

@@ -107,4 +107,28 @@ class AddressServiceImplIntegrationTest extends BaseIntegrationTest {
                 .containsExactly(addressA.getId())
                 .doesNotContain(addressB.getId());
     }
+
+    // Found during GH #64 review, not part of the original issue: find() had no
+    // ownership scoping at all - any authenticated user could read any other user's
+    // address by UUID. Must behave like delete()/update() - throw ForbiddenException
+    // when the address exists but isn't the requester's.
+    @Test
+    void find_shouldThrowForbidden_whenRequestingUserIsNotOwner() {
+        UserResponse owner = createUser();
+        AddressResponse address = createAddress(owner.getId());
+        UUID otherUserId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> addressService.find(address.getId(), otherUserId))
+                .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void find_shouldReturnAddress_whenRequestingUserIsOwner() {
+        UserResponse owner = createUser();
+        AddressResponse address = createAddress(owner.getId());
+
+        AddressResponse result = addressService.find(address.getId(), owner.getId());
+
+        assertThat(result.getId()).isEqualTo(address.getId());
+    }
 }

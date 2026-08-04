@@ -32,9 +32,13 @@ public class AddressController {
         return ResponseEntity.ok(AddressHttpMapper.toResponseList(service.getAll(requestingUserId)));
     }
 
+    // Found during GH #64 review: this had no ownership scoping or X-User-ID header at
+    // all - any authenticated user could read any other user's address by UUID. Same
+    // IDOR class as GH #64/#59, scoped the same way.
     @GetMapping("/{addressId}")
-    public ResponseEntity<CreateAddressResponse> findById(@PathVariable UUID addressId) {
-        AddressResponse address = service.find(addressId);
+    public ResponseEntity<CreateAddressResponse> findById(@PathVariable UUID addressId,
+                                                           @RequestHeader("X-User-ID") UUID requestingUserId) {
+        AddressResponse address = service.find(addressId, requestingUserId);
         if (address == null) {
             return ResponseEntity.notFound().build();
         }

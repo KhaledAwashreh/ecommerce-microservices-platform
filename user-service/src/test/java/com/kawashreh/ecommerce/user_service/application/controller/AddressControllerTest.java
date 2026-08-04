@@ -1,6 +1,8 @@
 package com.kawashreh.ecommerce.user_service.application.controller;
 
+import com.kawashreh.ecommerce.common.exceptions.ForbiddenException;
 import com.kawashreh.ecommerce.user_service.domain.service.AddressService;
+import com.kawashreh.ecommerce.user_service.domain.service.dto.AddressResponse;
 import com.kawashreh.ecommerce.user_service.domain.service.dto.AddressSearchRequest;
 import com.kawashreh.ecommerce.user_service.infrastructure.security.JwtAuthFilter;
 import org.junit.jupiter.api.Test;
@@ -62,6 +64,46 @@ class AddressControllerTest {
         // isn't guaranteed to be 400 today. The security property under test is that a
         // request without the header cannot succeed and get every user's addresses back.
         mockMvc.perform(get("/api/v1/address"))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(200));
+    }
+
+    // Found during GH #64 review, not part of the original issue: GET /{addressId} had
+    // no X-User-ID header and no ownership check at all - any authenticated user could
+    // read any other user's address by UUID (live via the frontend's address-edit
+    // modal). Fixed the same way GH #64/#59 fixed getAll()/search().
+    @Test
+    void findById_shouldPassCallingUserFromHeader_toService() throws Exception {
+        UUID callingUser = UUID.randomUUID();
+        UUID addressId = UUID.randomUUID();
+
+        given(addressService.find(addressId, callingUser)).willReturn(
+                AddressResponse.builder().id(addressId).userId(callingUser).build());
+
+        mockMvc.perform(get("/api/v1/address/{addressId}", addressId)
+                        .header("X-User-ID", callingUser.toString()))
+                .andExpect(status().isOk());
+
+        verify(addressService).find(addressId, callingUser);
+    }
+
+    @Test
+    void findById_shouldReturnForbidden_whenAddressBelongsToAnotherUser() throws Exception {
+        UUID callingUser = UUID.randomUUID();
+        UUID addressId = UUID.randomUUID();
+
+        given(addressService.find(addressId, callingUser))
+                .willThrow(new ForbiddenException("You can only view your own addresses"));
+
+        mockMvc.perform(get("/api/v1/address/{addressId}", addressId)
+                        .header("X-User-ID", callingUser.toString()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void findById_shouldNotSucceed_whenMissingUserIdHeader() throws Exception {
+        UUID addressId = UUID.randomUUID();
+
+        mockMvc.perform(get("/api/v1/address/{addressId}", addressId))
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(200));
     }
 

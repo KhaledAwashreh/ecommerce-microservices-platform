@@ -19,7 +19,13 @@ public interface AddressService {
     // caller's own X-User-ID, same pattern as search()/update()/delete().
     List<AddressResponse> getAll(UUID requestingUserId);
 
-    AddressResponse find(UUID id);
+    // Found during GH #64 review: findById() had no ownership scoping at all - any
+    // authenticated user could read any other user's address (street/city/phone/etc.)
+    // by supplying its UUID, exploitable live via the frontend's address-edit modal
+    // (ProfileController#addressModal -> AddressServiceClient.getAddressById). Same
+    // IDOR class as GH #59/#64, just not caught by either. Scoped like delete()/update():
+    // throws ForbiddenException when the address exists but isn't the caller's.
+    AddressResponse find(UUID id, UUID requestingUserId);
 
     void delete(UUID id, UUID requestingUserId);
 
