@@ -12,11 +12,12 @@ rendering happens server-side in Thymeleaf templates under
 `frontend-service/src/main/resources/templates/`, with HTMX used for partial swaps
 (address grid/modal, live product search-as-you-type). The service talks to every backend
 service exclusively through the API gateway (`api.gateway.base-url`, default
-`http://localhost:8765`), never directly. Despite the module's own Javadoc comments
-claiming "Feign client... Uses Kubernetes DNS for service discovery" (see Gotchas), all
-outbound calls are Spring Cloud OpenFeign clients pointed at gateway URLs — **not**
-`WebClient`. A dead `WebClientConfig` bean that contradicted this (unused anywhere in the
-module) was removed — issue #51.
+`http://localhost:8765`), never directly. `UserServiceClient`'s Javadoc used to claim
+"Feign client... Uses Kubernetes DNS for service discovery" (see Gotchas) — fixed (GH #52) to
+say it routes through the gateway like the module's other Feign clients, which is what all of
+them actually do: every outbound call is a Spring Cloud OpenFeign client pointed at a gateway
+URL — **not** `WebClient`. A dead `WebClientConfig` bean that contradicted this (unused
+anywhere in the module) was removed — issue #51.
 
 ## Package layout
 
@@ -466,27 +467,22 @@ coverage and don't need Docker/a Spring context at all.
     other facade/controller in the module uses SLF4J (`OrderController`,
     `ProductController` both declare a `Logger`); `ProfileFacade` does not, and doesn't
     even use `println` (no trailing newline). Severity: **low**.
-19. **`server.port` mismatch between `application.yml` (3000) and `Dockerfile`'s
-    `EXPOSE`/`HEALTHCHECK` (8080).** `application.yml:1-2` sets `server.port: 3000`, but
-    `Dockerfile:32-35` health-checks `http://localhost:8080/actuator/health` and
-    `EXPOSE 8080`. Since `application.yml` is unconditionally active (no profile guard),
-    the container's actual listening port is 3000, not 8080 — the Docker healthcheck
-    would fail to connect (though root `CLAUDE.md` documents "Frontend —
-    http://localhost:3000" for the compose setup, implying compose port-maps around this;
-    the Dockerfile's own healthcheck is still targeting the wrong in-container port).
-    Severity: **medium**.
+19. ~~**`server.port` mismatch between `application.yml` (3000) and `Dockerfile`'s
+    `EXPOSE`/`HEALTHCHECK` (8080).**~~ **Fixed (GH #52).** `application.yml:1-2` sets
+    `server.port: 3000`; `Dockerfile`'s `HEALTHCHECK`/`EXPOSE` now both target `3000` too,
+    matching the port the app actually binds (previously both said `8080`, so the in-image
+    healthcheck was always probing a closed port).
 20. **`jjwt-api`/`jjwt-impl`/`jjwt-jackson` Maven dependencies are unused.** No class in
     `frontend-service/src/main` imports `io.jsonwebtoken` — the module treats the token
     from `user-service` as an opaque string. (The `jwt.secret`/`jwt.expiration`
     `application.yml` keys that were the config-side half of this dead-code smell have been
     removed — they duplicated the real `api-gateway`/`user-service` signing secret for no
     reason, since nothing here ever read them.) Dead dependencies remain. Severity: **low**.
-21. **`UserServiceClient`'s Javadoc is stale/misleading.**
-    `.../client/UserServiceClient.java:18-21` says "Uses Kubernetes DNS for service
+21. ~~**`UserServiceClient`'s Javadoc is stale/misleading.**~~ **Fixed (GH #52).**
+    `.../client/UserServiceClient.java:18-21` used to say "Uses Kubernetes DNS for service
     discovery: http://user-service:8080", but the `@FeignClient` `url` attribute is
     `${api.gateway.base-url}/api/v1/user` — it goes through the gateway, exactly like
-    every other client in this module, not direct k8s DNS. Severity: **low** (misleading
-    comment only).
+    every other client in this module, not direct k8s DNS. The Javadoc now says so.
 22. ~~**Test scaffolding is dead weight.**~~ — fixed (GH #45): `BaseIntegrationTest.java`
     and `application-test.yml` were removed rather than wired up, since neither could
     ever exercise anything real in a module with no JPA starter/entities. See Tests.

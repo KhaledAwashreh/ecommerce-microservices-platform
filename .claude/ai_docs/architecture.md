@@ -226,27 +226,39 @@ services: response caching per `CacheConstants`).
 
 **`api-gateway`**, default profile (`api-gateway/src/main/resources/application.yml`):
 - Every gateway route (`user-service`, `product-service`, `order-service`,
-  `user-role-service`, `user-address-service`, `payment-service`) carries a `Retry` filter
-  (3 attempts, `GET,POST`) and a `CircuitBreaker` filter with `fallbackUri: forward:/fallback`
-  (`api-gateway/src/main/java/.../FallbackController.java` returns 503 plain text).
-- `resilience4j.circuitbreaker.configs.default`: `slidingWindowSize: 10`,
+  `order-cart-service`, `user-role-service`, `user-address-service`, `payment-service`)
+  carries a `Retry` filter (3 attempts, `GET,POST`) and a `CircuitBreaker` filter with
+  `fallbackUri: forward:/fallback` (`api-gateway/src/main/java/.../FallbackController.java`
+  returns 503 plain text). A trailing `frontend-service` catch-all route
+  (`Path=/**` → `http://frontend-service:3000`, no filters) forwards everything else — needed
+  because the k8s Ingress sends `/` in its entirety to `api-gateway` with no separate
+  frontend Ingress rule, and the k8s Deployment runs this default profile.
+- **(GH #52 fix)** `resilience4j.circuitbreaker.configs.default`: `slidingWindowSize: 10`,
   `failureRateThreshold: 50`, `slowCallRateThreshold: 50`,
   `waitDurationInOpenState: 10000`ms, `slowCallDurationThreshold: 2000`ms,
-  `permittedNumberOfCallsInHalfOpenState: 3`. Explicit instances: `user-service`,
-  `product-service`, `payment-service` — `order-service` is **not** listed as an instance
-  here, but `Resilience4jConfiguration`
+  `permittedNumberOfCallsInHalfOpenState: 3`, `minimumNumberOfCalls: 5`. Explicit instances
+  now include `order-service` alongside `user-service`/`product-service`/`payment-service` —
+  previously it was missing, so it silently depended on
+  `Resilience4jConfiguration.defaultCustomizer()`
   (`api-gateway/src/main/java/.../Infrastructure/configuration/Resilience4jConfiguration.java`)
-  registers an equivalent `configureDefault` customizer applied to every circuit breaker ID
-  Spring Cloud Gateway creates, so `order-service` still gets circuit-breaking — just not
-  through the YAML instance block the other three use.
+  falling back to numerically-equivalent hardcoded values. Both sources are now identical
+  (and a unit test, `Resilience4jConfigurationTest`, pins the Java bean's numbers) so which one
+  actually applies no longer matters behaviorally.
 - `resilience4j.retry.configs.default`: `maxAttempts: 3`, `waitDuration: 1000ms`, retries on
   `IOException`/`ConnectException`.
-- The `local` profile (`application-local.yml`) uses **different** numbers:
-  `slidingWindowSize: 20`, `slowCallRateThreshold: 80`, `waitDurationInOpenState: 10s`,
-  `permittedNumberOfCallsInHalfOpenState: 5`, plus a `timelimiter` block (5s timeout) not
-  present in the default profile at all, and explicitly includes `order-service` as an
-  instance. Which profile actually runs depends on `SPRING_PROFILES_ACTIVE` — see
-  `infrastructure.md` for where that is (and is not) set.
+- **(GH #52 fix)** `resilience4j.timelimiter` (5s timeout, `cancelRunningFuture: true`) is now
+  configured in the default profile too, for the same four instances as the circuit breaker.
+  Previously it only existed in `application-local.yml`, so the default profile — the one
+  `docker-compose.yaml` and k8s actually run — had no explicit gateway-side timeout and fell
+  back to Resilience4j's built-in 1s default.
+- **(GH #52 fix)** The `local` profile (`application-local.yml`) previously used different
+  circuit-breaker numbers (`slidingWindowSize: 20`, `slowCallRateThreshold: 80`,
+  `permittedNumberOfCallsInHalfOpenState: 5`); it's now numerically identical to the default
+  profile's `configs.default` above, and its route ids match the default profile's
+  (`user-service`/`user-address-service` are now separate ids in both, not merged in local).
+  Which profile actually runs still depends on `SPRING_PROFILES_ACTIVE` — see
+  `infrastructure.md` for where that is (and is not) set — but the two profiles no longer
+  disagree on the numbers themselves.
 
 **`order-service`** (`order-service/src/main/resources/application.yml:59-74`):
 - `resilience4j.circuitbreaker.instances.product-service`: `slidingWindowSize: 10`,
