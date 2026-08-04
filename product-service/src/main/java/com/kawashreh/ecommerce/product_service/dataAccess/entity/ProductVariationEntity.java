@@ -42,9 +42,17 @@ public class ProductVariationEntity {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive;
 
-    @Column(name = "created_at")
+    // This entity imported @CreationTimestamp/@UpdateTimestamp but never actually applied
+    // them - it was the only timestamped entity in this module that didn't (ProductEntity,
+    // ProductReviewEntity, InventoryEntity and InventoryDeductionEntity all do). The result
+    // was that product_variation.created_at/updated_at were never populated at all: both
+    // columns were NULL for every row ever inserted, and the create response reported null
+    // timestamps. Found live via a smoke test, confirmed straight against the table.
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
+    @UpdateTimestamp
     @Column(name = "updated_at")
     private Instant updatedAt;
 

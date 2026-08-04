@@ -118,6 +118,25 @@ class ProductVariationServiceIntegrationTest extends BaseIntegrationTest {
         savedVariation = ProductVariationMapper.toDomain(variation);
     }
 
+    /**
+     * Regression: ProductVariationEntity imported @CreationTimestamp/@UpdateTimestamp but
+     * never applied them to its fields - the only timestamped entity in this module that
+     * didn't. product_variation.created_at/updated_at were therefore NULL for every row
+     * ever inserted (confirmed straight against the table), and create responses reported
+     * null timestamps. Found live via a smoke test.
+     */
+    @Test
+    void save_shouldAutoPopulateCreatedAtAndUpdatedAt() {
+        ProductVariationEntity persisted = productVariationRepository.findById(variationId).orElseThrow();
+
+        assertThat(persisted.getCreatedAt())
+                .as("@CreationTimestamp must populate created_at on insert")
+                .isNotNull();
+        assertThat(persisted.getUpdatedAt())
+                .as("@UpdateTimestamp must populate updated_at on insert")
+                .isNotNull();
+    }
+
     @Test
     void update_shouldEvictCacheWithoutThrowing() {
         Cache cache = cacheManager.getCache(CacheConstants.PRODUCT_VARIATION_BY_PRODUCT_ID);
