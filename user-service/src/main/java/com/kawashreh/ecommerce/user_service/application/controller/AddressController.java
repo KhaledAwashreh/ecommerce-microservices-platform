@@ -24,9 +24,12 @@ public class AddressController {
         this.service = service;
     }
 
+    // GH #64: previously returned every address for every user with no auth or
+    // ownership scoping at all. Scoped to the caller's own X-User-ID, same pattern
+    // as /search (GH #59).
     @GetMapping
-    public ResponseEntity<List<CreateAddressResponse>> getAll() {
-        return ResponseEntity.ok(AddressHttpMapper.toResponseList(service.getAll()));
+    public ResponseEntity<List<CreateAddressResponse>> getAll(@RequestHeader("X-User-ID") UUID requestingUserId) {
+        return ResponseEntity.ok(AddressHttpMapper.toResponseList(service.getAll(requestingUserId)));
     }
 
     @GetMapping("/{addressId}")

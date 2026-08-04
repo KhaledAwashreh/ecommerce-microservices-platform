@@ -14,7 +14,10 @@ import java.util.UUID;
 public interface AddressService {
     AddressResponse create(AddressCreateRequest request);
 
-    List<AddressResponse> getAll();
+    // GH #64: previously getAll() took no argument and returned every address for every
+    // user in the system, with no auth/ownership scoping at all. Now scoped to the
+    // caller's own X-User-ID, same pattern as search()/update()/delete().
+    List<AddressResponse> getAll(UUID requestingUserId);
 
     AddressResponse find(UUID id);
 

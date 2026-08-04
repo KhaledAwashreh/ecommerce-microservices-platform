@@ -58,9 +58,12 @@ public class AddressServiceImpl implements AddressService {
         return toResponse(entity);
     }
 
+    // GH #64: previously returned every address for every user with no scoping at all.
+    // Now scoped to the requesting user's own addresses, same pattern as search().
     @Override
-    public List<AddressResponse> getAll() {
+    public List<AddressResponse> getAll(UUID requestingUserId) {
         return repository.findAll().stream()
+                .filter(a -> a.getUser() != null && a.getUser().getId().equals(requestingUserId))
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }

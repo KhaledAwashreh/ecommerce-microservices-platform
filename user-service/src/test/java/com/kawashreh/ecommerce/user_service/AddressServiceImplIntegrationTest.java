@@ -14,8 +14,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 // Regression test for GH #37: ownership-check failures used to throw
@@ -85,5 +87,24 @@ class AddressServiceImplIntegrationTest extends BaseIntegrationTest {
 
         assertThatThrownBy(() -> addressService.update(address.getId(), request))
                 .isInstanceOf(ForbiddenException.class);
+    }
+
+    // Regression test for GH #64: getAll() had no scoping at all and returned every
+    // address for every user. It must behave like search() and edit/delete - scoped to
+    // the requesting user's own addresses only.
+    @Test
+    void getAll_shouldOnlyReturnCallingUsersOwnAddresses() {
+        UserResponse userA = createUser();
+        UserResponse userB = createUser();
+        AddressResponse addressA = createAddress(userA.getId());
+        AddressResponse addressB = createAddress(userB.getId());
+
+        List<AddressResponse> resultForA = addressService.getAll(userA.getId());
+
+        assertThat(resultForA)
+                .extracting(AddressResponse::getId)
+                .as("user A's getAll() must not include user B's address")
+                .containsExactly(addressA.getId())
+                .doesNotContain(addressB.getId());
     }
 }

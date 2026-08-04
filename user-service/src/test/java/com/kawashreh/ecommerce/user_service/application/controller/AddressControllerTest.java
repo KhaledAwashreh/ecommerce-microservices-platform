@@ -27,6 +27,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * caller could read any other user's addresses by passing their UUID. The
  * endpoint must scope to the caller's own identity (from X-User-ID, set by the
  * gateway after JWT validation), the same way edit/delete already do.
+ *
+ * Also covers GH issue #64: GET / (getAll()) had no scoping or auth check at
+ * all and returned every address for every user in the system. Fixed the same
+ * way GH #59 fixed /search - scope to the caller's own X-User-ID.
  */
 @WebMvcTest(controllers = AddressController.class,
         excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtAuthFilter.class))
@@ -37,6 +41,29 @@ class AddressControllerTest {
 
     @MockitoBean
     private AddressService addressService;
+
+    @Test
+    void getAll_shouldScopeToCallingUserFromHeader_notReturnEveryUsersAddresses() throws Exception {
+        UUID callingUser = UUID.randomUUID();
+
+        given(addressService.getAll(callingUser)).willReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/address")
+                        .header("X-User-ID", callingUser.toString()))
+                .andExpect(status().isOk());
+
+        verify(addressService).getAll(callingUser);
+    }
+
+    @Test
+    void getAll_shouldNotSucceed_whenMissingUserIdHeader() throws Exception {
+        // Mirrors search_shouldNotSucceed_whenMissingUserIdHeader: GH #44 (separate,
+        // pre-existing bug) means the exact status code for a missing required header
+        // isn't guaranteed to be 400 today. The security property under test is that a
+        // request without the header cannot succeed and get every user's addresses back.
+        mockMvc.perform(get("/api/v1/address"))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(200));
+    }
 
     @Test
     void search_shouldIgnoreUserIdParam_andScopeToCallingUserFromHeader() throws Exception {

@@ -135,7 +135,7 @@ kept as-is since it is deliberate code, not a typo of e.g. 200/201.
 
 | Method | Path | Request | Response | Status | Authorization |
 |---|---|---|---|---|---|
-| GET | `` | — | `List<CreateAddressResponse>` | 200 | None — lists every address for every user. |
+| GET | `` | header `X-User-ID: UUID` (required) | `List<CreateAddressResponse>` | 200 / 400 (missing header) | GH #64 fix: scoped to the caller's own addresses via `X-User-ID`, same pattern as `/search` (GH #59). Previously took no argument and returned every address for every user. |
 | GET | `/{addressId}` | path `addressId` | `CreateAddressResponse` or empty | 200 / 404 | None. |
 | GET | `/search` | header `X-User-ID: UUID` (required), query `q` (optional) | `List<CreateAddressResponse>` | 200 / 400 (missing header) | GH #59 fix: scoped to the caller's own addresses via `X-User-ID`; the endpoint no longer accepts a caller-supplied `userId` query param. |
 | POST | `` | body `CreateAddressRequest` (`@Valid`), header `X-User-ID: UUID` (required) | `CreateAddressResponse` | 201 | Address is created under the `X-User-ID` supplied by caller — no check that this equals any authenticated identity beyond gateway trust. |
