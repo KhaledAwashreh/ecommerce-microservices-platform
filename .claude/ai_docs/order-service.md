@@ -351,15 +351,22 @@ working create path, and the plain one already existed and worked.
 genuinely dead, never injected or called anywhere in `src/main`, unlike `PaymentClient`.
 Removed along with its Feign client config block and its DTO (issue #51).
 
-- **Target URL resolution**: `application.yml` (base profile) points both remaining Feign
-  client names at `${GATEWAY_URL:http://api-gateway:8765}` — i.e. order-service calls
-  through the API gateway by default, per the root `CLAUDE.md` convention. The k8s
-  `order-configmap.yaml` overrides this per-service to `http://product-service`,
-  `http://payment-service` (direct in-cluster DNS, bypassing the gateway) — a real
-  behavioral difference between the Docker Compose/local profile and the Kubernetes
-  deployment, not just a URL substitution. (The configmap still has a leftover
-  `user-service` entry, but per issue #52 these embedded ConfigMap `application.yml`
-  blocks aren't actually mounted by any Deployment, so it's inert either way.)
+- **Target URL resolution**: `application.yml` (base profile) already points both
+  remaining Feign clients at direct in-cluster DNS by default —
+  `${PRODUCT_SERVICE_URL:http://product-service:8080}` and
+  `${PAYMENT_SERVICE_URL:http://payment-service:8080}` — bypassing the gateway for
+  service-to-service calls, unlike `product-service`'s `user-service` client (which
+  defaults through the gateway via `GATEWAY_URL`). The jar defaults' `:8080` is each
+  pod's *container* port; the in-cluster `product-service`/`payment-service` Services
+  only expose port 80, so a plain deploy (no override) can't actually reach them —
+  confirmed by testing both URL shapes against a local `kind` cluster (issue #60):
+  `http://product-service:8080` timed out, `http://product-service` (port 80) returned
+  200. `k8s/services/order-service/order-configmap.yaml` now sets `PRODUCT_SERVICE_URL`
+  and `PAYMENT_SERVICE_URL` to the port-less DNS names and wires them into
+  `order-deployment.yaml` via `configMapKeyRef`, fixing this. (Previously the ConfigMap
+  carried a whole unmounted `application.yml` override block — including a leftover
+  `user-service` entry for the client removed in issue #51 — that had no effect at all
+  per issue #52/#60; it has been replaced with just the two env vars that matter.)
 - **Failure handling**:
   - `spring.cloud.openfeign.circuitbreaker.enabled: true` (`application.yml`) routes Feign
     calls through Resilience4j. This setting previously lived under a top-level `feign:`
@@ -592,11 +599,18 @@ invisible from this module's code).
     no extraction; every `ProductServiceException` built from a Feign error carries
     `productId = "unknown"` regardless of which product actually failed.
     `infrastructure/http/client/ProductServiceErrorDecoder.java:42-46`.
-18. **Feign target URLs differ between Docker Compose/local profiles and Kubernetes** —
-    base `application.yml` and `-ide` route all three Feign clients through the API
-    gateway (`GATEWAY_URL`); the k8s `order-configmap.yaml` points them directly at
-    `http://product-service`, `http://user-service`, `http://payment-service` in-cluster,
-    bypassing the gateway entirely for service-to-service calls in that environment.
+18. **Feign target URLs differ between the IDE profile and everywhere else** —
+    `-ide` (`GATEWAY_URL: http://localhost:8765`) routes both remaining Feign clients
+    through the API gateway; base `application.yml` (used by Docker Compose and
+    Kubernetes) already defaults to direct DNS (`PRODUCT_SERVICE_URL`/
+    `PAYMENT_SERVICE_URL`, `http://product-service:8080`/`http://payment-service:8080`),
+    bypassing the gateway for service-to-service calls. As of issue #60,
+    `k8s/services/order-service/order-configmap.yaml` overrides these two env vars to
+    the port-less in-cluster DNS names (`http://product-service`,
+    `http://payment-service`) and they're actually wired into the Deployment via
+    `configMapKeyRef` — previously the ConfigMap carried an unmounted `application.yml`
+    block with the same intent (plus a leftover, already-dead `user-service` entry) that
+    had no effect at all.
 19. **CacheConfig is dead infrastructure** — Redis cache beans are fully configured
     (10-minute TTL, JSON serialization) but nothing in the module is `@Cacheable`; the
     entire caching layer is currently a no-op in terms of actual caching behavior.

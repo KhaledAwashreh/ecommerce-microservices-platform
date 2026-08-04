@@ -8,17 +8,9 @@ data:
   SPRING_DATASOURCE_USERNAME: postgres
   SPRING_DATA_REDIS_HOST: redis-server
   SPRING_DATA_REDIS_PORT: "6379"
-  application.yml: |
-    spring:
-      cloud:
-        openfeign:
-          client:
-            config:
-              default:
-                connectTimeout: 5000
-                readTimeout: 5000
-    eureka:
-      client:
-        enabled: false
-        register-with-eureka: false
-        fetch-registry: false
+  # OrderServiceErrorDecoder's client (spring.cloud.openfeign.client.config.order-service.url
+  # in application.yml, default ${ORDER_SERVICE_URL:http://order-service:8080}) defaults
+  # to direct in-cluster DNS. The jar default's port (8080) is the pod's container port;
+  # the in-cluster Service (k8s/services/order-service/order-service.yaml) exposes port
+  # 80, so it must be overridden here or the Feign call can't reach the ClusterIP.
+  ORDER_SERVICE_URL: http://order-service

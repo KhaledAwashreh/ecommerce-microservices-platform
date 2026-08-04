@@ -8,19 +8,9 @@ data:
   SPRING_DATASOURCE_USERNAME: postgres
   SPRING_DATA_REDIS_HOST: redis-server
   SPRING_DATA_REDIS_PORT: "6379"
-  application.yml: |
-    spring:
-      cloud:
-        openfeign:
-          client:
-            config:
-              user-service:
-                url: http://user-service
-              default:
-                connectTimeout: 5000
-                readTimeout: 5000
-    eureka:
-      client:
-        enabled: false
-        register-with-eureka: false
-        fetch-registry: false
+  # UserServiceClient's target (spring.cloud.openfeign.client.config.user-service.url in
+  # application.yml, default ${GATEWAY_URL:http://api-gateway:8765}) routes through the
+  # gateway by design. The jar default's port (8765) is the gateway's *container* port;
+  # the in-cluster Service (k8s/services/api-gateway/api-gateway-service.yaml) exposes
+  # port 80, so it must be overridden here or the Feign call can't reach the ClusterIP.
+  GATEWAY_URL: http://api-gateway
