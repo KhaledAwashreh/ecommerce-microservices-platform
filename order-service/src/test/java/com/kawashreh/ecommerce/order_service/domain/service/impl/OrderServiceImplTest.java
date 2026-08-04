@@ -11,7 +11,6 @@ import com.kawashreh.ecommerce.order_service.infrastructure.http.client.PaymentC
 import com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceClient;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.InventoryDto;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.PaymentDto;
-import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.ProductDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -142,13 +141,11 @@ class OrderServiceImplTest {
     }
 
     private void stubHappyPathValidation(int availableQuantity) {
-        ProductDto product = ProductDto.builder().id(productVariationId).build();
         InventoryDto inventory = InventoryDto.builder()
                 .productVariationId(productVariationId)
                 .quantity(availableQuantity)
                 .build();
 
-        when(productServiceClient.retrieveProduct(any(UUID.class))).thenReturn(product);
         when(productServiceClient.retrieveInventory(any(UUID.class))).thenReturn(inventory);
     }
 
@@ -172,18 +169,36 @@ class OrderServiceImplTest {
     }
 
     /**
-     * Echoes back whatever OrderEntity is passed to save() (like a real repository would
-     * for an unmanaged entity) and records the status AT THE MOMENT OF THE CALL. This is
-     * necessary because the production code mutates and reuses the same `saved` entity
-     * reference across both save() calls (PENDING -> CONFIRMED/CANCELLED in place) - an
-     * ArgumentCaptor would just capture that one mutable reference twice and see only its
-     * final state, so status must be snapshotted eagerly inside the answer.
+     * Echoes back whatever OrderEntity is passed to save() and records the status AT THE
+     * MOMENT OF THE CALL. This is necessary because the production code mutates and
+     * reuses the same `saved` entity reference across both save() calls (PENDING ->
+     * CONFIRMED/CANCELLED in place) - an ArgumentCaptor would just capture that one
+     * mutable reference twice and see only its final state, so status must be
+     * snapshotted eagerly inside the answer.
+     * <p>
+     * Also assigns a generated id (to the entity and, on the first call, each of its
+     * items) if one isn't already set - real production code explicitly nulls both
+     * before the first save() (see OrderServiceImpl.create()'s comment on why: a real,
+     * client-facing OrderDto.id is always non-null, but the entity is @GeneratedValue and
+     * a non-null id sends save() through merge() instead of persist(), corrupting a real
+     * DB). A bare echo-back here would leave those ids null forever, since nothing else
+     * in this test simulates what a real repository.save() does for a genuinely new row -
+     * silently masking exactly the bug this comment describes, the same way the tests
+     * originally missed it entirely.
      */
     private List<OrderStatus> stubSaveToReturnSameEntityAndRecordStatuses() {
         List<OrderStatus> savedStatuses = new ArrayList<>();
         when(repository.save(any(OrderEntity.class)))
                 .thenAnswer(invocation -> {
                     OrderEntity e = invocation.getArgument(0);
+                    if (e.getId() == null) {
+                        e.setId(UUID.randomUUID());
+                    }
+                    e.getSelectedItems().forEach(item -> {
+                        if (item.getId() == null) {
+                            item.setId(UUID.randomUUID());
+                        }
+                    });
                     savedStatuses.add(e.getStatus());
                     return e;
                 });
@@ -239,7 +254,17 @@ class OrderServiceImplTest {
         stubHappyPathPayment();
         when(productServiceClient.deductInventory(any(UUID.class), any(UUID.class), anyInt())).thenReturn(true);
         when(repository.save(any(OrderEntity.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0)) // 1st call: PENDING insert succeeds
+                .thenAnswer(invocation -> {
+                    // 1st call: PENDING insert succeeds. Must assign ids here, same as
+                    // stubSaveToReturnSameEntityAndRecordStatuses() - production code nulls
+                    // both the entity's and its items' ids before this call (real ids are
+                    // @GeneratedValue), and updateProductInventory() below needs a non-null
+                    // item id to call deductInventory with.
+                    OrderEntity e = invocation.getArgument(0);
+                    e.setId(UUID.randomUUID());
+                    e.getSelectedItems().forEach(item -> item.setId(UUID.randomUUID()));
+                    return e;
+                })
                 .thenThrow(new RuntimeException("db-unreachable"));  // 2nd call: CONFIRMED save fails
 
         Order order = sampleOrder(2);
@@ -337,7 +362,7 @@ class OrderServiceImplTest {
         // domain -> entity -> repository -> domain round trip performed by create().
         stubHappyPathValidation(10);
         stubHappyPathPayment();
-        when(repository.save(any(OrderEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        stubSaveToReturnSameEntityAndRecordStatuses();
         when(productServiceClient.deductInventory(any(UUID.class), any(UUID.class), anyInt())).thenReturn(true);
 
         UUID shippingAddressId = UUID.randomUUID();
@@ -356,7 +381,7 @@ class OrderServiceImplTest {
         // addition.
         stubHappyPathValidation(10);
         stubHappyPathPayment();
-        when(repository.save(any(OrderEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        stubSaveToReturnSameEntityAndRecordStatuses();
         when(productServiceClient.deductInventory(any(UUID.class), any(UUID.class), anyInt())).thenReturn(true);
 
         Order order = sampleOrder(2);

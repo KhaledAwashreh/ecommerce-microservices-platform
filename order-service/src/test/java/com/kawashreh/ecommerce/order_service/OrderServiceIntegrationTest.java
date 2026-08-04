@@ -9,7 +9,6 @@ import com.kawashreh.ecommerce.order_service.infrastructure.http.client.PaymentC
 import com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceClient;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.InventoryDto;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.PaymentDto;
-import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.ProductDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -82,20 +81,12 @@ class OrderServiceIntegrationTest {
         sellerId = UUID.randomUUID();
         storeId = UUID.randomUUID();
 
-        ProductDto mockProduct = ProductDto.builder()
-                .id(productVariationId)
-                .name("Test Product")
-                .price(BigDecimal.valueOf(99.99))
-                .stock(10)
-                .build();
-
         InventoryDto mockInventory = InventoryDto.builder()
                 .productVariationId(productVariationId)
                 .quantity(10)
                 .warehouseLocation("WAREHOUSE-A")
                 .build();
 
-        when(productServiceClient.retrieveProduct(any(UUID.class))).thenReturn(mockProduct);
         when(productServiceClient.retrieveInventory(any(UUID.class))).thenReturn(mockInventory);
         when(productServiceClient.checkInventoryAvailability(eq(productVariationId), any(Integer.class)))
                 .thenReturn(true);
@@ -138,6 +129,43 @@ class OrderServiceIntegrationTest {
         assertThat(result.getBuyer()).isEqualTo(buyerId);
     }
 
+    // Regression: OrderDto.id is @NonNull, so every real HTTP client is forced to send an
+    // id on create - which OrderHttpMapper/OrderMapper carry straight onto the new
+    // OrderEntity despite it being @GeneratedValue. A non-null id made Spring Data's
+    // isNew() check treat the brand-new entity as already existing, so save() called
+    // merge() instead of persist(), and Hibernate threw
+    // ObjectOptimisticLockingFailureException trying to update a row that was never
+    // inserted - every single real order create failed, 100% reproducible. The test above
+    // never caught this because it builds an Order directly in Java and never sets
+    // .id(...), which no real client can do. This test does what a real client is forced
+    // to: supply a client-side id, exactly like OrderHttpMapper.toDomain(orderDto) does
+    // for every real POST /api/v1/orders request.
+    @Test
+    void create_shouldSucceed_whenCallerSuppliesAClientSideId() {
+        Order order = Order.builder()
+                .id(UUID.randomUUID())
+                .buyer(buyerId)
+                .seller(sellerId)
+                .storeId(storeId)
+                .selectedItems(new ArrayList<>(List.of(
+                        OrderItem.builder()
+                                .id(UUID.randomUUID())
+                                .productSku(productVariationId)
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(99.99))
+                                .build()
+                )))
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+
+        Order result = orderService.create(order);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        assertThat(result.getId()).isNotNull();
+    }
+
     @Test
     void create_shouldFail_whenInsufficientInventory() {
         InventoryDto lowInventory = InventoryDto.builder()
@@ -166,9 +194,16 @@ class OrderServiceIntegrationTest {
                 .hasMessageContaining("Insufficient stock");
     }
 
+    // Was create_shouldFail_whenProductNotFound, stubbing retrieveProduct to return null:
+    // OrderServiceImpl.validateInventoryAvailability used to call
+    // productServiceClient.retrieveProduct(item.getProductSku()) as an extra existence
+    // check, but item.getProductSku() is a ProductVariation id, not a Product id, so that
+    // call always hit the wrong endpoint (found live via a smoke test - every real order
+    // create failed). The call was removed as broken and redundant; retrieveInventory
+    // returning null is now the sole "does this item exist" check.
     @Test
-    void create_shouldFail_whenProductNotFound() {
-        when(productServiceClient.retrieveProduct(any(UUID.class))).thenReturn(null);
+    void create_shouldFail_whenInventoryNotFound() {
+        when(productServiceClient.retrieveInventory(any(UUID.class))).thenReturn(null);
 
         Order order = Order.builder()
                 .buyer(buyerId)
@@ -186,7 +221,7 @@ class OrderServiceIntegrationTest {
                 .build();
 
         assertThatThrownBy(() -> orderService.create(order))
-                .hasMessageContaining("Product not found");
+                .hasMessageContaining("Inventory not found");
     }
 
     @Test

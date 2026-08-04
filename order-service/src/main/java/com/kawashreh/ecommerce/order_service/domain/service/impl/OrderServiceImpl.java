@@ -12,7 +12,6 @@ import com.kawashreh.ecommerce.order_service.infrastructure.http.client.PaymentC
 import com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceClient;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.InventoryDto;
 import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.PaymentDto;
-import com.kawashreh.ecommerce.order_service.infrastructure.http.dto.ProductDto;
 import com.kawashreh.ecommerce.order_service.domain.model.Order;
 import com.kawashreh.ecommerce.order_service.domain.model.OrderItem;
 import com.kawashreh.ecommerce.order_service.domain.service.OrderService;
@@ -79,7 +78,26 @@ public class OrderServiceImpl implements OrderService {
         validateInventoryAvailability(order);
 
         var entity = OrderMapper.toEntity(order);
-        entity.getSelectedItems().forEach(item -> item.setOrder(entity));
+        // OrderEntity.id is @GeneratedValue(strategy = GenerationType.UUID) - the server is
+        // meant to assign it - but OrderDto.id is @NonNull, so every real HTTP client is
+        // forced to send some id, which OrderMapper.toEntity carries straight onto the new
+        // entity. A non-null id on a "new" entity makes Spring Data's isNew() check treat it
+        // as existing already, so save() calls merge() instead of persist() - Hibernate then
+        // tries to update a row that was never inserted and throws
+        // ObjectOptimisticLockingFailureException. Found live via a smoke test: every single
+        // order create failed, 100% reproducible, masked in existing tests because they build
+        // Order objects directly in Java and never set .id(...). Discard whatever the client
+        // sent here so the server-generated id is always what's actually used, matching what
+        // the entity mapping is declared to do.
+        entity.setId(null);
+        // Same reasoning for each OrderItemEntity: OrderItemDto.id is also @NonNull, and a
+        // non-null id on a cascade-persisted child makes Hibernate treat it as a detached
+        // (previously-persisted, now out of session) entity rather than a new one, throwing
+        // "detached entity passed to persist" instead of inserting it.
+        entity.getSelectedItems().forEach(item -> {
+            item.setId(null);
+            item.setOrder(entity);
+        });
         entity.setStatus(OrderStatus.PENDING);
         var saved = repository.save(entity); // own transaction, commits immediately
 
@@ -229,13 +247,15 @@ public class OrderServiceImpl implements OrderService {
 
         for (OrderItem item : order.getSelectedItems()) {
             try {
-                ProductDto product = productServiceClient.retrieveProduct(item.getProductSku());
-
-                if (product == null) {
-                    logger.error("Product not found: {}", item.getProductSku());
-                    throw new IllegalArgumentException("Product not found: " + item.getProductSku());
-                }
-
+                // Previously also called productServiceClient.retrieveProduct(item.getProductSku())
+                // here as an extra "does this exist" check - but item.getProductSku() is a
+                // ProductVariation id (it's what deductInventory/restoreInventory below need),
+                // not a Product id, so that call always hit GET /api/v1/product/{a-variation-id},
+                // which can never resolve. Found live via a smoke test: every order create
+                // failed with a wrapped 400 from product-service. The retrieveInventory call
+                // below already establishes the variation exists (and is the actually
+                // load-bearing check - it's also what carries the stock count), so the removed
+                // call was both broken and redundant, not just broken.
                 InventoryDto inventory = productServiceClient.retrieveInventory(item.getProductSku());
                 if (inventory == null) {
                     logger.error("Inventory not found for product: {}", item.getProductSku());
@@ -254,8 +274,6 @@ public class OrderServiceImpl implements OrderService {
 
                 logger.info("Inventory validation passed for product: {} - Quantity requested: {}",
                         item.getProductSku(), item.getQuantity());
-                logger.info("Inventory validation passed for product: {} - Quantity requested: {}",
-                        product.getId(), item.getQuantity());
 
             } catch (IllegalArgumentException e) {
                 throw e;
@@ -279,21 +297,16 @@ public class OrderServiceImpl implements OrderService {
                     throw new RuntimeException("Failed to deduct inventory for product: " + item.getProductSku());
                 }
                 // Track success immediately - this item is now deducted on product-service
-                // regardless of what happens below (including the redundant retrieveProduct
-                // check further down failing), so it must be compensated on any later failure.
+                // regardless of what happens below, so it must be compensated on any later
+                // failure.
                 deductedItems.add(item);
                 logger.info("Inventory deducted successfully for product: {} - Quantity: {}",
                         item.getProductSku(), item.getQuantity());
-
-                ProductDto product = productServiceClient.retrieveProduct(item.getProductSku());
-
-                if (product != null) {
-                    logger.info("Deducting {} units from product {} (SKU: {})",
-                            item.getQuantity(), product.getId(), item.getProductSku());
-                    logger.info("Inventory updated successfully for product: {}", product.getId());
-                } else {
-                    throw new RuntimeException("Product not found during inventory update: " + item.getProductSku());
-                }
+                // Previously also called productServiceClient.retrieveProduct(item.getProductSku())
+                // here as a second "did it work" check - broken the same way as the one removed
+                // from validateInventoryAvailability above (item.getProductSku() is a
+                // ProductVariation id, not a Product id). deductInventory's own boolean result,
+                // checked above, is what actually confirms success.
             } catch (Exception e) {
                 logger.error("Failed to update inventory for product: {}. Order transaction will be rolled back.",
                         item.getProductSku(), e);
