@@ -63,7 +63,18 @@ public class PaymentController {
     public ResponseEntity<Boolean> refundPayment(@PathVariable UUID paymentId) {
         try {
             boolean success = paymentService.refundPayment(paymentId);
-            return ResponseEntity.ok(success);
+            if (!success) {
+                // refundPayment() returns false for exactly one reason - no payment with
+                // this id exists (every other outcome either returns true or throws
+                // InvalidPaymentStateException below). Returning 200 OK here, as this did
+                // previously, told a client its refund request was handled when nothing was
+                // found to refund. Found live via a smoke test: refunding a random UUID
+                // returned 200. Note the wrong-state case already correctly returns 409, so
+                // the 200 was an oversight rather than a deliberate contract.
+                logger.warn("Refund requested for unknown payment {}", paymentId);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(false);
+            }
+            return ResponseEntity.ok(true);
         } catch (InvalidPaymentStateException e) {
             // Payment exists but isn't COMPLETED (or is already REFUNDED): a genuine, entirely
             // deterministic client-side conflict, not a server error. Mapped locally here

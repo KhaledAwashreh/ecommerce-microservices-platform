@@ -100,4 +100,29 @@ class PaymentControllerTest {
                         .content(objectMapper.writeValueAsString(validRequest())))
                 .andExpect(status().isOk());
     }
+
+    /**
+     * Regression: refundPayment() returns false for exactly one reason - no payment with
+     * that id exists - but the controller mapped that to 200 OK, telling the client its
+     * refund was handled when nothing was found to refund. Found live via a smoke test
+     * (refunding a random UUID returned 200). The wrong-state case already returned 409,
+     * so the 200 was an oversight, not a deliberate contract.
+     */
+    @Test
+    void refundPayment_shouldReturn404_whenPaymentDoesNotExist() throws Exception {
+        UUID unknownId = UUID.randomUUID();
+        given(paymentService.refundPayment(unknownId)).willReturn(false);
+
+        mockMvc.perform(post("/api/v1/payment/" + unknownId + "/refund"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void refundPayment_shouldReturn200_whenRefundSucceeds() throws Exception {
+        UUID paymentId = UUID.randomUUID();
+        given(paymentService.refundPayment(paymentId)).willReturn(true);
+
+        mockMvc.perform(post("/api/v1/payment/" + paymentId + "/refund"))
+                .andExpect(status().isOk());
+    }
 }
