@@ -388,7 +388,7 @@ class OrderServiceImplTest {
         // provider-specific error, neither of which is the intended 404. Guard with an
         // existence check that raises a clean NoSuchElementException instead.
         UUID missingId = UUID.randomUUID();
-        when(repository.existsById(missingId)).thenReturn(false);
+        when(repository.findById(missingId)).thenReturn(Optional.empty());
 
         Order order = sampleOrder(1);
         order.setId(missingId);
