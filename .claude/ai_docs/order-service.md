@@ -379,16 +379,37 @@ Removed along with its Feign client config block and its DTO (issue #51).
     is configured for `payment-service` or `user-service`.
   - `resilience4j.retry.instances.product-service`: `maxAttempts: 3`, `waitDuration: 1s`.
     No retry instance configured for the other two clients.
-  - No `@CircuitBreaker`/`@Retry` annotations appear anywhere in `src/main` — the
-    Resilience4j config applies automatically at the Feign-client level because
+  - GH #63: `resilience4j.retry.instances.product-service` used to be dead — nothing in
+    `src/main` referenced it, so calls never actually retried despite the config implying
+    otherwise. It's now wired to exactly two methods: `ProductServiceClient.deductInventory`
+    and `.restoreInventory` carry `@Retry(name = "product-service")` — chosen because those
+    are specifically the calls GH #30's ledger made idempotent per `orderItemId` (a repeat
+    deduct/restore for the same order item is a no-op, not a double-deduction), so retrying
+    them is safe. `retrieveProduct`/`retrieveInventory`/`checkInventoryAvailability` are
+    deliberately left unannotated.
+  - Which exceptions actually trigger a retry is **not** set via YAML `retryExceptions` — a
+    plain class list doesn't work for this client. `spring.cloud.openfeign.circuitbreaker.
+    enabled=true` wraps every Feign call in a Spring Cloud circuit breaker *underneath* the
+    `@Retry` aspect; with no fallback configured, that circuit breaker re-throws every
+    failure as `NoFallbackAvailableException`, nesting the real cause underneath instead of
+    letting it propagate — so a class-list check (which only inspects the exception the
+    retry aspect directly receives, not its cause chain) never matched, and confirmed via a
+    forced-failure test that retries silently stopped after exactly one attempt regardless
+    of `maxAttempts`. `infrastructure/config/Resilience4jRetryConfiguration` instead
+    registers a `RetryConfigCustomizer` bean that walks the full cause chain: retryable is
+    `ProductServiceUnavailableException` (503, see below) plus raw I/O failures
+    (`java.io.IOException`, `feign.RetryableException`); NOT retryable is the base
+    `ProductServiceException` for 404/400, which are permanent business outcomes.
+  - No `@CircuitBreaker` annotation appears anywhere in `src/main` — the circuit-breaker
+    config still applies automatically at the Feign-client level because
     `spring.cloud.openfeign.circuitbreaker.enabled=true` wraps every Feign client method,
     keyed by the `@FeignClient` name (`product-service`). There is no fallback method/class
-    configured, so an open circuit or exhausted retries on `product-service` simply
+    configured, so — outside the two retried methods above — an open circuit simply
     propagates the underlying (or a `CallNotPermittedException`) exception up through
     `validateInventoryAvailability`'s catch-all, rewrapped as `IllegalArgumentException`.
-    Verified live: with Docker running, `OrderServiceIntegrationTest` boots a real Spring
-    context with this config bound and passes — confirming the property now actually binds,
-    though no test forces a downstream failure to observe the breaker open in practice.
+    Verified live: with Docker running, `OrderServiceIntegrationTest` and
+    `ProductServiceRetryIntegrationTest` (see Tests) both boot a real Spring context with
+    this config bound and pass.
   - `spring.cloud.openfeign.client.config.default`: `connectTimeout: 5000`,
     `readTimeout: 10000`, `loggerLevel: basic`.
     `spring.cloud.openfeign.client.config.product-service.errorDecoder:
@@ -399,10 +420,12 @@ Removed along with its Feign client config block and its DTO (issue #51).
     to `BeanUtils.instantiateClass(class)`), so a bean name here silently fails to bind and
     previously crashed the application context at startup once the prefix bug (#57) was
     fixed without also correcting this value.
-  - `ProductServiceErrorDecoder` maps HTTP 404/400/503 (and a default case for everything
-    else) to `ProductServiceException` with a status code and message. It does **not**
-    apply to `PaymentClient` or `UserServiceClient`, which are not configured with any error
-    decoder — they'd fall back to Feign's `ErrorDecoder.Default`.
+  - `ProductServiceErrorDecoder` maps HTTP 404/400 (and a default case for everything else)
+    to `ProductServiceException` with a status code and message, and 503 specifically to
+    `ProductServiceUnavailableException` (a `ProductServiceException` subtype added in GH
+    #63 — see Failure handling above, this is the type the retry customizer keys on). It
+    does **not** apply to `PaymentClient` or `UserServiceClient`, which are not configured
+    with any error decoder — they'd fall back to Feign's `ErrorDecoder.Default`.
   - `extractProductIdFromMethodKey` in `ProductServiceErrorDecoder` always returns the
     literal string `"unknown"` — it does not actually parse the method key despite the
     comment claiming it's "for logging purposes"; the resulting `ProductServiceException`
@@ -430,7 +453,7 @@ Removed along with its Feign client config block and its DTO (issue #51).
 | `spring.cloud.openfeign.client.config.default.connectTimeout` / `readTimeout` | `5000` / `10000` (ms) | `application.yml` | k8s configmap's embedded `application.yml` overrides `readTimeout` to `5000` for its own `default` client config block. |
 | `spring.cloud.openfeign.client.config.product-service.errorDecoder` | `com.kawashreh.ecommerce.order_service.infrastructure.http.client.ProductServiceErrorDecoder` | `application.yml` | Must be a fully-qualified class name, not a bean name — see Outbound dependencies. |
 | `resilience4j.circuitbreaker.instances.product-service.*` | see Outbound dependencies | `application.yml` | |
-| `resilience4j.retry.instances.product-service.*` | see Outbound dependencies | `application.yml` | |
+| `resilience4j.retry.instances.product-service.*` | `maxAttempts: 3`, `waitDuration: 1s` | `application.yml` | Only `maxAttempts`/`waitDuration` come from YAML — which exceptions retry is decided programmatically by `Resilience4jRetryConfiguration`'s `RetryConfigCustomizer`, not a YAML `retryExceptions` list (GH #63; see Outbound dependencies). |
 | `management.zipkin.tracing.endpoint` | `http://zipkin:9411/api/v2/spans` (base), `http://localhost:9411/...` (`-ide`) | `application.yml`, `application-ide.yml`, `application-local.yml` | |
 | `management.tracing.sampling.probability` | `1.0` | `bootstrap.properties` | |
 | `management.endpoints.web.exposure.include` | `health,info,metrics,prometheus` | `bootstrap.properties`, re-set in `application-local.yml` | |
@@ -484,9 +507,26 @@ invisible from this module's code).
     `OrderController` (no `@WebMvcTest`/`MockMvc` test exists — no endpoint, path
     variable, or status-code coverage); the compensating-cancel path (no test forces
     `deductInventory` to fail/return `false` to observe the `CANCELLED` transition or the
-    transaction-rollback behavior documented above); Resilience4j circuit-breaker/retry
-    behavior;
+    transaction-rollback behavior documented above); Resilience4j circuit-breaker behavior
+    (retry is now covered — see `ProductServiceRetryIntegrationTest` below);
     `ProductServiceErrorDecoder`; caching (none exists to test).
+- `src/test/java/.../infrastructure/http/client/ProductServiceRetryIntegrationTest.java`
+  (GH #63) — requires Docker. Same `@SpringBootTest` + `@Testcontainers` +
+  `@ActiveProfiles("test")` shape as `OrderServiceIntegrationTest`, but deliberately does
+  **not** `@MockitoBean` `ProductServiceClient` — a Mockito mock replaces the bean outright
+  and bypasses the AOP proxy the `@Retry` aspect installs around it, so it could never
+  exercise real retry behavior. Instead it points
+  `spring.cloud.openfeign.client.config.product-service.url` (via `@DynamicPropertySource`)
+  at an in-process `com.sun.net.httpserver.HttpServer` stub, so the full stack — Feign, the
+  error decoder, the circuit breaker, and the retry aspect — all run for real. Only
+  `PaymentClient` is mocked. Resets the shared `CircuitBreakerRegistry`'s `product-service`
+  instance before each test (it's a singleton bean, so state otherwise leaks between test
+  methods sharing the cached Spring context).
+  - Covers: `deductInventory` retries on a transient 503 and eventually succeeds (asserts
+    the stub actually received 3 requests — 2 failures + 1 success — proving the retry
+    aspect fires, not just that the config exists); retries are exhausted (exactly
+    `maxAttempts` = 3 requests reach the stub) and the order is compensated/cancelled when
+    product-service is always unavailable.
 - `src/test/java/.../domain/service/impl/OrderServiceImplTest.java` — plain
   Mockito unit test (no Docker needed) covering `OrderServiceImpl.create`'s
   success/failure branches directly (repository and `ProductServiceClient` mocked).
