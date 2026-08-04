@@ -3,6 +3,7 @@ package com.kawashreh.ecommerce.product_service;
 import com.kawashreh.ecommerce.product_service.dataAccess.dao.InventoryDeductionRepository;
 import com.kawashreh.ecommerce.product_service.dataAccess.dao.InventoryRepository;
 import com.kawashreh.ecommerce.product_service.dataAccess.dao.ProductRepository;
+import com.kawashreh.ecommerce.product_service.dataAccess.dao.ProductReviewRepository;
 import com.kawashreh.ecommerce.product_service.dataAccess.dao.ProductVariationRepository;
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.InventoryEntity;
 import com.kawashreh.ecommerce.product_service.dataAccess.entity.ProductEntity;
@@ -36,12 +37,21 @@ class InventoryServiceIntegrationTest extends BaseIntegrationTest {
     @Autowired
     private ProductVariationRepository productVariationRepository;
 
+    @Autowired
+    private ProductReviewRepository productReviewRepository;
+
     private UUID productVariationId;
 
     @BeforeEach
     void setUp() {
+        // GH #61: the Postgres container/database is now genuinely shared across every
+        // integration test class in this JVM fork (see BaseIntegrationTest), so this cleanup
+        // has to be defensive about *any* class's leftover rows, not just this class's own -
+        // in FK-safe order: inventory_deduction and inventory reference product_variation,
+        // product_review and product_variation reference product.
         inventoryDeductionRepository.deleteAll();
         inventoryRepository.deleteAll();
+        productReviewRepository.deleteAll();
         productVariationRepository.deleteAll();
         productRepository.deleteAll();
 
