@@ -19,7 +19,7 @@ spring:
             - name: Retry
               args:
                 retries: 3
-                methods: GET,POST
+                methods: GET
             - name: CircuitBreaker
               args:
                 name: user-service
@@ -33,7 +33,7 @@ spring:
             - name: Retry
               args:
                 retries: 3
-                methods: GET,POST
+                methods: GET
             - name: CircuitBreaker
               args:
                 name: user-service
@@ -47,7 +47,7 @@ spring:
             - name: Retry
               args:
                 retries: 3
-                methods: GET,POST
+                methods: GET
             - name: CircuitBreaker
               args:
                 name: product-service
@@ -61,7 +61,7 @@ spring:
             - name: Retry
               args:
                 retries: 3
-                methods: GET,POST
+                methods: GET
             - name: CircuitBreaker
               args:
                 name: user-service
@@ -75,7 +75,7 @@ spring:
             - name: Retry
               args:
                 retries: 3
-                methods: GET,POST
+                methods: GET
             - name: CircuitBreaker
               args:
                 name: order-service
@@ -89,7 +89,7 @@ spring:
             - name: Retry
               args:
                 retries: 3
-                methods: GET,POST
+                methods: GET
             - name: CircuitBreaker
               args:
                 name: order-service
@@ -103,7 +103,7 @@ spring:
             - name: Retry
               args:
                 retries: 3
-                methods: GET,POST
+                methods: GET
             - name: CircuitBreaker
               args:
                 name: payment-service

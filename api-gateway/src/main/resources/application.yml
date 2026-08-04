@@ -17,6 +17,18 @@ spring:
             redis-rate-limiter.burstCapacity: 40
             redis-rate-limiter.requestedTokens: 1
             key-resolver: "#{@ipKeyResolver}"
+      # Every route's Retry filter below is scoped to `methods: GET` only (not POST).
+      # It used to retry POST too, which is unsafe for non-idempotent writes: found live
+      # via a smoke test where every order-creation call failed with Hibernate's
+      # StaleObjectStateException, because the gateway was retrying the same POST
+      # /api/v1/orders request while order-service was still mid-flight processing the
+      # first attempt (multiple sequential Feign calls to product-service make a single
+      # order-create request slow enough to trip the retry), racing two concurrent
+      # attempts to save the same OrderEntity. product-service's deduct/restoreInventory
+      # PUT endpoints are the one deliberately-idempotent exception (GH #30's ledger
+      # makes a repeat call for the same orderItemId a safe no-op) - those are retried at
+      # the Feign/resilience4j layer instead (GH #63), not here, and PUT was never in
+      # this gateway-level list to begin with.
       routes:
         - id: user-service
           uri: ${USER_SERVICE_URL:http://user-service:8080}
@@ -26,7 +38,7 @@ spring:
             - name: Retry
               args:
                 retries: 3
-                methods: GET,POST
+                methods: GET
             - name: CircuitBreaker
               args:
                 name: user-service
@@ -40,7 +52,7 @@ spring:
             - name: Retry
               args:
                 retries: 3
-                methods: GET,POST
+                methods: GET
             - name: CircuitBreaker
               args:
                 name: product-service
@@ -54,7 +66,7 @@ spring:
             - name: Retry
               args:
                 retries: 3
-                methods: GET,POST
+                methods: GET
             - name: CircuitBreaker
               args:
                 name: order-service
@@ -68,7 +80,7 @@ spring:
             - name: Retry
               args:
                 retries: 3
-                methods: GET,POST
+                methods: GET
             - name: CircuitBreaker
               args:
                 name: order-service
@@ -82,7 +94,7 @@ spring:
             - name: Retry
               args:
                 retries: 3
-                methods: GET,POST
+                methods: GET
             - name: CircuitBreaker
               args:
                 name: user-service
@@ -96,7 +108,7 @@ spring:
             - name: Retry
               args:
                 retries: 3
-                methods: GET,POST
+                methods: GET
             - name: CircuitBreaker
               args:
                 name: user-service
@@ -110,7 +122,7 @@ spring:
             - name: Retry
               args:
                 retries: 3
-                methods: GET,POST
+                methods: GET
             - name: CircuitBreaker
               args:
                 name: payment-service
