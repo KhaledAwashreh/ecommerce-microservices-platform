@@ -14,7 +14,21 @@ spring:
         - id: user-service
           uri: ${USER_SERVICE_URL:http://user-service:8080}
           predicates:
-            - Path=/api/v1/user/**,/api/v1/address/**
+            - Path=/api/v1/user/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                methods: GET,POST
+            - name: CircuitBreaker
+              args:
+                name: user-service
+                fallbackUri: forward:/fallback
+
+        - id: user-address-service
+          uri: ${USER_SERVICE_URL:http://user-service:8080}
+          predicates:
+            - Path=/api/v1/address/**
           filters:
             - name: Retry
               args:
@@ -142,12 +156,13 @@ resilience4j:
     configs:
       default:
         registerHealthIndicator: true
-        slidingWindowSize: 20
+        slidingWindowSize: 10
         failureRateThreshold: 50
-        slowCallRateThreshold: 80
+        slowCallRateThreshold: 50
         waitDurationInOpenState: 10s
         slowCallDurationThreshold: 2s
-        permittedNumberOfCallsInHalfOpenState: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        minimumNumberOfCalls: 5
     instances:
       user-service:
         baseConfig: default

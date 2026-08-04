@@ -216,7 +216,7 @@ segment keeps Spring's route matching unambiguous.
 | `spring.datasource.username/password` | `application.yml` | `postgres`/*(none — required)* | `password: ${SPRING_DATASOURCE_PASSWORD}` has no default (previously `:postgres`) — a missing env var fails startup. `application-local.yml` still hardcodes password `test1234` (dev-only, per repo convention). |
 | `spring.jpa.hibernate.ddl-auto` | `application.yml` | `update` | Test profile uses `create-drop`. |
 | `spring.data.redis.host/port` | `application.yml` | `localhost`/`6379` | Env vars `SPRING_DATA_REDIS_HOST`/`SPRING_DATA_REDIS_PORT`. `application-local.yml` hardcodes host `redis` (Docker Compose service name) even though it's meant for "running from IDE without Docker" per its own header comment — inconsistent with its stated purpose. |
-| `server.port` | `application.yml` | `8080` | `application-ide.yml` sets `8082`. Test profile (`application-test.yml`) uses `0` (random port). Dockerfile comment claims "Port is dynamically assigned (server.port=0 in application.properties)" — false for the shipped `application.yml`/Docker profile, only true under the `test` profile; see Gotchas. |
+| `server.port` | `application.yml` | `8080` | `application-ide.yml` sets `8082`. Test profile (`application-test.yml`) uses `0` (random port). Dockerfile comment fixed (GH #52) to say so instead of claiming the port is dynamic; see Gotchas. |
 | `spring.cloud.openfeign.client.config.user-service.url` | `application.yml` | `${GATEWAY_URL:http://api-gateway:8765}` | Points Feign at the gateway, not directly at user-service, matching repo convention. |
 | `spring.cloud.config.enabled` / `discovery.enabled` | `application.yml` | `false` | Config server / discovery client disabled; this project uses Kubernetes DNS, not Eureka/Config Server (the module's `bootstrap.properties` configured both and was removed as dead config — issue #50). |
 | `management.zipkin.tracing.endpoint` | `application.yml` | `${ZIPKIN_BASE_URL:http://zipkin:9411}/api/v2/spans` | `management.tracing.sampling.probability` = `1.0` (trace everything). |
@@ -425,11 +425,11 @@ which is very permissive (allows any base type).
     is lower_snake_case while the other three constants are `UPPER_SNAKE_CASE`; the class
     declaration itself is split across two lines (`public final class` / `CacheConstants {`)
     — cosmetic but indicates the file was not reviewed carefully.
-19. **Low — misleading Dockerfile comment.** `Dockerfile:34` states "Port is dynamically
-    assigned (server.port=0 in application.properties)" but the shipped
+19. ~~Low — misleading Dockerfile comment.~~ **Fixed (GH #52).** `Dockerfile:34` used to state
+    "Port is dynamically assigned (server.port=0 in application.properties)" but the shipped
     `src/main/resources/application.yml` sets `server.port: 8080`; `server.port: 0` only
     appears in the test profile (`src/test/resources/application-test.yml`), which the
-    Docker image never uses.
+    Docker image never uses. The comment now says so.
 20. ~~Low — vestigial Spring Cloud Config/Eureka bootstrap.~~ Removed (issue #50).
     `bootstrap.properties` configured `spring.cloud.config.*` and
     `eureka.client.serviceUrl.defaultZone` pointing at a `config-server`/`naming-server`

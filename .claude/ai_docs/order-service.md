@@ -412,7 +412,7 @@ Removed along with its Feign client config block and its DTO (issue #51).
 | Property | Default / value | Source | Notes |
 |---|---|---|---|
 | `spring.application.name` | `order-service` | `application.yml` | |
-| `server.port` | `8080` | `application.yml` | `application-ide.yml` overrides to `8083`. Dockerfile comment claims "Port is dynamically assigned (server.port=0 in application.properties)" — that is only true for `src/test/resources/application-test.yml` (`server.port: 0`), **not** for the shipped `application.yml`; the Dockerfile comment is stale/incorrect for the running image. |
+| `server.port` | `8080` | `application.yml` | `application-ide.yml` overrides to `8083`. `server.port: 0` only applies under `src/test/resources/application-test.yml`, not the shipped `application.yml`; the Dockerfile comment was fixed (GH #52) to say so — see Gotchas. |
 | `spring.datasource.url` | `jdbc:postgresql://localhost:5432/orderdb` (base) | `application.yml`, overridden per profile (`-local`: `localhost:5433`, `-ide`: `localhost:5435`, k8s configmap: `postgres-server:5432`, test: `localhost:5432` via Testcontainers-injected URL) | |
 | `spring.datasource.username` / `password` | `postgres` / *(none — required)* | `application.yml` | `password: ${SPRING_DATASOURCE_PASSWORD}` has no default — a missing env var fails startup rather than falling back to a committed value. Dev-only credential per root `CLAUDE.md` warning. |
 | `spring.jpa.hibernate.ddl-auto` | `update` (main), `create-drop` (test) | `application.yml`, `application-test.yml` | |
@@ -579,10 +579,10 @@ invisible from this module's code).
     Spring context as beans anywhere in the module. Inconsistent even within the domain
     model package (`CartItem`/`Order` do *not* have `@Component`).
     `domain/model/Cart.java:19`, `domain/model/OrderItem.java`, `domain/model/Discount.java`.
-15. **Stale Dockerfile comment** — `order-service/Dockerfile:34` claims `server.port=0`
-    (dynamic port assignment) is active for the built image; that is only true of the test
-    profile. The shipped `application.yml` fixes `server.port: 8080`, and the Dockerfile
-    doesn't set `SPRING_PROFILES_ACTIVE=test`.
+15. ~~**Stale Dockerfile comment**~~ **Fixed (GH #52).** `order-service/Dockerfile:34` used to
+    claim `server.port=0` (dynamic port assignment) was active for the built image; that was
+    only true of the test profile. The shipped `application.yml` fixes `server.port: 8080`,
+    and the Dockerfile doesn't set `SPRING_PROFILES_ACTIVE=test`. The comment now says so.
 16. **`application-local.yml` Redis host contradicts its own doc comment** — comment says
     "For running from IDE without Docker" but sets `spring.data.redis.host: redis` (a
     Compose service name, unreachable without Docker networking).

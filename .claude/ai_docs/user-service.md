@@ -175,7 +175,7 @@ not Eureka.
 
 | Property | Default | Source / override |
 |---|---|---|
-| `server.port` | `8080` (`application.yml`), `8081` (`application-ide.yml`), `0` random (`application-test.yml`) | The Dockerfile comment ("Port is dynamically assigned (server.port=0 in application.properties)", `Dockerfile:34`) is **stale** — the shipped `application.yml` hardcodes port `8080`, not `0`. Only the test profile uses `0`. |
+| `server.port` | `8080` (`application.yml`), `8081` (`application-ide.yml`), `0` random (`application-test.yml`) | The Dockerfile comment (`Dockerfile:34`) was stale — fixed (GH #52) to say the port is fixed at `8080`; only the test profile uses `0`. |
 | `spring.datasource.url` | `jdbc:postgresql://localhost:5432/userdb` | env `SPRING_DATASOURCE_URL` (only in `application.yml`; `application-local.yml`/`application-ide.yml` hardcode values, no env override). |
 | `spring.datasource.username`/`password` | `postgres`/*(none — required)* | env `SPRING_DATASOURCE_USERNAME`/`SPRING_DATASOURCE_PASSWORD` (default profile only) — `password` has no default, a missing env var fails startup rather than falling back to a committed value. |
 | `spring.jpa.hibernate.ddl-auto` | `update` (prod-ish profiles), `create-drop` (test) | — |
@@ -393,10 +393,10 @@ for up to 10 minutes after a profile edit or password change.
     supplying `bcprov-jdk18on` (BouncyCastle) that `Argon2PasswordEncoder` needs at
     runtime — `pom.xml` now declares that dependency directly instead (see Outbound
     dependencies).
-17. **Stale Dockerfile comment** — `Dockerfile:34`: `# Port is dynamically assigned
-    (server.port=0 in application.properties)`. The shipped `application.yml` sets
-    `server.port: 8080`, not `0`; only the test profile (`application-test.yml`) uses
-    `0`. **Severity: low.**
+17. ~~**Stale Dockerfile comment**~~ **Fixed (GH #52).** `Dockerfile:34` used to read
+    `# Port is dynamically assigned (server.port=0 in application.properties)`. The shipped
+    `application.yml` sets `server.port: 8080`, not `0`; only the test profile
+    (`application-test.yml`) uses `0`. The comment now says so.
 18. ~~`bootstrap.properties` looks vestigial~~ — removed (issue #50). It configured
     `spring.cloud.config.discovery.enabled=true` and an Eureka `defaultZone`, but every
     YAML profile explicitly set `spring.cloud.config.enabled: false` and

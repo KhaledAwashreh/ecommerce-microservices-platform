@@ -1,5 +1,13 @@
 # api-gateway
 
+> **Amendment (GH #52 fix):** the route tables, resilience4j config, and several Gotchas
+> below (1/3/7/8/9/10) predate the GH #52 config-drift fix and are now stale in the specific
+> ways noted inline: the `httpbin` route is gone, `application.yml` and
+> `application-local.yml` no longer disagree on circuit-breaker/timelimiter numbers or route
+> ids, `order-service` is now an explicit circuit-breaker instance in both profiles, and both
+> profiles now carry the `frontend-service` catch-all route. The rest of this document is
+> otherwise still accurate; it has not been fully regenerated.
+
 > **Amendment (GH #19 fix):** this doc predates the fix and the statements that role
 > data is "read from user-service but never turned into a `GrantedAuthority`" and that
 > "no `X-User-Role` (or similar) header is propagated downstream" are now **stale**.
@@ -88,13 +96,14 @@ and turns on liveness/readiness probes — that block is **absent from the defau
 Two different route tables exist — the **default** (`application.yml`, active when no
 `SPRING_PROFILES_ACTIVE` is set, e.g. `docker-compose.yaml`) and the **local** profile
 (`application-local.yml`, active when `SPRING_PROFILES_ACTIVE=local`, e.g.
-`docker-compose.dev.yml` and the `local` folder in k8s). They differ (see Gotchas).
+`docker-compose.dev.yml` and the `local` folder in k8s). **(GH #52 fix)** They now define the
+same route ids/predicates for every backend service, plus the same trailing catch-all — see
+below.
 
-**`application.yml` (default profile) routes:**
+**Routes (identical in both `application.yml` and `application-local.yml` as of GH #52):**
 
 | Route id | Predicate path(s) | Target URI (env override) | Filters | Circuit breaker / fallback |
 |---|---|---|---|---|
-| `httpbin` | `Path=/get` | `http://httpbin.org:80` (hardcoded, external) | `AddRequestHeader=MyHeader,MyURI`, `AddRequestParameter=Param,Value` | none |
 | `user-service` | `Path=/api/v1/user/**` | `${USER_SERVICE_URL:http://user-service:8080}` | `Retry` (3, GET/POST) | CB name `user-service` → `forward:/fallback` |
 | `product-service` | `Path=/api/v1/product/**,/api/v1/productReview/**,/api/v1/categories/**,/api/v1/inventory/**,/api/v1/product-variation/**` | `${PRODUCT_SERVICE_URL:http://product-service:8080}` | `Retry` (3, GET/POST) | CB name `product-service` → `forward:/fallback` |
 | `order-service` | `Path=/api/v1/orders/**` | `${ORDER_SERVICE_URL:http://order-service:8080}` | `Retry` (3, GET/POST) | CB name `order-service` → `forward:/fallback` |
@@ -102,21 +111,22 @@ Two different route tables exist — the **default** (`application.yml`, active 
 | `user-role-service` | `Path=/api/v1/roles/**` | `${USER_SERVICE_URL:http://user-service:8080}` | `Retry` (3, GET/POST) | CB name `user-service` → `forward:/fallback` |
 | `user-address-service` | `Path=/api/v1/address/**` | `${USER_SERVICE_URL:http://user-service:8080}` | `Retry` (3, GET/POST) | CB name `user-service` → `forward:/fallback` |
 | `payment-service` | `Path=/api/v1/payment/**` | `${PAYMENT_SERVICE_URL:http://payment-service:8080}` | `Retry` (3, GET/POST) | CB name `payment-service` → `forward:/fallback` |
+| `frontend-service` | `Path=/**` (catch-all, must stay last) | `http://frontend-service:3000` (hardcoded, no filters) | none | none |
 
-**`application-local.yml` routes:**
-
-| Route id | Predicate path(s) | Target URI (env override) | Filters | Circuit breaker / fallback |
-|---|---|---|---|---|
-| `user-service` | `Path=/api/v1/user/**,/api/v1/address/**` | `${USER_SERVICE_URL:http://user-service:8080}` | `Retry` (3, GET/POST) | CB name `user-service` → `forward:/fallback` |
-| `product-service` | `Path=/api/v1/product/**,/api/v1/productReview/**,/api/v1/categories/**,/api/v1/inventory/**,/api/v1/product-variation/**` | `${PRODUCT_SERVICE_URL:http://product-service:8080}` | `Retry` (3, GET/POST) | CB name `product-service` → `forward:/fallback` |
-| `user-role-service` | `Path=/api/v1/roles/**` | `${USER_SERVICE_URL:http://user-service:8080}` | `Retry` (3, GET/POST) | CB name `user-service` → `forward:/fallback` |
-| `order-service` | `Path=/api/v1/orders/**` | `${ORDER_SERVICE_URL:http://order-service:8080}` | `Retry` (3, GET/POST) | CB name `order-service` → `forward:/fallback` |
-| `order-cart-service` | `Path=/api/v1/carts/**` | `${ORDER_SERVICE_URL:http://order-service:8080}` | `Retry` (3, GET/POST) | CB name `order-service` (reused) → `forward:/fallback` — added for GH #13 |
-| `payment-service` | `Path=/api/v1/payment/**` | `${PAYMENT_SERVICE_URL:http://payment-service:8080}` | `Retry` (3, GET/POST) | CB name `payment-service` → `forward:/fallback` |
-| `frontend-service` | `Path=/**` (catch-all) | `http://frontend-service:3000` (hardcoded, no filters) | none | none |
-
-The `httpbin` test route (`application.yml:14-20`) and the `frontend-service` catch-all
-(`application-local.yml:84-88`) exist in only one of the two profiles — see Gotchas.
+**(GH #52 fix)** Previously: `application.yml` also carried a leftover `httpbin` route to an
+external host (`Path=/get` → `http://httpbin.org:80`), a real live route since this is the
+profile k8s and `docker-compose.yaml` actually run — removed outright, it had no purpose.
+`application-local.yml` merged `/api/v1/user/**` and `/api/v1/address/**` under one
+`user-service` route id instead of `application.yml`'s separate `user-service`/
+`user-address-service` ids for the same backend — split to match. The `frontend-service`
+catch-all previously existed **only** in `application-local.yml`, which is backwards: local
+dev never needs it (`docker-compose.dev.yml` maps `frontend-service` directly to host port
+`3000`, so browsers never go through the gateway for UI pages), while production
+(`application.yml`'s profile) does need it — the k8s Ingress
+(`k8s/services/api-gateway/api-gateway-ingress.yaml`) forwards `/` in its entirety to
+`api-gateway` with no separate frontend Ingress rule, and the k8s Deployment sets no
+`SPRING_PROFILES_ACTIVE`. Added it to `application.yml` too rather than moving it, since it's
+harmless in local and this keeps both profiles's route tables identical.
 
 `Retry` and `CircuitBreaker` above are Spring Cloud Gateway's own `GatewayFilterFactory`
 implementations (declared via `spring-cloud-starter-gateway` /
@@ -131,7 +141,7 @@ Configuration).
 | Client | Type | Target | Used by | Failure handling |
 |---|---|---|---|---|
 | `ReactiveUserServiceClient` (`Infrastructure/http/client/ReactiveUserServiceClient.java`) | `WebClient` (non-load-balanced `webClientBuilder` bean) | `${USER_SERVICE_URL:http://user-service:8080}` | `JwtAuthFilter`, to re-fetch the user by username on every authenticated request | None explicit — `retrieveByUsername`/`retrieveById` have no `.onErrorResume`/timeout; any error propagates and is caught by `JwtAuthFilter`'s outer `.onErrorResume` which returns 401 |
-| Gateway routes (all 5-6 backend routes) | Spring Cloud Gateway HTTP proxy | user/product/order/payment-service, env-overridable | end clients | Gateway `Retry` filter (3 attempts, GET/POST) + `CircuitBreaker` filter → `forward:/fallback` (503) |
+| Gateway routes (7 backend routes + 1 frontend catch-all) | Spring Cloud Gateway HTTP proxy | user/product/order/payment-service, env-overridable, plus `frontend-service:3000` | end clients | Gateway `Retry` filter (3 attempts, GET/POST) + `CircuitBreaker` filter → `forward:/fallback` (503); the catch-all has neither |
 `ReactiveUserServiceClient` is constructed via constructor injection with the module's one
 remaining `webClientBuilder` bean. `@EnableFeignClients` (there was never a `@FeignClient`
 interface anywhere in this module) and the second, `@LoadBalanced`-qualified
@@ -149,10 +159,10 @@ interface anywhere in this module) and the second, `@LoadBalanced`-qualified
 | `ORDER_SERVICE_URL` | route defaults | `http://order-service:8080` | `application-ide.yml` → `http://localhost:8083` |
 | `PAYMENT_SERVICE_URL` | route defaults | `http://payment-service:8080` | `application-ide.yml` → `http://localhost:8084` |
 | `ZIPKIN_BASE_URL` | `application.yml:112` | `http://zipkin:9411` | Used as `management.zipkin.tracing.endpoint = ${ZIPKIN_BASE_URL}/api/v2/spans` |
-| `resilience4j.circuitbreaker.configs.default.*` | `application.yml:117-125` | `failureRateThreshold=50`, `slowCallRateThreshold=50`, `waitDurationInOpenState=10000ms`, `slowCallDurationThreshold=2000ms`, `permittedNumberOfCallsInHalfOpenState=3`, `slidingWindowSize=10`, `minimumNumberOfCalls=5` | Duplicated (with different values in the `local` profile — see Gotchas) by the programmatic `Resilience4jConfiguration.defaultCustomizer()` bean, which hardcodes the **same numeric values except it omits `minimumNumberOfCalls`** |
-| `resilience4j.circuitbreaker.instances.{user-service,product-service,payment-service}` | `application.yml:126-132` | `baseConfig: default` | `order-service` and `user-role-service`/`user-address-service` (which reuse the `user-service` CB name) are **not all explicitly listed** — `order-service` CB name is used by a route but has no explicit instance entry in the default profile |
-| `resilience4j.retry.configs.default.*` | `application.yml:134-141` | `maxAttempts=3`, `waitDuration=1000ms`, retry on `IOException`/`ConnectException` | This registry is **not** what backs the per-route `Retry` gateway filter (that filter takes its own inline `args.retries`/`args.methods`); no code in this module invokes Resilience4j's `Retry` API directly, so this block appears to configure an unused registry |
-| `resilience4j.timelimiter.*` | `application-local.yml:113-126` only | `timeoutDuration=5s`, per-service instances including `order-service` | Absent from default `application.yml` |
+| `resilience4j.circuitbreaker.configs.default.*` | `application.yml` | `failureRateThreshold=50`, `slowCallRateThreshold=50`, `waitDurationInOpenState=10000ms`, `slowCallDurationThreshold=2000ms`, `permittedNumberOfCallsInHalfOpenState=3`, `slidingWindowSize=10`, `minimumNumberOfCalls=5` | **(GH #52 fix)** Now numerically identical to `application-local.yml`'s equivalent block and to the programmatic `Resilience4jConfiguration.defaultCustomizer()` bean (pinned by `Resilience4jConfigurationTest`) — previously all three disagreed (see Gotchas) |
+| `resilience4j.circuitbreaker.instances.{user-service,product-service,order-service,payment-service}` | `application.yml` | `baseConfig: default` | **(GH #52 fix)** `order-service` is now explicitly listed (it was missing — `user-role-service`/`user-address-service` still reuse the `user-service` CB name by design, not omission) |
+| `resilience4j.retry.configs.default.*` | `application.yml` | `maxAttempts=3`, `waitDuration=1000ms`, retry on `IOException`/`ConnectException` | This registry is **not** what backs the per-route `Retry` gateway filter (that filter takes its own inline `args.retries`/`args.methods`); no code in this module invokes Resilience4j's `Retry` API directly, so this block appears to configure an unused registry |
+| `resilience4j.timelimiter.*` | `application.yml` and `application-local.yml` | `timeoutDuration=5s`, `cancelRunningFuture=true`, instances for user/product/order/payment-service | **(GH #52 fix)** Previously only in `application-local.yml`; the default profile (what `docker-compose.yaml`/k8s run) had no explicit gateway timeout and fell back to Resilience4j's built-in 1s default |
 | `management.zipkin.tracing.endpoint` | all profiles | see above | |
 | `logging.level.org.springframework.cloud.gateway` etc. | `application-local.yml:151-153` | `DEBUG` | Only in local profile |
 | `jwt.secret` | `application.yml`, `JwtService` constructor (`@Value`) | none — required | Sourced from env var `JWT_SECRET`, no committed default; missing value fails app startup |
@@ -226,6 +236,12 @@ concerned.
   success. `ReactiveUserServiceClient` and `JwtService` are mocked; the exchange is built
   with `MockServerHttpRequest`/`MockServerWebExchange` and the outcome verified with
   `StepVerifier` (the filter is reactive, returns `Mono<Void>`).
+- `Infrastructure/configuration/Resilience4jConfigurationTest.java` (GH #52) — plain unit test
+  of `Resilience4jConfiguration.defaultCustomizer()`: builds a real
+  `ReactiveResilience4JCircuitBreakerFactory`, applies the customizer, creates a circuit
+  breaker for an id not covered by any YAML instance list, and asserts the resulting
+  `CircuitBreakerConfig` matches the documented default thresholds — pins the Java bean's
+  numbers against future drift from the YAML defaults.
 - Still no tests for `SecurityConfig`, route predicates, the fallback controller, or
   `ReactiveUserServiceClient` directly.
 - Run: `mvn -pl api-gateway test` (per root `CLAUDE.md`). No longer needs Docker for anything
@@ -244,14 +260,16 @@ concerned.
    while `SecurityConfig.java:27-35` only exempts the exact matcher forms. The two lists are
    independently maintained and can drift; the net behavior for an unanticipated path depends on
    which layer runs first.
-3. **Two divergent route tables with no single source of truth.** `application.yml` (default,
-   used when no profile is set — e.g. `docker-compose.yaml`, k8s deployment) and
-   `application-local.yml` (`local` profile — `docker-compose.dev.yml`) define different route
-   sets: default has a leftover `httpbin` test route to an external host
-   (`application.yml:14-20`) and lacks the `frontend-service` catch-all; local has the
-   `frontend-service` catch-all (`application-local.yml:84-88`, no filters/CB/retry at all) and
-   drops `httpbin`. `user-role-service`/`user-address-service` are separate route ids in default
-   but merged into `user-service`'s predicate list in local.
+3. ~~Two divergent route tables with no single source of truth.~~ **Fixed (GH #52).**
+   `application.yml` (default, used when no profile is set — e.g. `docker-compose.yaml`, k8s
+   deployment) and `application-local.yml` (`local` profile — `docker-compose.dev.yml`) used to
+   define different route sets: default had a leftover `httpbin` test route to an external
+   host and lacked the `frontend-service` catch-all; local had the catch-all (no
+   filters/CB/retry at all) and dropped `httpbin`; `user-address-service` was a separate route
+   id in default but merged into `user-service`'s predicate list in local. `httpbin` is now
+   removed outright, both profiles carry the same `frontend-service` catch-all (default needs
+   it for the k8s Ingress path — see Gotcha 6 — local doesn't but it's harmless there), and
+   `user-address-service` is a separate id in both. See "Gateway routes" above.
 4. **k8s Service/Deployment target the wrong port.**
    `k8s/services/api-gateway/api-gateway-deployment.yaml:33` sets `containerPort: 8080` and
    `k8s/services/api-gateway/api-gateway-service.yaml:11` sets `targetPort: 8080`, but the app
@@ -267,33 +285,36 @@ concerned.
    entire ConfigMap route table is dead configuration.
 6. **k8s deployment sets no `SPRING_PROFILES_ACTIVE`, `USER_SERVICE_URL`, etc.** So in k8s the
    pod runs on the default `application.yml` profile with default-valued service URLs
-   (`http://user-service:8080` etc.) and the `httpbin` test route active in production-shaped
-   config.
-7. **`resilience4j.circuitbreaker.instances` in `application.yml` omits `order-service`.**
-   `application.yml:126-132` lists `user-service`, `product-service`, `payment-service` only,
-   even though the `order-service` route (`application.yml:50-62`) names CB `order-service`. It
-   silently falls back to the programmatic default customizer
-   (`Resilience4jConfiguration.java:16-28`), so behavior is likely fine, but the YAML instance
-   list is inconsistent with the routes it's meant to document.
-8. **Two independent, slightly different circuit-breaker default configs.**
-   `Resilience4jConfiguration.defaultCustomizer()` (`Infrastructure/configuration/Resilience4jConfiguration.java:16-28`)
-   hardcodes `failureRateThreshold=50`, `slowCallRateThreshold=50`,
+   (`http://user-service:8080` etc.). (The `httpbin` test route that used to also be active here
+   in "production-shaped config" was removed — GH #52.) This is also exactly why the
+   `frontend-service` catch-all route had to be added to the default profile rather than left
+   local-only: the k8s Ingress forwards `/` in its entirety to this gateway with no separate
+   frontend Ingress rule, and k8s always runs this (default) profile.
+7. ~~`resilience4j.circuitbreaker.instances` in `application.yml` omits `order-service`.~~
+   **Fixed (GH #52).** `order-service` is now listed alongside `user-service`,
+   `product-service`, `payment-service`, matching the `order-service` route
+   (`application.yml`) that names that CB.
+8. ~~Two independent, slightly different circuit-breaker default configs.~~ **Fixed (GH #52).**
+   `Resilience4jConfiguration.defaultCustomizer()`
+   (`Infrastructure/configuration/Resilience4jConfiguration.java`), `application.yml`'s
+   `resilience4j.circuitbreaker.configs.default`, and `application-local.yml`'s equivalent block
+   now all set the identical values (`failureRateThreshold=50`, `slowCallRateThreshold=50`,
    `slowCallDurationThreshold=2s`, `waitDurationInOpenState=10s`,
-   `permittedNumberOfCallsInHalfOpenState=3`, `slidingWindowSize=10` (no
-   `minimumNumberOfCalls`), while `application.yml`'s `resilience4j.circuitbreaker.configs.default`
-   sets the same fields plus `minimumNumberOfCalls=5`, and `application-local.yml`'s equivalent
-   block uses different values (`slidingWindowSize=20`, `slowCallRateThreshold=80`,
-   `permittedNumberOfCallsInHalfOpenState=5`). Which one wins for a given profile is not
-   verified here — both a Java `Customizer` bean and YAML-driven config exist simultaneously.
+   `permittedNumberOfCallsInHalfOpenState=3`, `slidingWindowSize=10`, `minimumNumberOfCalls=5`).
+   `Resilience4jConfigurationTest` pins the Java bean's numbers so a future edit to one source
+   and not the others fails a test instead of silently drifting again. Which source actually
+   wins for a named instance vs. an unlisted id no longer matters since they're numerically
+   identical either way.
 9. **`resilience4j.retry.*` YAML config appears to be dead.** `application.yml:134-148` (and the
    `resilience4j-retry` Maven dependency, `pom.xml:74-78`) configure a Resilience4j retry
    registry, but the actual per-route retry behavior comes from Spring Cloud Gateway's own
    `Retry` `GatewayFilterFactory` with inline `args` (`retries: 3`, `methods: GET,POST`) — no
    code in this module invokes Resilience4j's retry API. `application-local.yml` has no
    `resilience4j.retry` block at all, which supports the reading that it's unused.
-10. **`resilience4j.timelimiter` only configured in the `local` profile**
-    (`application-local.yml:113-126`), absent from default `application.yml` — inconsistent
-    resilience behavior between profiles for the identical route set.
+10. ~~`resilience4j.timelimiter` only configured in the `local` profile.~~ **Fixed (GH #52).**
+    `application.yml` now has the same `timelimiter` block (5s timeout,
+    `cancelRunningFuture: true`) for the same four service instances, so the default profile
+    no longer silently falls back to Resilience4j's built-in 1s timeout.
 11. ~~`@EnableFeignClients` with zero `@FeignClient` interfaces.~~ Removed (issue #51) —
     no `@FeignClient` interface ever existed anywhere in `api-gateway/src/main`. Downstream
     calls in this module use `WebClient` (`ReactiveUserServiceClient`) instead. The

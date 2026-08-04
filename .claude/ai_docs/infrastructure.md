@@ -15,7 +15,7 @@ interchangeable. Root `CLAUDE.md` already flags this; here is the precise diff.
 | Redis container name | `redis-server` | `redis` |
 | Zipkin | `openzipkin/zipkin:latest`, `STORAGE_TYPE: mem` | identical |
 | RedisInsight | Present, `5540:5540`, depends on `redis-server` healthy | **Absent** — no RedisInsight service in the dev file |
-| Build context | Each service builds with `context: ./<service>`, `dockerfile: Dockerfile` (context scoped to the module dir) | Each service builds with `context: .` (repo root), `dockerfile: <service>/Dockerfile` (context is the whole repo) — required because every Dockerfile `COPY`s sibling modules' `pom.xml` files (see Dockerfiles below); **the unified file's per-module build context cannot actually satisfy those `COPY api-gateway/pom.xml ...` lines**, since the module subdirectory doesn't contain its sibling modules. This is a real build-breaking inconsistency between the two compose files given the Dockerfiles as written. |
+| Build context | `context: .` (repo root), `dockerfile: <service>/Dockerfile` for every service — required because every Dockerfile `COPY`s sibling modules' `pom.xml` files (see Dockerfiles below). **Fixed** (`5f623cd`) — it used to set `context: ./<service>` per service, which couldn't satisfy those `COPY api-gateway/pom.xml ...` lines and broke every build; both compose files now use repo-root context identically. | Same: `context: .` (repo root), `dockerfile: <service>/Dockerfile`. Already correct before the fix above. |
 | `SPRING_PROFILES_ACTIVE` | **Not set** for any backend service or gateway (only `frontend-service` sets `SPRING_PROFILES_ACTIVE=local`) — backend services run their bare `application.yml` (default profile). | Set to `local` for every service including `api-gateway`, so every service picks up its `application-local.yml` overrides (different Resilience4j numbers, different Redis env var names, health/actuator exposure, etc. — see `architecture.md`). |
 | Healthchecks | None defined on any application container (only the `postgres-server`/`redis-server` infra healthchecks). `depends_on` uses `condition: service_healthy` for Postgres/Redis and bare `service_started`/no condition for `frontend-service` -> `api-gateway`. | Every application service has a `curl -f http://localhost:<port>/actuator/health` healthcheck (30s interval, 10s timeout, 5 retries, 90-120s `start_period`), and `depends_on` chains use `condition: service_healthy` throughout, including `order-service` waiting on `product-service` and `payment-service`, and `api-gateway` waiting on all four backend services. |
 | `api-gateway` env: `USER_SERVICE_URL` | `http://user-service:8080` (normal DNS) | `http://host.docker.internal:8081` — points at the **host machine**, port 8081, not the containerized `user-service` at all. Combined with `extra_hosts: host.docker.internal:host-gateway`. This means the dev compose file expects `user-service` to be run manually on the host (e.g. from an IDE) rather than in the `user-service` container it also defines — the containerized `user-service` in this same file is then unreachable from `api-gateway` unless something is separately listening on the host at 8081. |
@@ -23,9 +23,14 @@ interchangeable. Root `CLAUDE.md` already flags this; here is the precise diff.
 | Passwords | `${SPRING_DATASOURCE_PASSWORD:?...}`/`${JWT_SECRET:?...}`, both files — sourced from `.env` (gitignored), no committed default; `docker compose` refuses to start if either is unset | identical |
 
 `root CLAUDE.md`'s claim that `docker-compose.yaml` "mirrors k8s" is accurate for the
-single-Postgres, single-`postgres-server`-hostname topology (matches `k8s/postgres/`), but the
-unified file's per-module build `context` is inconsistent with every Dockerfile's multi-module
-`COPY` list — see Dockerfiles below.
+single-Postgres, single-`postgres-server`-hostname topology (matches `k8s/postgres/`). Its
+build `context` also now matches every Dockerfile's multi-module `COPY` list (see Dockerfiles
+below) — this used to be a real, build-breaking mismatch (GH #24) but was fixed before GH #52
+(commit `5f623cd`), which also fixed the identically-shaped bug in `image.sh` and its
+disconnected image tag (commit `5f623cd`, then the registry owner casing in `2382b58` /
+GH #56) — `image.sh` now pushes `ghcr.io/khaledawashreh/ecommerce-microservices-platform/
+<service>:latest`, matching both `docker.yml`'s GHCR naming and the k8s Deployments'
+`image:` references.
 
 ## `.env`
 
@@ -65,19 +70,15 @@ Per-service differences:
   `HEALTHCHECK` and **no** `EXPOSE` in their Dockerfiles at all — container-level health
   checking for those four only exists via `docker-compose.dev.yml`'s compose-level
   `healthcheck:` blocks, and is entirely absent when running `docker-compose.yaml`.
-- `frontend-service`'s `HEALTHCHECK` curls `http://localhost:8080/actuator/health` and
-  `EXPOSE 8080` (`frontend-service/Dockerfile`), but the application itself listens on port
-  3000 (`server.port: 8080` is not set anywhere; `application.yml:1-2` sets `server.port:
-  3000`, and both compose files publish `3000:3000` for this service). The Dockerfile's
-  in-image healthcheck therefore checks a port the app never binds and will always fail if
-  Docker actually enforces it (`docker ps` would show the container as `unhealthy`).
-- As noted above, every Dockerfile's build stage assumes a **repo-root build context**
-  (it `COPY`s sibling-module `pom.xml` paths like `api-gateway/pom.xml`), which only works
-  when invoked with `context: .` — exactly what `docker-compose.dev.yml` does and what
-  `docker-compose.yaml` does **not** do (it sets `context: ./<service>` per service).
-  Building via `docker-compose.yaml` as written will fail at the `COPY api-gateway/pom.xml
-  api-gateway/pom.xml` step for every service, since the build context is the module
-  subdirectory, not the repo root.
+- ~~`frontend-service`'s `HEALTHCHECK` curled `http://localhost:8080/actuator/health` and
+  `EXPOSE 8080`~~ **Fixed (GH #52).** The application listens on port 3000
+  (`application.yml:1-2` sets `server.port: 3000`, and both compose files publish
+  `3000:3000`); the Dockerfile's `HEALTHCHECK`/`EXPOSE` now both target `3000` too, matching
+  the port the app actually binds.
+- Every Dockerfile's build stage assumes a **repo-root build context** (it `COPY`s
+  sibling-module `pom.xml` paths like `api-gateway/pom.xml`), satisfied by `context: .` in
+  both `docker-compose.dev.yml` and `docker-compose.yaml` (see the build-context row above —
+  the unified file's context used to be wrong here too, fixed pre-GH #52).
 
 ## Kubernetes manifest inventory
 
@@ -230,16 +231,15 @@ reference — it is not created by any workflow or manifest in this repo.
 - `./stop.sh [-v]` — also hardcodes `docker-compose.dev.yml`; `-v` additionally removes
   volumes (data loss, confirmed by an explicit warning echo).
 - `./image.sh` — loops `api-gateway user-service product-service order-service
-  payment-service` (no `frontend-service`) and runs `docker build -t
-  kmawashreh/personal_projects_repo/general:$svc ./$svc` then `docker push` to that same tag
-  for every service. This tag scheme (`kmawashreh/personal_projects_repo/general:<service>`)
-  does not match the GHCR image naming used by `docker.yml`
-  (`ghcr.io/${{ github.repository }}/<service>`) or by the `k8s/services/*/*.yaml` Deployments
-  (`ghcr.io/khaledawashreh/ecommerce-microservices-platform/<service>:latest`) — `image.sh` pushes
-  to a different registry/repo entirely and is disconnected from both CI and the k8s
-  manifests. Also builds with `context: ./$svc` (module-relative), which — per the Dockerfile
-  analysis above — will fail on the `COPY api-gateway/pom.xml ...` step for every module
-  except a hypothetical service with no sibling-module dependencies.
+  payment-service` (still no `frontend-service` — that gap is real, but `image.sh` is a manual
+  convenience script, not what CI uses; `docker.yml`'s matrix does include it) and runs
+  `docker build -t ghcr.io/khaledawashreh/ecommerce-microservices-platform/$svc:latest -f
+  $svc/Dockerfile .` then `docker push` to that same tag. **Fixed pre-GH #52** (commits
+  `5f623cd`, `2382b58`): it used to push to a disconnected tag scheme
+  (`kmawashreh/personal_projects_repo/general:<service>`) with a `context: ./$svc` that broke
+  the same way `docker-compose.yaml` once did. It now matches both `docker.yml`'s GHCR naming
+  and the `k8s/services/*/*.yaml` Deployments' `image:` references, and builds from the repo
+  root like every Dockerfile requires.
 - **`start.makefile`** — removed (issue #48). It was not wired to any `make` invocation
   documented elsewhere, had invalid Makefile syntax (missing colons on target lines), and
   referenced a Config Server + Eureka topology (`.config-service`, `.naming-server` module

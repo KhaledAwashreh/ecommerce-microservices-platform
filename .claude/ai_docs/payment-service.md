@@ -202,10 +202,10 @@ payment-service is itself an inbound dependency of `order-service`
 stack runs in Docker (per its header comment), hence the distinct port `8084` and DB port
 `5436`.
 
-The Dockerfile comment "Port is dynamically assigned (server.port=0 in
-application.properties)" (`Dockerfile:34`) is inaccurate for the image it actually builds:
-the default `application.yml` used at container runtime sets `server.port: 8080`, not `0`.
-`server.port: 0` only appears in `application-test.yml`.
+**Fixed (GH #52):** `Dockerfile:34` used to claim "Port is dynamically assigned
+(server.port=0 in application.properties)", which was inaccurate for the image it actually
+builds — the default `application.yml` used at container runtime sets `server.port: 8080`,
+not `0`. `server.port: 0` only appears in `application-test.yml`. The comment now says so.
 
 ## Caching
 
@@ -346,6 +346,6 @@ To run: `mvn -pl payment-service test` (needs Docker for `PaymentServiceIntegrat
 11. ~~**Integration-test path still exercises nothing.**~~ — fixed (GH #45).
     `PaymentServiceIntegrationTest` now extends `BaseIntegrationTest` and exercises
     `PaymentService` against a real Postgres Testcontainer (see Tests section).
-12. **Misleading Dockerfile comment.** `Dockerfile:34` claims the port is dynamically
-    assigned via `server.port=0`, which is only true for the `test` profile; the image's
-    actual runtime config (`application.yml`) fixes `server.port: 8080`.
+12. ~~**Misleading Dockerfile comment.**~~ **Fixed (GH #52).** `Dockerfile:34` used to claim
+    the port is dynamically assigned via `server.port=0`, true only for the `test` profile;
+    the comment now says the port is fixed to 8080 in `application.yml`.
