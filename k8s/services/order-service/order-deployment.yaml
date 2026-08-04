@@ -62,6 +62,16 @@ spec:
                 configMapKeyRef:
                   name: order-service-config
                   key: SPRING_DATA_REDIS_PORT
+            - name: PRODUCT_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: order-service-config
+                  key: PRODUCT_SERVICE_URL
+            - name: PAYMENT_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: order-service-config
+                  key: PAYMENT_SERVICE_URL
           resources:
             requests:
               cpu: "250m"

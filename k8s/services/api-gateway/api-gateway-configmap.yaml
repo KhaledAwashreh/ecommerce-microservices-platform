@@ -6,43 +6,16 @@ metadata:
 data:
   SPRING_DATA_REDIS_HOST: redis-server
   SPRING_DATA_REDIS_PORT: "6379"
-  application.yml: |
-    spring:
-      cloud:
-        gateway:
-          routes:
-            - id: user-service
-              uri: http://user-service
-              predicates:
-                - Path=/api/v1/user/**
-            - id: product-service
-              uri: http://product-service
-              predicates:
-                - Path=/api/v1/product/**
-            - id: order-service
-              uri: http://order-service
-              predicates:
-                - Path=/api/v1/orders/**
-            - id: payment-service
-              uri: http://payment-service
-              predicates:
-                - Path=/api/v1/payment/**
-        openfeign:
-          client:
-            config:
-              user-service:
-                url: http://user-service
-              product-service:
-                url: http://product-service
-              order-service:
-                url: http://order-service
-              payment-service:
-                url: http://payment-service
-              default:
-                connectTimeout: 5000
-                readTimeout: 5000
-    eureka:
-      client:
-        enabled: false
-        register-with-eureka: false
-        fetch-registry: false
+  # Gateway routes (application.yml) already point at these four services by name via
+  # ${USER_SERVICE_URL:http://user-service:8080} etc. The jar defaults' port (8080) is
+  # each pod's container port; the in-cluster Services (k8s/services/*/*-service.yaml)
+  # all expose port 80, so they must be overridden here or the gateway's route uri
+  # can't reach the ClusterIP. (api-gateway has no @FeignClient/@EnableFeignClients —
+  # spring.cloud.openfeign.client.config only matters for actual Feign clients, so it
+  # was dead in the old inline application.yml regardless of wiring; not reintroduced.
+  # The gateway's own route table is defined once, in application.yml — see the
+  # api-gateway ai_doc for the divergent-route-table issue already tracked there.)
+  USER_SERVICE_URL: http://user-service
+  PRODUCT_SERVICE_URL: http://product-service
+  ORDER_SERVICE_URL: http://order-service
+  PAYMENT_SERVICE_URL: http://payment-service

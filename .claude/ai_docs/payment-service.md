@@ -166,7 +166,17 @@ Notes:
 As of issue #10, payment-service has one outbound dependency: `OrderServiceClient`
 (`infrastructure/http/client/OrderServiceClient.java`, `@FeignClient(name =
 "order-service")`), which calls `GET {ApiPaths.ORDER_BASE}{ApiPaths.ORDER_BY_ID}` to fetch
-the order and derive the payment amount from its selected items. It is wrapped in a
+the order and derive the payment amount from its selected items. Its target URL
+(`spring.cloud.openfeign.client.config.order-service.url` in `application.yml`) defaults
+to `${ORDER_SERVICE_URL:http://order-service:8080}` — direct in-cluster DNS, not through
+the gateway. The `:8080` default is `order-service`'s *container* port; the in-cluster
+`order-service` Service exposes port 80, so it can't actually be reached without an
+override. `k8s/services/payment-service/payment-configmap.yaml` sets
+`ORDER_SERVICE_URL=http://order-service` (no port) via `configMapKeyRef`, wired into
+`payment-deployment.yaml` (issue #60 — this ConfigMap previously shipped a whole
+unmounted `application.yml` block for this that had no effect; verified against a local
+`kind` cluster that the port-less URL is required — `:8080` times out, no port succeeds).
+It is wrapped in a
 Resilience4j circuit breaker (config name `order-service`, `application.yml`,
 `spring.cloud.openfeign.circuitbreaker.enabled=true`) and a custom
 `OrderServiceErrorDecoder`. The `resilience4j.retry.instances.order-service` block in the

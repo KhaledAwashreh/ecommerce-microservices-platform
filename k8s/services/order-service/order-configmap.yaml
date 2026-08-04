@@ -8,23 +8,12 @@ data:
   SPRING_DATASOURCE_USERNAME: postgres
   SPRING_DATA_REDIS_HOST: redis-server
   SPRING_DATA_REDIS_PORT: "6379"
-  application.yml: |
-    spring:
-      cloud:
-        openfeign:
-          client:
-            config:
-              user-service:
-                url: http://user-service
-              product-service:
-                url: http://product-service
-              payment-service:
-                url: http://payment-service
-              default:
-                connectTimeout: 5000
-                readTimeout: 5000
-    eureka:
-      client:
-        enabled: false
-        register-with-eureka: false
-        fetch-registry: false
+  # ProductServiceClient/PaymentClient already default to direct in-cluster DNS
+  # (application.yml: ${PRODUCT_SERVICE_URL:http://product-service:8080},
+  # ${PAYMENT_SERVICE_URL:http://payment-service:8080}) rather than the gateway. The
+  # jar defaults' port (8080) is the pod's container port; the in-cluster Services
+  # (k8s/services/product-service/product-service.yaml,
+  # k8s/services/payment-service/payment-service.yaml) expose port 80, so it must be
+  # overridden here or the Feign call can't reach the ClusterIP.
+  PRODUCT_SERVICE_URL: http://product-service
+  PAYMENT_SERVICE_URL: http://payment-service

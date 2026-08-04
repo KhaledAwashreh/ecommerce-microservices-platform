@@ -252,23 +252,34 @@ concerned.
    `frontend-service` catch-all (`application-local.yml:84-88`, no filters/CB/retry at all) and
    drops `httpbin`. `user-role-service`/`user-address-service` are separate route ids in default
    but merged into `user-service`'s predicate list in local.
-4. **k8s Service/Deployment target the wrong port.**
-   `k8s/services/api-gateway/api-gateway-deployment.yaml:33` sets `containerPort: 8080` and
-   `k8s/services/api-gateway/api-gateway-service.yaml:11` sets `targetPort: 8080`, but the app
-   listens on `8765` per `application.yml:107` and `Dockerfile:39` (`EXPOSE 8765`,
-   `HEALTHCHECK ... http://localhost:8765/actuator/health`). Traffic routed through the k8s
-   Service would hit a closed port.
-5. **k8s ConfigMap's inline `application.yml` is never mounted.**
-   `k8s/services/api-gateway/api-gateway-configmap.yaml:9-49` defines an alternate route table
-   (using plain-name URIs like `http://user-service`, OpenFeign client config, Eureka disabled)
-   as a ConfigMap data key, but `api-gateway-deployment.yaml` only consumes
+4. **k8s Service/Deployment port** — `k8s/services/api-gateway/api-gateway-deployment.yaml`
+   sets `containerPort: 8765` and `api-gateway-service.yaml` sets `targetPort: 8765`,
+   matching the app's actual listen port (`application.yml:139`, `Dockerfile` `EXPOSE 8765`).
+   This item previously described a `containerPort: 8080`/`targetPort: 8080` mismatch; that
+   was fixed (issue #54) and this note is stale as of issue #60's investigation — left here
+   so it isn't rediscovered as new.
+5. **k8s ConfigMap's inline `application.yml` was never mounted (issue #60, fixed).**
+   `api-gateway-configmap.yaml` used to define an alternate route table (using plain-name
+   URIs like `http://user-service`, OpenFeign client config, Eureka disabled) as a ConfigMap
+   data key, but `api-gateway-deployment.yaml` only ever consumed
    `SPRING_DATA_REDIS_HOST`/`SPRING_DATA_REDIS_PORT` from the ConfigMap via `env.valueFrom` —
-   there is no `volumeMounts`/`volumes` wiring the `application.yml` key into the container. The
-   entire ConfigMap route table is dead configuration.
-6. **k8s deployment sets no `SPRING_PROFILES_ACTIVE`, `USER_SERVICE_URL`, etc.** So in k8s the
-   pod runs on the default `application.yml` profile with default-valued service URLs
-   (`http://user-service:8080` etc.) and the `httpbin` test route active in production-shaped
-   config.
+   there was no `volumeMounts`/`volumes` wiring the `application.yml` key into the container,
+   so the entire ConfigMap route table was dead configuration (and, separately, the
+   `spring.cloud.openfeign.client.config` half of that block was *always* inert regardless of
+   wiring — api-gateway has no `@FeignClient`/`@EnableFeignClients` anywhere, it only proxies
+   via `spring.cloud.gateway.routes[].uri`). The dead block has been removed; see item 6 for
+   what replaced it.
+6. **k8s deployment now sets `USER_SERVICE_URL`/`PRODUCT_SERVICE_URL`/`ORDER_SERVICE_URL`/
+   `PAYMENT_SERVICE_URL` (issue #60, fixed; previously unset).** The gateway's route `uri`s
+   default to `${USER_SERVICE_URL:http://user-service:8080}` etc. — `:8080` is each backend
+   pod's *container* port, but the in-cluster Services (`k8s/services/*/*-service.yaml`) all
+   expose port 80, so an unset default can't actually route anywhere. Verified against a
+   local `kind` cluster: `http://product-service:8080` times out from another pod,
+   `http://product-service` (port 80) returns 200. `api-gateway-configmap.yaml` now sets all
+   four env vars to the port-less in-cluster DNS names, wired into `api-gateway-deployment.yaml`
+   via `configMapKeyRef`. No `SPRING_PROFILES_ACTIVE` is set, so the pod still runs the
+   default `application.yml` profile with the `httpbin` test route present (unrelated,
+   pre-existing — see item 3).
 7. **`resilience4j.circuitbreaker.instances` in `application.yml` omits `order-service`.**
    `application.yml:126-132` lists `user-service`, `product-service`, `payment-service` only,
    even though the `order-service` route (`application.yml:50-62`) names CB `order-service`. It

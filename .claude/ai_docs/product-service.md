@@ -192,7 +192,13 @@ segment keeps Spring's route matching unambiguous.
   client, `@FeignClient(name = "user-service")`, `GET /api/v1/user/{userId}`. Routed through
   the API gateway via `spring.cloud.openfeign.client.config.user-service.url`
   (`application.yml`: `${GATEWAY_URL:http://api-gateway:8765}`; overridden per-profile in
-  `application-ide.yml`). Used by `ProductApplicationService.createProduct` and
+  `application-ide.yml`; overridden in Kubernetes to `http://api-gateway` (no port) via
+  `GATEWAY_URL` in `k8s/services/product-service/product-configmap.yaml` — the jar
+  default's `:8765` is the gateway pod's *container* port, but the in-cluster
+  `api-gateway` Service exposes port 80, so without this override the Feign call can't
+  reach the ClusterIP at all (issue #60; verified against a local `kind` cluster —
+  `:8765`/`:8080`-style container-port URLs time out against these Services, which only
+  expose port 80)). Used by `ProductApplicationService.createProduct` and
   `ReviewApplicationService.createReview` to confirm a user exists (and, for reviews, to
   compare `user.getId()` against `product.getOwnerId()`) before persisting.
 - **Failure handling:** no explicit fallback, circuit breaker, or try/catch around the Feign
@@ -210,7 +216,7 @@ segment keeps Spring's route matching unambiguous.
 | `spring.jpa.hibernate.ddl-auto` | `application.yml` | `update` | Test profile uses `create-drop`. |
 | `spring.data.redis.host/port` | `application.yml` | `localhost`/`6379` | Env vars `SPRING_DATA_REDIS_HOST`/`SPRING_DATA_REDIS_PORT`. `application-local.yml` hardcodes host `redis` (Docker Compose service name) even though it's meant for "running from IDE without Docker" per its own header comment — inconsistent with its stated purpose. |
 | `server.port` | `application.yml` | `8080` | `application-ide.yml` sets `8082`. Test profile (`application-test.yml`) uses `0` (random port). Dockerfile comment claims "Port is dynamically assigned (server.port=0 in application.properties)" — false for the shipped `application.yml`/Docker profile, only true under the `test` profile; see Gotchas. |
-| `spring.cloud.openfeign.client.config.user-service.url` | `application.yml` | `${GATEWAY_URL:http://api-gateway:8765}` | Points Feign at the gateway, not directly at user-service, matching repo convention. |
+| `spring.cloud.openfeign.client.config.user-service.url` | `application.yml` | `${GATEWAY_URL:http://api-gateway:8765}` | Points Feign at the gateway, not directly at user-service, matching repo convention. In Kubernetes, `k8s/services/product-service/product-configmap.yaml` sets `GATEWAY_URL=http://api-gateway` (no port) via `configMapKeyRef`, since the in-cluster Service only exposes port 80 (issue #60 — this ConfigMap previously shipped a whole unmounted `application.yml` override block instead; it was dead and has been replaced with this single, actually-wired env var). |
 | `spring.cloud.config.enabled` / `discovery.enabled` | `application.yml` | `false` | Config server / discovery client disabled; this project uses Kubernetes DNS, not Eureka/Config Server (the module's `bootstrap.properties` configured both and was removed as dead config — issue #50). |
 | `management.zipkin.tracing.endpoint` | `application.yml` | `${ZIPKIN_BASE_URL:http://zipkin:9411}/api/v2/spans` | `management.tracing.sampling.probability` = `1.0` (trace everything). |
 | `management.endpoints.web.exposure.include` | `application.yml` | `health,info,metrics,prometheus` | No auth restricting actuator endpoints within this module. |
